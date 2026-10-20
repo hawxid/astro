@@ -865,7 +865,7 @@ public class GooseChatActivity extends AppCompatActivity implements GooseAcpClie
     private String extractJson(String json, String key) {
         try {
             java.util.regex.Matcher m = java.util.regex.Pattern.compile(
-                "\"" + key + "\"\s*:\s*\"([^\"]+)\"").matcher(json);
+                "\"" + key + "\"\\s*:\\s*\"([^\"]+)\"").matcher(json);
             if (m.find()) return m.group(1);
         } catch (Exception ignored) {}
         return "";
