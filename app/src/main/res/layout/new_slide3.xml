@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/IntroContent">
+
+
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/install_working"
+        android:layout_width="67dp"
+        android:layout_height="67dp"
+        android:paddingBottom="5dp"
+        android:layout_marginBottom="2dp"
+        app:lottie_colorFilter="@color/intro_text"
+        app:lottie_loop="true"
+        app:lottie_rawRes="@raw/icon_morph" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/install_eyebrow"
+        style="@style/IntroEyebrow"
+        android:text="@string/intro_eyebrow_install" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/status_title"
+        style="@style/IntroTitle"
+        android:text="@string/intro_install_title" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ProgressBar
+            android:id="@+id/status_spinner"
+            style="@style/IntroStatusSpinner"
+            android:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/status_icon"
+            style="@style/IntroStatusIcon"
+            android:visibility="gone" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/status_subtitle"
+            style="@style/IntroSubtitle"
+            android:layout_width="0dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="0dp"
+            android:layout_weight="1"
+            android:text="@string/intro_install_body" />
+    </LinearLayout>
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/slide_install_progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:indeterminate="true"
+        app:indicatorColor="@color/intro_dot_active"
+        app:trackColor="@color/intro_dot"
+        app:trackCornerRadius="3dp"
+        app:trackThickness="3dp" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/download_text"
+        style="@style/IntroStatusDetail"
+        android:layout_marginTop="8dp"
+        android:fontFamily="monospace" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/install_details_toggle"
+        style="@style/IntroGhostButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/intro_show_details" />
+</LinearLayout>

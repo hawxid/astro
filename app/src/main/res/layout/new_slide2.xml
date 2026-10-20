@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/IntroContent">
+
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/perms_key"
+        android:tag="intro_autoplay"
+        android:layout_width="67dp"
+        android:layout_height="67dp"
+        android:paddingBottom="5dp"
+        android:layout_marginBottom="4dp"
+        app:lottie_colorFilter="@color/intro_text"
+        app:lottie_loop="true"
+        app:lottie_rawRes="@raw/permissions_key" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/perms_eyebrow"
+        style="@style/IntroEyebrow"
+        android:text="@string/intro_eyebrow_access" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/slide_title"
+        style="@style/IntroTitle"
+        android:text="@string/intro_perms_title" />
+
+    <LinearLayout style="@style/IntroStatusRow">
+
+        <ProgressBar
+            android:id="@+id/root_spinner"
+            style="@style/IntroStatusSpinner" />
+
+        <ImageView
+            android:id="@+id/root_status"
+            style="@style/IntroStatusIcon" />
+
+        <LinearLayout style="@style/IntroStatusText">
+
+            <com.google.android.material.textview.MaterialTextView
+                style="@style/IntroStatusName"
+                android:text="@string/perm_root" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/root_subtitle"
+                style="@style/IntroStatusDetail" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout style="@style/IntroStatusRow">
+
+        <ProgressBar
+            android:id="@+id/storage_spinner"
+            style="@style/IntroStatusSpinner" />
+
+        <ImageView
+            android:id="@+id/storage_status"
+            style="@style/IntroStatusIcon" />
+
+        <LinearLayout style="@style/IntroStatusText">
+
+            <com.google.android.material.textview.MaterialTextView
+                style="@style/IntroStatusName"
+                android:text="@string/perm_storage" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/storage_subtitle"
+                style="@style/IntroStatusDetail" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout style="@style/IntroStatusRow">
+
+        <ProgressBar
+            android:id="@+id/battery_spinner"
+            style="@style/IntroStatusSpinner" />
+
+        <ImageView
+            android:id="@+id/battery_status"
+            style="@style/IntroStatusIcon" />
+
+        <LinearLayout style="@style/IntroStatusText">
+
+            <com.google.android.material.textview.MaterialTextView
+                style="@style/IntroStatusName"
+                android:text="@string/perm_battery" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/battery_subtitle"
+                style="@style/IntroStatusDetail" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

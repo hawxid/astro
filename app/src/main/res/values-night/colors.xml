@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dialog_background_color">#131316</color>
+    <color name="stryker_accent_contrast">#1565C0</color>
+    <color name="stryker_accent">#1E88E5</color>
+    <color name="stryker_logo_accent">#FFFFFF</color>
+    <color name="yellow">#F9A825</color>
+    <color name="red">#C62828</color>
+    <color name="green">#2E7D32</color>
+    <color name="welcome_ink">#FFFFFF</color>
+    <color name="welcome_line_1">#A6C8FF</color>
+    <color name="welcome_line_2">#5B9CFF</color>
+    <color name="welcome_line_3">#FFFFFF</color>
+    <color name="welcome_logo_tile">#1B2537</color>
+    <color name="welcome_logo_stroke">#2C3B55</color>
+
+    <color name="intro_ink">#FFFFFF</color>
+    <color name="intro_line_1">#A6C8FF</color>
+    <color name="intro_line_2">#5B9CFF</color>
+    <color name="intro_line_3">#FFFFFF</color>
+
+    <color name="light_contrast">#0D1117</color>
+    <color name="night_contrast">#FFFFFF</color>
+    <color name="night_contrast_2">#D9FFFFFF</color>
+    <color name="light_lite_contrast">#1A1A1E</color>
+    <color name="grey">#BCBCBC</color>
+    <color name="local_circle">#131316</color>
+    <color name="device_img">#FFFFFF</color>
+    <color name="console">#ffffff</color>
+    <color name="itemcolor">#131316</color>
+    <color name="toolbar_color">#0D1117</color>
+    <color name="toolbar_darkness_color">#0D1117</color>
+
+    <color name="accent_wifi">#42A5F5</color>
+    <color name="accent_local">#CE93D8</color>
+    <color name="accent_handshakes">#4DB6AC</color>
+    <color name="accent_exploits">#FFA726</color>
+    <color name="accent_searchsploit">#F06292</color>
+    <color name="accent_nuclei">#7986CB</color>
+    <color name="accent_router">#66BB6A</color>
+    <color name="accent_geomac">#4DD0E1</color>
+    <color name="accent_metasploit">#EF5350</color>
+    <color name="accent_utilities">#9575CD</color>
+
+    <color name="accent_chroot">#66BB6A</color>
+    <color name="accent_vm">#42A5F5</color>
+    <color name="status_booting">#FFCA28</color>
+    <color name="status_offline">#757575</color>
+
+    <color name="row_locked">#61BCBCBC</color>
+
+    <color name="icon_tile_neutral">#131316</color>
+    <color name="tile_blue">#332196F3</color>
+    <color name="tile_cyan">#3300BCD4</color>
+    <color name="tile_green">#334CAF50</color>
+    <color name="tile_indigo">#333F51B5</color>
+    <color name="tile_orange">#33FF9800</color>
+    <color name="tile_pink">#33E91E63</color>
+    <color name="tile_purple">#339C27B0</color>
+    <color name="tile_red">#33F44336</color>
+    <color name="tile_teal">#33009688</color>
+
+    <color name="thanks_text">#EAF7FF</color>
+    <color name="thanks_text_dim">#8FB3CC</color>
+    <color name="thanks_chip_fill">#1AFFFFFF</color>
+    <color name="thanks_chip_stroke">#33A6E3FF</color>
+
+    <color name="intro_text">#F2F8FF</color>
+    <color name="intro_text_dim">#9FBBD6</color>
+    <color name="intro_chip_bg">#4D08121F</color>
+    <color name="intro_dot">#4DFFFFFF</color>
+    <color name="intro_dot_active">#69B4FF</color>
+    <color name="intro_button_bg">#AEDCFF</color>
+    <color name="intro_button_text">#062038</color>
+    <color name="intro_surface">#D90A1524</color>
+    <color name="intro_outline">#33A8CCEE</color>
+
+    <color name="dash_surface">#131316</color>
+    <color name="dash_surface_high">#1A1A1E</color>
+
+    <color name="dash_secondary">#9E9E9E</color>
+    <!-- Cyberpunk accents -->
+    <color name="cyber_cyan">#00E5FF</color>
+    <color name="cyber_magenta">#FF2D78</color>
+    <color name="cyber_violet">#A088F0</color>
+    <color name="cyber_green">#7EE787</color>
+    <color name="cyber_border">#00E5FF</color>
+</resources>

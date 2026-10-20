@@ -1,0 +1,3 @@
+2a87f531371b3f8d45141d48632e0dbe2c3d968fbcb385ba105d671479fb8c99  app/src/main/jniLibs/arm64-v8a/libqemu.so
+fab7a2b66f5f805351cc381986fdfa1c68994254dc772b47bd050995f005a7fd  app/src/main/jniLibs/arm64-v8a/libuml.so
+0aec23569fe50e3b090556f83efd1373c1e190abb33f15b1c10c8278d1b638c5  terminal/src/main/assets/fonts/ZedMonoMedium.ttf

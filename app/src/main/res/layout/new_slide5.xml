@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/IntroContent">
+
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/final_confetti"
+        android:tag="intro_autoplay"
+        android:layout_width="67dp"
+        android:layout_height="67dp"
+        android:paddingBottom="5dp"
+        android:layout_marginBottom="4dp"
+        app:lottie_colorFilter="@color/intro_text"
+        app:lottie_loop="true"
+        app:lottie_rawRes="@raw/confetti" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/final_eyebrow"
+        style="@style/IntroEyebrow"
+        android:text="@string/intro_eyebrow_ready" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/success_title"
+        style="@style/IntroTitle"
+        android:text="@string/intro_ready_title" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/success_subtitle"
+        style="@style/IntroSubtitle" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/cap_shell_text"
+        style="@style/IntroSubtitle"
+        android:layout_marginTop="6dp"
+        android:textSize="14sp" />
+</LinearLayout>

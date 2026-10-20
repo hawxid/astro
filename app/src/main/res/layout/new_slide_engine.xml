@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/IntroContent">
+
+    <com.google.android.material.textview.MaterialTextView
+        style="@style/IntroEyebrow"
+        android:text="@string/intro_eyebrow_engine" />
+
+    <com.google.android.material.textview.MaterialTextView
+        style="@style/IntroTitle"
+        android:text="@string/intro_engine_title" />
+
+    <com.google.android.material.textview.MaterialTextView
+        style="@style/IntroSubtitle"
+        android:text="@string/intro_engine_body" />
+
+    <LinearLayout
+        android:id="@+id/card_chroot"
+        style="@style/IntroChoiceRow">
+
+        <com.google.android.material.radiobutton.MaterialRadioButton
+            android:id="@+id/check_chroot"
+            style="@style/IntroChoiceRadio" />
+
+        <LinearLayout style="@style/IntroStatusText">
+
+            <LinearLayout style="@style/IntroChoiceHeading">
+
+                <com.google.android.material.textview.MaterialTextView
+                    style="@style/IntroStatusName"
+                    android:text="@string/engine_chroot_name" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/rec_chroot"
+                    style="@style/IntroChoiceBadge"
+                    android:text="@string/setup_recommended_badge" />
+            </LinearLayout>
+
+            <com.google.android.material.textview.MaterialTextView
+                style="@style/IntroStatusDetail"
+                android:text="@string/engine_chroot_line" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/card_uml"
+        style="@style/IntroChoiceRow">
+
+        <com.google.android.material.radiobutton.MaterialRadioButton
+            android:id="@+id/check_uml"
+            style="@style/IntroChoiceRadio" />
+
+        <LinearLayout style="@style/IntroStatusText">
+
+            <LinearLayout style="@style/IntroChoiceHeading">
+
+                <com.google.android.material.textview.MaterialTextView
+                    style="@style/IntroStatusName"
+                    android:text="@string/engine_uml_name" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/rec_uml"
+                    style="@style/IntroChoiceBadge"
+                    android:text="@string/setup_recommended_badge" />
+            </LinearLayout>
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/uml_note"
+                style="@style/IntroStatusDetail"
+                android:text="@string/engine_uml_line" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/card_rootless"
+        style="@style/IntroChoiceRow">
+
+        <com.google.android.material.radiobutton.MaterialRadioButton
+            android:id="@+id/check_rootless"
+            style="@style/IntroChoiceRadio" />
+
+        <LinearLayout style="@style/IntroStatusText">
+
+            <LinearLayout style="@style/IntroChoiceHeading">
+
+                <com.google.android.material.textview.MaterialTextView
+                    style="@style/IntroStatusName"
+                    android:text="@string/engine_vm_name" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/rec_rootless"
+                    style="@style/IntroChoiceBadge"
+                    android:text="@string/setup_recommended_badge" />
+            </LinearLayout>
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/rootless_note"
+                style="@style/IntroStatusDetail"
+                android:text="@string/engine_vm_line" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/IntroContent">
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/capabilities_label"
+        style="@style/IntroEyebrow"
+        android:text="@string/intro_eyebrow_check" />
+
+    <com.google.android.material.textview.MaterialTextView
+        style="@style/IntroTitle"
+        android:text="@string/intro_pcheck_title" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/pcheck_summary"
+        style="@style/IntroSubtitle"
+        android:text="@string/intro_pcheck_body" />
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progress_indicator"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:indeterminate="true"
+        android:visibility="gone"
+        app:indicatorColor="@color/intro_dot_active"
+        app:trackColor="@color/intro_dot"
+        app:trackCornerRadius="3dp"
+        app:trackThickness="3dp" />
+
+    <LinearLayout
+        android:id="@+id/check_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/row_root"
+            style="@style/IntroStatusRow"
+            android:visibility="gone">
+
+            <ImageView
+                style="@style/IntroStatusIcon"
+                android:src="@drawable/warning"
+                app:tint="@color/red" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/isRootOk"
+                style="@style/IntroStatusDetail"
+                android:layout_marginStart="14dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/row_monitor"
+            style="@style/IntroStatusRow"
+            android:visibility="gone">
+
+            <ImageView
+                style="@style/IntroStatusIcon"
+                android:src="@drawable/warning"
+                app:tint="@color/yellow" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/isMonitModeOk"
+                style="@style/IntroStatusDetail"
+                android:layout_marginStart="14dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/row_usb"
+            style="@style/IntroStatusRow"
+            android:visibility="gone">
+
+            <ImageView
+                style="@style/IntroStatusIcon"
+                android:src="@drawable/warning"
+                app:tint="@color/yellow" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/isUsbOtgOk"
+                style="@style/IntroStatusDetail"
+                android:layout_marginStart="14dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/row_device"
+            style="@style/IntroStatusRow"
+            android:visibility="gone">
+
+            <ImageView
+                style="@style/IntroStatusIcon"
+                android:src="@drawable/warning"
+                app:tint="@color/yellow" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/isManufactureOk"
+                style="@style/IntroStatusDetail"
+                android:layout_marginStart="14dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/row_space"
+            style="@style/IntroStatusRow"
+            android:visibility="gone">
+
+            <ImageView
+                style="@style/IntroStatusIcon"
+                android:src="@drawable/warning"
+                app:tint="@color/red" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/isSpaceOk"
+                style="@style/IntroStatusDetail"
+                android:layout_marginStart="14dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/disclaimer"
+        style="@style/IntroStatusDetail"
+        android:layout_marginTop="14dp"
+        android:visibility="gone" />
+</LinearLayout>
