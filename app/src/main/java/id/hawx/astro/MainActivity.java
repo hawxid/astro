@@ -534,13 +534,33 @@ public class MainActivity extends AppCompatActivity {
             startRootlessLaunch();
             return;
         }
-        if (!core.getBoolean("first_open")) {
-            core.putString("username", "User");
-            launchRunning = false;
-            startActivity(new Intent(this, AppIntroActivity.class));
-            return;
-        }
         new Thread(() -> {
+            if (!core.getBoolean("first_open")) {
+                // Adoption: a current chroot already lives at the shared
+                // path (installed by the previous app). Adopt it instead of
+                // opening the setup wizard — the wizard's install step
+                // purges whatever chroot it finds there. The wizard (or
+                // the legacy migration flow) only runs when no current
+                // chroot exists.
+                boolean chrootPresent =
+                        core.probeFile(Core.CHROOT_MARKER) != Core.Presence.NO
+                                && core.probeFolder(Core.CHROOT_ROOT + "/usr") != Core.Presence.NO;
+                if (!chrootPresent) {
+                    core.putString("username", "User");
+                    launchRunning = false;
+                    if (core.hasLegacyChroot()) {
+                        Intent update = AppIntroActivity.updateIntent(this,
+                                id.hawx.astro.engine.EngineType.CHROOT);
+                        update.putExtra(AppIntroActivity.EXTRA_MIGRATE, true);
+                        startActivity(update);
+                    } else {
+                        startActivity(new Intent(this, AppIntroActivity.class));
+                    }
+                    return;
+                }
+                core.putBoolean("first_open", true);
+                core.putString("username", "User");
+            }
             if (core.probeFile(Core.CHROOT_MARKER) == Core.Presence.NO
                     || core.probeFolder(Core.CHROOT_ROOT + "/usr") == Core.Presence.NO) {
                 launchRunning = false;

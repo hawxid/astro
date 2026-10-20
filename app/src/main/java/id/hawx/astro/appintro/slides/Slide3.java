@@ -150,6 +150,15 @@ public class Slide3 extends Fragment implements IntroPage {
             log(LogLevel.WARN, "An older Linux system is installed. It will be unmounted and "
                     + "replaced with the Debian rootfs; installed packages are not carried over.");
         }
+        if (core.checkFile(Core.CHROOT_MARKER) && core.checkFolder(Core.CHROOT_ROOT + "/usr")) {
+            // A healthy chroot at the current marker version already lives
+            // at the shared path — never purge it from the setup wizard.
+            // The update/migration flows only run when the marker (or the
+            // rootfs itself) is missing, so this never blocks a repair.
+            markStage(InstallStage.PREPARING, RowState.FAILED);
+            failWith("A current chroot is already installed — setup will not replace it.");
+            return;
+        }
 
         new Thread(() -> {
             markStage(InstallStage.PREPARING, RowState.ACTIVE);
