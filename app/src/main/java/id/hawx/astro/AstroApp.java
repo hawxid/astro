@@ -14,7 +14,7 @@ import id.hawx.astro.ota.NotificationCenter;
 import id.hawx.astro.ota.UpdateScheduler;
 import id.hawx.astro.utils.Utils;
 
-public class AstroApp extends com.stryker.terminal.App {
+public class AstroApp extends com.termux.x11.LorieApp {
 
     @Override
     public void onCreate() {

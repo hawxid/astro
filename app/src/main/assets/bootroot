@@ -156,6 +156,10 @@ f_mount_fs() {
         if ! grep -q astro_profile.sh "$MNT/etc/profile" 2> /dev/null; then
             echo '. /etc/astro_profile.sh' >> "$MNT/etc/profile"
         fi
+        # Retire the pre-rebrand profile: drop its source line and the
+        # file itself, so migrated chroots stop resurrecting it.
+        sed -i '/stryker_profile\.sh/d' "$MNT/etc/profile" 2> /dev/null
+        rm -f "$MNT/etc/stryker_profile.sh"
     fi
 
     ######### Setup done #########

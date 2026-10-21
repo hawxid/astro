@@ -592,6 +592,19 @@ public class MainActivity extends AppCompatActivity {
                 if (emptyPref(core.getString("wlan_deauth"))) core.putString("wlan_deauth", detected);
                 if (emptyPref(core.getString("wlan_wps"))) core.putString("wlan_wps", detected);
             }
+            // The engine choice is normally persisted by the wizard
+            // (SlideCapabilities); an install that adopted its chroot
+            // never passed through it, so the drawer status reads
+            // "Not set up yet" forever even though the chroot engine is
+            // the one actually in use (EngineType.active() defaults to
+            // CHROOT). Seed the choice when a chroot is really present —
+            // never on a fresh install, where the wizard must choose.
+            if (!id.hawx.astro.engine.EngineType.isChosen(core)
+                    && core.probeFile(Core.CHROOT_MARKER) != Core.Presence.NO
+                    && core.probeFolder(Core.CHROOT_ROOT + "/usr") != Core.Presence.NO) {
+                id.hawx.astro.engine.EngineType.persist(core,
+                        id.hawx.astro.engine.EngineType.CHROOT);
+            }
             if (core.probeFile(Core.CHROOT_MARKER) == Core.Presence.NO
                     || core.probeFolder(Core.CHROOT_ROOT + "/usr") == Core.Presence.NO) {
                 launchRunning = false;

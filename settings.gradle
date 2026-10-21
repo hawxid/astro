@@ -24,3 +24,6 @@ include ':chrome-tabs'
 include ':NeoLang'
 include ':Xorg'
 include ':NeoTermBridge'
+
+include ':lorie'
+include ':shell-loader:stub'

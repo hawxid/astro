@@ -50,7 +50,7 @@ alias ports='netstat -tulpn 2>/dev/null || ss -tulpn'
 # One tasteful banner per interactive login shell.
 if [ -z "$__STRYKER_GREETED" ]; then
     __STRYKER_GREETED=1
-    printf '\033[1;38;5;39m⚡ STRYKER\033[0m \033[2m- pentest shell\033[0m\n'
+    printf '\033[1;38;5;39m⚡ ASTRO\033[0m \033[2m- pentest shell\033[0m\n'
 fi
 
 unset __s_rail __s_path __s_dim __s_rst __s_brand __s_tip

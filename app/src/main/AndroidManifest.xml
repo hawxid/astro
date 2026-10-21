@@ -227,6 +227,17 @@
         <meta-data
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />
+
+        <!-- X11 PoC (milestone 1 fondasi): ikon launcher terpisah khusus build tes -->
+        <activity
+            android:name=".x11.X11PocActivity"
+            android:exported="true"
+            android:label="Astro X11 PoC">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
