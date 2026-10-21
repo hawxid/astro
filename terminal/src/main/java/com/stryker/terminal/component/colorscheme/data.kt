@@ -137,13 +137,13 @@ open class NeoColorScheme : CodeGenObject, ConfigFileBasedObject {
   internal fun applyColorScheme(view: TerminalView?, extraKeysView: ExtraKeysView?) {
     validateColors()
 
-    // Terminal background image: reads /sdcard/Stryker/terminal/term_bg.png if present.
+    // Terminal background image: reads /sdcard/Astro/terminal/term_bg.png if present.
     // Bitmap di-pre-scale COVER ukuran layar, gravity TOP|CENTER_HORIZONTAL,
     // di-cache biar nggak decode ulang tiap apply.
     var bgImageOk = false
     if (view != null) {
       try {
-        val bgFile = java.io.File("/sdcard/Stryker/terminal/term_bg.png")
+        val bgFile = java.io.File("/sdcard/Astro/terminal/term_bg.png")
         val dm = view.resources.displayMetrics
         val key = if (bgFile.exists() && bgFile.canRead()) {
           "${bgFile.absolutePath}:${bgFile.length()}:${bgFile.lastModified()}:${dm.widthPixels}x${dm.heightPixels}"
