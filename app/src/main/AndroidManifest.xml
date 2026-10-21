@@ -231,7 +231,7 @@
             android:resource="@array/preloaded_fonts" />
 
         <!-- Sesi & Launcher X11: sejak integrasi M3 (2026-10-21) ini layar
-             INTERNAL — dibuka dari taskbar DesktopFragment, tanpa ikon
+             INTERNAL — dibuka dari dock Dashboard (Sesi & Log), tanpa ikon
              launcher sendiri (keputusan bentuk produk Hawx: satu app). -->
         <activity
             android:name=".x11.X11PocActivity"

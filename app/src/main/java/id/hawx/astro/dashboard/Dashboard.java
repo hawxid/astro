@@ -53,12 +53,23 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import id.hawx.astro.x11.LauncherEditActivity;
+import id.hawx.astro.x11.LauncherEntry;
+import id.hawx.astro.x11.LauncherStore;
+import id.hawx.astro.x11.X11PocActivity;
+import id.hawx.astro.x11.XSessionManager;
+
 public class Dashboard extends Fragment {
 
     private static final String PREF_TOOL = "dash_tool_";
 
     private TextView savedCount, recentScanCount;
     private LinearLayout toolsGrid;
+    private XSessionManager xMgr;
+    private LauncherStore launcherStore;
+    private final java.util.Set<String> xRunning = new java.util.HashSet<>();
+    private TextView xfceTaskBtn;
+    private TextView xfceClock;
 
     private Activity activity;
     private Context context;
@@ -114,7 +125,10 @@ public class Dashboard extends Fragment {
         core.putInt("dashboard_open", core.getInt("dashboard_open") + 1);
 
         renderCounts();
+        xMgr = XSessionManager.get(context);
+        launcherStore = new LauncherStore(context);
         buildTools();
+        buildDesktopChrome(view);
 
         view.findViewById(R.id.terminal).setOnClickListener(v -> openTerminal());
         view.findViewById(R.id.dash_customize).setOnClickListener(v -> showCustomize());
@@ -821,6 +835,7 @@ public class Dashboard extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        refreshXState();
         if (vmEngine != null && vmTick != null) {
             vmRefreshing = true;
             vmHandler.post(vmTick);
@@ -958,12 +973,18 @@ public class Dashboard extends Fragment {
         if (toolsGrid == null) return;
         toolsGrid.removeAllViews();
 
-        List<Tool> shown = new ArrayList<>();
-        for (Tool t : tools()) if (toolShown(t)) shown.add(t);
+        List<View> cells = new ArrayList<>();
+        for (Tool t : tools()) if (toolShown(t)) cells.add(desktopCell(t));
+        if (launcherStore != null && xMgr != null) {
+            for (LauncherEntry e : launcherStore.list()) {
+                if (!e.hidden) cells.add(chrootCell(e));
+            }
+            cells.add(addToolCell());
+        }
 
         final int perRow = 4;
         LinearLayout row = null;
-        for (int i = 0; i < shown.size(); i++) {
+        for (int i = 0; i < cells.size(); i++) {
             if (i % perRow == 0) {
                 row = new LinearLayout(context);
                 row.setOrientation(LinearLayout.HORIZONTAL);
@@ -972,10 +993,10 @@ public class Dashboard extends Fragment {
                         ViewGroup.LayoutParams.WRAP_CONTENT));
                 toolsGrid.addView(row);
             }
-            row.addView(tileView(shown.get(i)));
+            row.addView(cells.get(i));
         }
         if (row != null) {
-            for (int i = shown.size() % perRow; i > 0 && i < perRow; i++) {
+            for (int i = cells.size() % perRow; i > 0 && i < perRow; i++) {
                 View pad = new View(context);
                 pad.setLayoutParams(new LinearLayout.LayoutParams(0,
                         ViewGroup.LayoutParams.MATCH_PARENT, 1f));
@@ -984,7 +1005,12 @@ public class Dashboard extends Fragment {
         }
     }
 
-    private View tileView(Tool tool) {
+    // ===== Desktop ala XFCE (gambaran v7 terkunci 2026-10-21) =====
+    // Ikon polos duduk di wallpaper + label putih berbayang; grid yang sama
+    // menampung tool bawaan (toggle Customize), launcher chroot (store),
+    // dan sel Tambah. Panel atas + dock bawah dibangun sekali di sini.
+
+    private LinearLayout baseCell() {
         LinearLayout cell = new LinearLayout(context);
         cell.setOrientation(LinearLayout.VERTICAL);
         cell.setGravity(android.view.Gravity.CENTER);
@@ -997,33 +1023,178 @@ public class Dashboard extends Fragment {
         context.getTheme().resolveAttribute(
                 androidx.appcompat.R.attr.selectableItemBackgroundBorderless, ripple, true);
         cell.setBackgroundResource(ripple.resourceId);
-        cell.setOnClickListener(v -> tool.open.run());
+        return cell;
+    }
 
-        android.widget.FrameLayout badge = new android.widget.FrameLayout(context);
-        badge.setLayoutParams(new LinearLayout.LayoutParams(dp(58), dp(58)));
-        badge.setBackgroundResource(tool.tile);
-
-        android.widget.ImageView icon = new android.widget.ImageView(context);
-        android.widget.FrameLayout.LayoutParams ilp =
-                new android.widget.FrameLayout.LayoutParams(dp(28), dp(28));
-        ilp.gravity = android.view.Gravity.CENTER;
-        icon.setLayoutParams(ilp);
-        icon.setImageResource(tool.icon);
-        icon.setColorFilter(tool.tint);
-        badge.addView(icon);
-        cell.addView(badge);
-
+    private TextView cellLabel(String text, boolean running) {
         TextView label = new TextView(context);
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        llp.topMargin = dp(8);
+        llp.topMargin = dp(6);
         label.setLayoutParams(llp);
-        label.setText(tool.label);
+        label.setText(text);
         label.setGravity(android.view.Gravity.CENTER);
-        label.setTextSize(11.5f);
-        label.setTextColor(resolveThemeColor(android.R.attr.textColorPrimary));
-        cell.addView(label);
+        label.setTextSize(11f);
+        label.setTextColor(running ? 0xFF39D98A : 0xFFFFFFFF);
+        label.setShadowLayer(4f, 0f, 1f, 0xCC000000);
+        return label;
+    }
+
+    private View desktopCell(Tool tool) {
+        LinearLayout cell = baseCell();
+        android.widget.ImageView icon = new android.widget.ImageView(context);
+        icon.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
+        icon.setImageResource(tool.icon);
+        icon.setColorFilter(tool.tint);
+        cell.addView(icon);
+        cell.addView(cellLabel(getString(tool.label), false));
+        cell.setOnClickListener(v -> tool.open.run());
         return cell;
+    }
+
+    private View chrootIconView(LauncherEntry e) {
+        if (e.icon != null && e.icon.startsWith("file:")) {
+            java.io.File f = new java.io.File("/sdcard/Astro/icons", e.icon.substring(5));
+            if (f.exists()) {
+                android.widget.ImageView iv = new android.widget.ImageView(context);
+                iv.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
+                iv.setImageBitmap(android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath()));
+                return iv;
+            }
+        }
+        TextView tv = new TextView(context);
+        String label = (e.icon != null && !e.icon.trim().isEmpty() && !e.icon.startsWith("file:"))
+                ? e.icon.trim()
+                : (e.name == null || e.name.isEmpty() ? "?" : e.name.substring(0, 1).toUpperCase());
+        tv.setText(label);
+        tv.setTextSize(30);
+        tv.setGravity(android.view.Gravity.CENTER);
+        tv.setTextColor(0xFFFFFFFF);
+        tv.setShadowLayer(5f, 0f, 2f, 0xCC000000);
+        tv.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
+        return tv;
+    }
+
+    private View chrootCell(LauncherEntry e) {
+        LinearLayout cell = baseCell();
+        cell.addView(chrootIconView(e));
+        boolean run = xRunning.contains(e.id);
+        cell.addView(cellLabel((run ? "\u25CF " : "") + e.name, run));
+        cell.setOnClickListener(v -> xMgr.launch(e, (ok, msg) -> {
+            core.toaster(msg);
+            refreshXState();
+        }));
+        cell.setOnLongClickListener(v -> {
+            Intent i = new Intent(context, LauncherEditActivity.class);
+            i.putExtra("entry_id", e.id);
+            startActivity(i);
+            return true;
+        });
+        return cell;
+    }
+
+    private View addToolCell() {
+        LinearLayout cell = baseCell();
+        TextView plus = new TextView(context);
+        plus.setText("+");
+        plus.setTextSize(30);
+        plus.setGravity(android.view.Gravity.CENTER);
+        plus.setTextColor(0xFFA088F0);
+        plus.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
+        cell.addView(plus);
+        cell.addView(cellLabel("Tambah", false));
+        cell.setOnClickListener(v ->
+                startActivity(new Intent(context, LauncherEditActivity.class)));
+        return cell;
+    }
+
+    private TextView panelText(String text) {
+        TextView tv = new TextView(context);
+        tv.setText(text);
+        tv.setTextSize(12.5f);
+        tv.setTextColor(0xFFE8E6F0);
+        tv.setGravity(android.view.Gravity.CENTER);
+        tv.setPadding(dp(10), dp(6), dp(10), dp(6));
+        return tv;
+    }
+
+    private View dockBtn(String glyph, View.OnClickListener cb) {
+        TextView b = new TextView(context);
+        b.setText(glyph);
+        b.setTextSize(20);
+        b.setGravity(android.view.Gravity.CENTER);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(0xFF1B2440);
+        b.setBackground(g);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        b.setLayoutParams(lp);
+        b.setOnClickListener(cb);
+        return b;
+    }
+
+    private void buildDesktopChrome(View view) {
+        LinearLayout panel = view.findViewById(R.id.xfce_panel);
+        LinearLayout dock = view.findViewById(R.id.xfce_dock);
+        if (panel != null) {
+            TextView apps = panelText("\uD83E\uDD85 Applications");
+            apps.setTypeface(null, android.graphics.Typeface.BOLD);
+            apps.setOnClickListener(v -> {
+                if (getActivity() == null) return;
+                View dl = getActivity().findViewById(R.id.drawerLayout);
+                if (dl instanceof androidx.drawerlayout.widget.DrawerLayout) {
+                    ((androidx.drawerlayout.widget.DrawerLayout) dl)
+                            .openDrawer(androidx.core.view.GravityCompat.START);
+                }
+            });
+            panel.addView(apps);
+            xfceTaskBtn = panelText("\uD83D\uDDA5 Layar X");
+            xfceTaskBtn.setVisibility(View.GONE);
+            xfceTaskBtn.setOnClickListener(v -> { if (xMgr != null) xMgr.openViewer(); });
+            panel.addView(xfceTaskBtn);
+            View spacer = new View(context);
+            spacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
+            panel.addView(spacer);
+            xfceClock = panelText("");
+            panel.addView(xfceClock);
+        }
+        if (dock != null) {
+            dock.addView(dockBtn("\u2328", v -> openTerminal()));
+            dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
+            dock.addView(dockBtn("\uD83E\uDDFE", v ->
+                    startActivity(new Intent(context, X11PocActivity.class))));
+            dock.addView(dockBtn("\u2795", v ->
+                    startActivity(new Intent(context, LauncherEditActivity.class))));
+        }
+        refreshXState();
+    }
+
+    private void refreshXState() {
+        if (xMgr == null) return;
+        if (xfceClock != null) {
+            xfceClock.setText(new java.text.SimpleDateFormat(
+                    "EEE d MMM \u2022 HH:mm", Locale.US).format(new java.util.Date()));
+        }
+        xMgr.probe((state, detail) -> {
+            boolean run = state == XSessionManager.State.RUNNING;
+            if (xfceTaskBtn != null) {
+                xfceTaskBtn.setVisibility(run ? View.VISIBLE : View.GONE);
+            }
+        });
+        if (launcherStore != null) {
+            new Thread(() -> {
+                java.util.Set<String> now = new java.util.HashSet<>();
+                for (LauncherEntry e : launcherStore.list()) {
+                    if (!e.hidden && xMgr.entryRunningSync(e.id, e.firstWord())) now.add(e.id);
+                }
+                if (!now.equals(xRunning)) {
+                    xRunning.clear();
+                    xRunning.addAll(now);
+                    if (activity != null) activity.runOnUiThread(this::buildTools);
+                }
+            }).start();
+        }
     }
 
     private int resolveThemeColor(int attr) {

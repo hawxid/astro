@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/light_contrast"
-    android:fillViewport="true"
-    android:scrollbars="none">
+    android:background="@drawable/dashboard_wallpaper">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="48dp"
+        android:layout_marginBottom="66dp"
+        android:fillViewport="true"
+        android:scrollbars="none">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -569,16 +575,18 @@
             android:visibility="gone" />
 
         <com.google.android.material.textview.MaterialTextView
-            style="@style/DashboardSection"
-            android:text="@string/dashboard_section_tools" />
+                    style="@style/DashboardSection"
+                    android:text="@string/dashboard_section_tools" />
+        
+                <LinearLayout
+                    android:id="@+id/tools_grid"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/dash_card_bg"
+                    android:orientation="vertical"
+                    android:padding="10dp" />
 
-        <LinearLayout
-            android:id="@+id/tools_grid"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/dash_card_bg"
-            android:orientation="vertical"
-            android:padding="10dp" />
+        
 
         <com.google.android.material.textview.MaterialTextView
             style="@style/DashboardSection"
@@ -809,4 +817,30 @@
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
-</ScrollView>
+    </ScrollView>
+
+    <!-- Panel atas ala XFCE (gambaran v7): isi dibangun Dashboard.java -->
+    <LinearLayout
+        android:id="@+id/xfce_panel"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="#F20A0E18"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="10dp" />
+
+    <!-- Dock bawah melayang (gambaran v7): isi dibangun Dashboard.java -->
+    <LinearLayout
+        android:id="@+id/xfce_dock"
+        android:layout_width="wrap_content"
+        android:layout_height="58dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/xfce_dock_bg"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp" />
+
+</FrameLayout>
