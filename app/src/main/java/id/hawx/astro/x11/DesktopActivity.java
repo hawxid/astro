@@ -220,7 +220,7 @@ public class DesktopActivity extends AppCompatActivity {
             chipLayar.setTextColor(serverRunning ? 0xFF00E5FF : 0xFF9A94B8);
         });
         new Thread(() -> {
-            List<LauncherEntry> list = store.loadAll();
+            List<LauncherEntry> list = store.list();
             Map<String, Boolean> run = new HashMap<>();
             for (LauncherEntry e : list) {
                 if (!e.hidden) run.put(e.id, mgr.entryRunningSync(e.id, e.firstWord()));
