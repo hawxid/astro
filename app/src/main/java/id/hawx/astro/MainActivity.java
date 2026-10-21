@@ -560,6 +560,30 @@ public class MainActivity extends AppCompatActivity {
                 }
                 core.putBoolean("first_open", true);
                 core.putString("username", "User");
+                // Seed the same defaults the setup wizard writes in
+                // Slide2.runSetup() — without them the interface prefs stay
+                // empty and scan/capture features silently find nothing.
+                core.customCommand("pm grant id.hawx.astro android.permission.WRITE_EXTERNAL_STORAGE", true);
+                core.customCommand("pm grant id.hawx.astro android.permission.READ_EXTERNAL_STORAGE", true);
+                core.customCommand("dumpsys deviceidle whitelist +id.hawx.astro", true);
+                core.putString("vnc_passwd", "stryker");
+                String wlan = "wlan0";
+                ArrayList<String> interfaces = core.getInterfacesList();
+                if (interfaces.contains("swlan0")) wlan = "swlan0";
+                core.putString("wlan_scan", wlan);
+                core.putString("wlan_wifi", wlan);
+                core.putString("wlan_deauth", wlan);
+                core.putString("wlan_wps", wlan);
+                core.putInt("max_par", 3);
+                core.remove("installed_modules");
+                core.putBoolean("store_scan", true);
+                core.putBoolean("auto_update", true);
+                core.putBoolean("save_aps", true);
+                core.putBoolean("autoScan", true);
+                core.putBoolean("dash", true);
+                core.putInt("night", 2);
+                core.putInt("threads", 100);
+                core.chmodFolder("/data/data/id.hawx.astro/files");
             }
             if (core.probeFile(Core.CHROOT_MARKER) == Core.Presence.NO
                     || core.probeFolder(Core.CHROOT_ROOT + "/usr") == Core.Presence.NO) {
