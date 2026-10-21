@@ -35,6 +35,11 @@ yang menjalankan CmdEntryPoint dari shell root-nya.
    apa pun — balapan hilang. Verifikasi lokal: semua patch menempel
    bersih (0 reject), `-R --dry-run` OK untuk ketujuhnya,
    `present_scmd.c` hasil identik byte-per-byte dengan penerapan bersih.
+7. `app/src/main/AndroidManifest.xml` — `tools:replace="android:name"` pada
+   `<application>` (+ deklarasi `xmlns:tools`): manifest library lorie
+   mendeklarasikan `android:name=".LorieApp"` dan merger menolak konflik
+   dengan `.AstroApp` milik app (build 39583230666). Nilai app yang menang;
+   rantai kelasnya memang AstroApp → LorieApp.
 
 ## Cara jalan (resep resmi chroot, README upstream)
 
