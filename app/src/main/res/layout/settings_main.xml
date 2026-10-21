@@ -50,7 +50,7 @@
                 android:letterSpacing="0.08"
                 android:text="@string/settings_section_engine"
                 android:textAllCaps="true"
-                android:textColor="@color/stryker_accent"
+                android:textColor="@color/astro_accent"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
@@ -85,7 +85,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/tune"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -152,7 +152,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/wifi"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -194,7 +194,7 @@
             android:layout_marginTop="8dp"
             android:layout_marginBottom="8dp"
             android:text="@string/settings_section_wifi"
-            android:textColor="@color/stryker_accent"
+            android:textColor="@color/astro_accent"
             android:textSize="14sp"
             android:textStyle="bold"
             android:textAllCaps="true"
@@ -236,7 +236,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/wifi"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -297,7 +297,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/save_outlined"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -358,7 +358,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/wifi_tethering"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -419,7 +419,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/deauth"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -481,7 +481,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/wifi_tethering"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -541,7 +541,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/terminal"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -1205,7 +1205,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/info_outlined"
-                        app:tint="@color/stryker_accent" />
+                        app:tint="@color/astro_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"

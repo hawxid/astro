@@ -159,7 +159,7 @@ public class SlidePCheck extends Fragment implements IntroPage {
         applyRow(deviceOk, rowDevice, manufacture,
                 archOk
                         ? "Samsung stock ROM — WiFi and local scan may misbehave"
-                        : primaryAbi() + " — Stryker is arm64-v8a only");
+                        : primaryAbi() + " — Astro is arm64-v8a only");
         applyRow(spaceOk, rowSpace, spaceSub,
                 "Only " + freeGb + " GB free — the chroot needs about "
                         + REQUIRED_FREE_GB + " GB");
@@ -170,7 +170,7 @@ public class SlidePCheck extends Fragment implements IntroPage {
 
         if (!archOk) {
             disclaimer.setText("This device reports " + primaryAbi()
-                    + ". Stryker is arm64-v8a only — the chroot cannot be installed.");
+                    + ". Astro is arm64-v8a only — the chroot cannot be installed.");
         }
     }
 

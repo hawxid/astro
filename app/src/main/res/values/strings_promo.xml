@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="promo_github_title">Enjoying Stryker?</string>
-    <string name="promo_github_message">Stryker is free and open source. A star on GitHub helps it reach more people.</string>
+    <string name="promo_github_title">Enjoying Astro?</string>
+    <string name="promo_github_message">Astro is free and open source. A star on GitHub helps it reach more people.</string>
     <string name="promo_github_action">Star on GitHub</string>
     <string name="promo_blog_title">Stay in the loop</string>
     <string name="promo_blog_message">New tools, write-ups and release notes land on the blog first.</string>

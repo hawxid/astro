@@ -132,7 +132,7 @@ cat)
 	done
 	exit 0 ;;
 --version|version)
-	echo "systemctl (stryker shim) -- no systemd on this guest"
+	echo "systemctl (astro shim) -- no systemd on this guest"
 	exit 0 ;;
 poweroff|halt|reboot|exit)
 	sync

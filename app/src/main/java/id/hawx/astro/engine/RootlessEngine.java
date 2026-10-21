@@ -639,7 +639,7 @@ public final class RootlessEngine implements GuestEngine {
             GuestExec.run("command -v cpio >/dev/null 2>&1 || "
                     + "(export DEBIAN_FRONTEND=noninteractive; apt-get install -y --no-install-recommends cpio >/dev/null 2>&1); "
                     + "rm -rf /tmp/stryker-ird; mkdir -p /tmp/stryker-ird; cd /tmp/stryker-ird; "
-                    + "(cpio -idm < /sdcard/Stryker/.initrd.img || busybox cpio -idm < /sdcard/Stryker/.initrd.img) >/dev/null 2>&1; "
+                    + "(cpio -idm < /sdcard/Astro/.initrd.img || busybox cpio -idm < /sdcard/Astro/.initrd.img) >/dev/null 2>&1; "
                     + "if [ -d /tmp/stryker-ird/lib/modules ]; then mkdir -p /lib/modules; "
                     + "cp -a /tmp/stryker-ird/lib/modules/. /lib/modules/; depmod -a >/dev/null 2>&1; "
                     + "echo __MODULES_DEPLOYED__; fi; rm -rf /tmp/stryker-ird");
@@ -776,7 +776,7 @@ public final class RootlessEngine implements GuestEngine {
 
         StringBuilder cmd = new StringBuilder();
         if (staged != null) {
-            cmd.append(unpackAndVerify("/sdcard/Stryker/" + STAGED_CORE)).append("; ");
+            cmd.append(unpackAndVerify("/sdcard/Astro/" + STAGED_CORE)).append("; ");
         }
         cmd.append("command -v socat >/dev/null 2>&1 || (export DEBIAN_FRONTEND=noninteractive; ")
            .append("apt-get install -y --no-install-recommends socat >/dev/null 2>&1); ")
@@ -935,7 +935,7 @@ public final class RootlessEngine implements GuestEngine {
 
     @Override
     public String guestSharePath() {
-        return "/sdcard/Stryker";
+        return "/sdcard/Astro";
     }
 
     @Override
@@ -1173,14 +1173,14 @@ public final class RootlessEngine implements GuestEngine {
 
     private File pickShareDir() {
         if (hasStorageAccess()) {
-            File pub = new File(android.os.Environment.getExternalStorageDirectory(), "Stryker");
+            File pub = new File(android.os.Environment.getExternalStorageDirectory(), "Astro");
             if ((pub.isDirectory() || pub.mkdirs()) && pub.canWrite()) {
                 return withSubdirs(pub);
             }
         }
         File ext = app.getExternalFilesDir(null);
         if (ext != null) {
-            File s = new File(ext, "Stryker");
+            File s = new File(ext, "Astro");
             if (s.isDirectory() || s.mkdirs()) return withSubdirs(s);
         }
         return null;

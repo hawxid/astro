@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="dialog_background_color">#101828</color>
-    <color name="stryker_accent_contrast">#00E5FF</color>
-    <color name="stryker_accent">#A088F0</color>
-    <color name="stryker_logo_accent">#FFFFFF</color>
+    <color name="astro_accent_contrast">#00E5FF</color>
+    <color name="astro_accent">#A088F0</color>
+    <color name="astro_logo_accent">#FFFFFF</color>
     <color name="yellow">#F9A825</color>
     <color name="red">#C62828</color>
     <color name="green">#2E7D32</color>

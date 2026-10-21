@@ -2,7 +2,7 @@
 <resources>
 
     <string name="wifi_nodriver_title">内核无法驱动此网卡</string>
-    <string name="wifi_nodriver_body">%1$s 已插入。Android 内核没有它的驱动，也无法添加。\n\nStryker 可以在自带驱动的 Linux 客户机中运行 Wi-Fi。其余功能仍使用 root。</string>
+    <string name="wifi_nodriver_body">%1$s 已插入。Android 内核没有它的驱动，也无法添加。\n\nAstro 可以在自带驱动的 Linux 客户机中运行 Wi-Fi。其余功能仍使用 root。</string>
     <string name="wifi_nodriver_setup">设置</string>
     <string name="wifi_nodriver_later">以后再说</string>
 

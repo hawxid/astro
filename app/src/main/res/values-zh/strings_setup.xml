@@ -10,11 +10,11 @@
     <string name="setup_caps_title">引擎检测</string>
     <string name="setup_gate_action">重新安装</string>
     <string name="setup_gate_body">%1$s 启动失败。正在切换到 %2$s 并重新安装。</string>
-    <string name="setup_gate_dead_body">此设备上没有引擎能够启动。没有引擎，Stryker 无法运行。</string>
+    <string name="setup_gate_dead_body">此设备上没有引擎能够启动。没有引擎，Astro 无法运行。</string>
     <string name="setup_gate_quit">关闭</string>
     <string name="setup_gate_retry">重试</string>
     <string name="setup_gate_title">引擎未能启动</string>
-    <string name="setup_install_all_failed_body">Stryker 需要一个引擎才能执行命令。您可以继续，或查看日志。</string>
+    <string name="setup_install_all_failed_body">Astro 需要一个引擎才能执行命令。您可以继续，或查看日志。</string>
     <string name="setup_install_all_failed_title">没有引擎启动成功</string>
     <string name="setup_install_fallback">%1$s 在此不可用。正在尝试 %2$s。</string>
     <string name="setup_install_fallback_title">正在切换引擎</string>

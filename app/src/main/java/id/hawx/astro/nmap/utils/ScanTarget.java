@@ -97,7 +97,7 @@ public class ScanTarget extends AsyncTask<Void, String, Boolean> {
 
     private Boolean runRootless() {
         if (needsRawOrL2(command)) {
-            publishProgress("[stryker] Raw-socket/L2 scan needs an adapter on the LAN (root engine)");
+            publishProgress("[astro] Raw-socket/L2 scan needs an adapter on the LAN (root engine)");
             return false;
         }
         boolean ok = false;

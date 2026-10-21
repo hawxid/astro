@@ -43,7 +43,7 @@ public final class Net {
     }
 
     public static String userAgent() {
-        return "Stryker/" + BuildConfig.VERSION_NAME
+        return "Astro/" + BuildConfig.VERSION_NAME
                 + " (Android " + Build.VERSION.RELEASE + "; " + Build.DEVICE + ")";
     }
 

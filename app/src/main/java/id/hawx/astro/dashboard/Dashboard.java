@@ -679,7 +679,7 @@ public class Dashboard extends Fragment {
                 break;
             }
             case BOOTING:
-                badge = "Booting…"; color = R.color.stryker_accent;
+                badge = "Booting…"; color = R.color.astro_accent;
                 ring = VmRingView.STATE_BOOTING; break;
             case STOPPED:
             default:
@@ -887,7 +887,7 @@ public class Dashboard extends Fragment {
     }
 
     private List<Tool> tools() {
-        int accent = androidx.core.content.ContextCompat.getColor(context, R.color.stryker_accent);
+        int accent = androidx.core.content.ContextCompat.getColor(context, R.color.astro_accent);
         List<Tool> t = new ArrayList<>();
         t.add(new Tool("wifi", R.string.wifi_networks, R.drawable.wifi,
                 R.drawable.dashboard_tile_bg_blue, accent, true,
@@ -1157,7 +1157,7 @@ public class Dashboard extends Fragment {
             TapTargetView.showFor(activity,
                     TapTarget.forView(target, "Tip: Networks with ⭐",
                                     "Networks with ⭐ are likely vulnerable to Pixie Dust")
-                            .outerCircleColor(R.color.stryker_accent)
+                            .outerCircleColor(R.color.astro_accent)
                             .outerCircleAlpha(0.96f)
                             .targetCircleColor(android.R.color.white)
                             .titleTextSize(20)
@@ -1226,7 +1226,7 @@ public class Dashboard extends Fragment {
         }
     }
 
-    /** Load custom HTML banner. Dir: /sdcard/Stryker/banner/
+    /** Load custom HTML banner. Dir: /sdcard/Astro/banner/
      *  Config: banner/config.json ->
      *   File mode: {"file": "banner.html", "height": 140, "enabled": true}
      *   URL mode:  {"url": "http://localhost:8080", "height": 300, "enabled": true}
@@ -1234,7 +1234,7 @@ public class Dashboard extends Fragment {
     private void loadDashboardBanner(android.view.View view) {
         android.webkit.WebView banner = view.findViewById(R.id.dash_banner);
         if (banner == null) return;
-        final String DIR = "/sdcard/Stryker/banner/";
+        final String DIR = "/sdcard/Astro/banner/";
         try {
             String htmlFile = "banner.html";
             String url = null;
@@ -1267,7 +1267,10 @@ public class Dashboard extends Fragment {
             // Allow localhost access (untuk URL mode)
             banner.getSettings().setAllowContentAccess(true);
             banner.setBackgroundColor(0x00000000);
-            banner.addJavascriptInterface(new BannerBridge(), "Stryker");
+            BannerBridge bannerBridge = new BannerBridge();
+            banner.addJavascriptInterface(bannerBridge, "Astro");
+            // Legacy alias: banners written for the old name keep working.
+            banner.addJavascriptInterface(bannerBridge, "Stryker");
             if (url != null && !url.isEmpty()) {
                 // URL mode: load dari localhost/server
                 // Hanya allow http://localhost dan http://127.0.0.1 demi keamanan

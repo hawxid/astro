@@ -144,7 +144,7 @@ public class Wifi extends Fragment {
         }
 
         refresh.setColorSchemeColors(
-                getResources().getColor(R.color.stryker_accent),
+                getResources().getColor(R.color.astro_accent),
                 0xFFAB47BC);
         refresh.setOnRefreshListener(this::scan);
 

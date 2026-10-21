@@ -299,7 +299,7 @@ public class SettingsHomeFragment extends Fragment {
             }
             ui(() -> progress.setMessage(getString(R.string.settings_delete_step_wipe)));
 
-            if (!core.safeDeleteTree("/data/local/stryker")) {
+            if (!core.safeDeleteTree("/data/local/astro")) {
                 stopDelete(progress, R.string.settings_delete_wipe_failed);
                 return;
             }

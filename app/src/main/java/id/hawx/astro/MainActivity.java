@@ -138,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
 
         new Thread(this::copyAssets).start();
         if (core.getBoolean("clean_after_update")) {
-            new Thread(() -> core.deleteFile("/data/data/id.hawx.astro/files/Stryker.apk")).start();
+            new Thread(() -> core.deleteFile("/data/data/id.hawx.astro/files/Astro.apk")).start();
             core.remove("clean_after_update");
         }
 
@@ -801,7 +801,7 @@ public class MainActivity extends AppCompatActivity {
         @SuppressLint("SetTextI18n")
         @Override
         public void restoreTitle() {
-            logo.setText("StrykerOSS");
+            logo.setText("Astro");
         }
 
         @Override
@@ -839,7 +839,7 @@ public class MainActivity extends AppCompatActivity {
             DrawerSpec spec = DRAWER_SPECS.get(itemId);
             if (active) {
                 if (title != null) {
-                    title.setTextColor(ContextCompat.getColor(ctx, R.color.stryker_accent));
+                    title.setTextColor(ContextCompat.getColor(ctx, R.color.astro_accent));
                     title.setTypeface(null, android.graphics.Typeface.BOLD);
                 }
                 if (icon != null && spec != null) {

@@ -142,7 +142,7 @@ public class ArsenalFragment extends Fragment {
             tabDb.setBackgroundResource(R.drawable.arsenal_tab_unselected);
             tabHubText.setTextColor(ContextCompat.getColor(context, R.color.night_contrast));
             tabDbText.setTextColor(ContextCompat.getColor(context, R.color.grey));
-            tabHubIcon.setColorFilter(ContextCompat.getColor(context, R.color.stryker_accent));
+            tabHubIcon.setColorFilter(ContextCompat.getColor(context, R.color.astro_accent));
             tabDbIcon.setColorFilter(ContextCompat.getColor(context, R.color.grey));
             tabHubText.setTypeface(null, android.graphics.Typeface.BOLD);
             tabDbText.setTypeface(null, android.graphics.Typeface.NORMAL);
@@ -152,7 +152,7 @@ public class ArsenalFragment extends Fragment {
             tabHubText.setTextColor(ContextCompat.getColor(context, R.color.grey));
             tabDbText.setTextColor(ContextCompat.getColor(context, R.color.night_contrast));
             tabHubIcon.setColorFilter(ContextCompat.getColor(context, R.color.grey));
-            tabDbIcon.setColorFilter(ContextCompat.getColor(context, R.color.stryker_accent));
+            tabDbIcon.setColorFilter(ContextCompat.getColor(context, R.color.astro_accent));
             tabHubText.setTypeface(null, android.graphics.Typeface.NORMAL);
             tabDbText.setTypeface(null, android.graphics.Typeface.BOLD);
         }

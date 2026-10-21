@@ -18,7 +18,7 @@ import java.util.List;
 public class GooseFiles {
 
     public static final String OUTPUT_DIR = "/root/goose_output";
-    public static final String EXPORT_DIR = "/sdcard/Stryker/goose_files";
+    public static final String EXPORT_DIR = "/sdcard/Astro/goose_files";
 
     /** Run a command in the chroot via Core.customChrootCommand (proven pattern).
      *  Needs a Core instance (new Core(context)). Uses nolog variant. */
@@ -47,7 +47,7 @@ public class GooseFiles {
     }
 
     /** Base directory for Ghost-generated files. */
-    public static final String GOOSE_DIR = "/sdcard/Stryker/goose";
+    public static final String GOOSE_DIR = "/sdcard/Astro/goose";
 
     /** Ensure the goose output dir exists. */
     public static void ensureGooseDir() {
@@ -78,11 +78,11 @@ public class GooseFiles {
         return result;
     }
 
-    /** List all files directly from /sdcard/Stryker/ (no chroot needed). */
+    /** List all files directly from /sdcard/Astro/ (no chroot needed). */
     public static List<String> listSdcardFiles() {
         List<String> files = new ArrayList<>();
         try {
-            File dir = new File("/sdcard/Stryker");
+            File dir = new File("/sdcard/Astro");
             File[] list = dir.listFiles();
             if (list != null) {
                 for (File f : list) {
@@ -102,7 +102,7 @@ public class GooseFiles {
         return files;
     }
 
-    /** List HTML files directly from /sdcard/Stryker/ (no chroot needed). */
+    /** List HTML files directly from /sdcard/Astro/ (no chroot needed). */
     public static List<String> listSdcardHtml() {
         return listSdcardFiles();
     }

@@ -174,7 +174,7 @@ public class Slide2 extends Fragment implements IntroPage {
                 asking = false;
                 if (rootGranted) {
                     boolean alreadyInstalled =
-                            core.checkFolder("/data/local/stryker/release/sdcard/Stryker")
+                            core.checkFolder("/data/local/astro/release/sdcard/Astro")
                                     && core.checkFile(Core.CHROOT_MARKER);
                     if (alreadyInstalled) {
                         ((AppIntroActivity) activity).jumpToLast();

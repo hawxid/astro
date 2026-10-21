@@ -16,7 +16,7 @@ public final class ManifestService {
     public static RemoteManifest fetch(Context context) {
         SharedPreferences prefs = prefs(context);
         try {
-            String json = Net.getString(StrykerEndpoints.MANIFEST_URL, MAX_MANIFEST_BYTES);
+            String json = Net.getString(AstroEndpoints.MANIFEST_URL, MAX_MANIFEST_BYTES);
             RemoteManifest manifest = RemoteManifest.fromJson(json);
             prefs.edit().putString(KEY_CACHE, json).apply();
             return manifest;
@@ -39,6 +39,6 @@ public final class ManifestService {
 
     static SharedPreferences prefs(Context context) {
         return context.getApplicationContext()
-                .getSharedPreferences(StrykerEndpoints.PREFS, Context.MODE_PRIVATE);
+                .getSharedPreferences(AstroEndpoints.PREFS, Context.MODE_PRIVATE);
     }
 }

@@ -50,7 +50,7 @@ public class ArsenalDatabaseTab extends Fragment {
 
     public static final String EXPLOITDB_ROOT = "/opt/exploitdb";
 
-    static final String HUB_EXPLOITS_DIR = "/sdcard/Stryker/exploits";
+    static final String HUB_EXPLOITS_DIR = "/sdcard/Astro/exploits";
 
     private static final String PREF_LAST_QUERY = "arsenal_db_last_query";
 
@@ -574,7 +574,7 @@ public class ArsenalDatabaseTab extends Fragment {
         int color;
         switch (state) {
             case ACTIVE:
-                color = ContextCompat.getColor(context, R.color.stryker_accent);
+                color = ContextCompat.getColor(context, R.color.astro_accent);
                 row.spinner.setVisibility(View.VISIBLE);
                 row.icon.setVisibility(View.GONE);
                 row.title.setTypeface(null, Typeface.BOLD);

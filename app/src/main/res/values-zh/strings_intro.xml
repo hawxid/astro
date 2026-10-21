@@ -18,7 +18,7 @@
     <string name="intro_caps_title">正在检查
 此设备</string>
 
-    <string name="intro_engine_title">Stryker\n如何运行</string>
+    <string name="intro_engine_title">Astro\n如何运行</string>
     <string name="intro_engine_body">已为此设备选好。除非您清楚原因，否则不必更改。</string>
 
     <string name="intro_perms_title">两项\n权限</string>
@@ -36,7 +36,7 @@
     <string name="intro_action_start">开始使用</string>
     <string name="intro_action_grant">授予权限</string>
     <string name="intro_action_install">安装</string>
-    <string name="intro_action_launch">启动 Stryker</string>
+    <string name="intro_action_launch">启动 Astro</string>
     <string name="intro_action_retry">重试</string>
 
     <string name="intro_show_details">查看日志</string>

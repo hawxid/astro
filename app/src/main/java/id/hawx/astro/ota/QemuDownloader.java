@@ -35,10 +35,10 @@ public final class QemuDownloader {
             return new Bundle(r.qemu, r.kernel, r.initrd, r.libslirp, r.rootfs);
         }
         return new Bundle(
-                new RemoteManifest.Asset(StrykerEndpoints.FALLBACK_ROOTLESS_QEMU, "", 0),
-                new RemoteManifest.Asset(StrykerEndpoints.FALLBACK_ROOTLESS_KERNEL, "", 0),
-                new RemoteManifest.Asset(StrykerEndpoints.FALLBACK_ROOTLESS_INITRD, "", 0),
-                new RemoteManifest.Asset(StrykerEndpoints.FALLBACK_ROOTLESS_LIBSLIRP, "", 0),
-                new RemoteManifest.Asset(StrykerEndpoints.FALLBACK_ROOTLESS_ROOTFS, "", 0));
+                new RemoteManifest.Asset(AstroEndpoints.FALLBACK_ROOTLESS_QEMU, "", 0),
+                new RemoteManifest.Asset(AstroEndpoints.FALLBACK_ROOTLESS_KERNEL, "", 0),
+                new RemoteManifest.Asset(AstroEndpoints.FALLBACK_ROOTLESS_INITRD, "", 0),
+                new RemoteManifest.Asset(AstroEndpoints.FALLBACK_ROOTLESS_LIBSLIRP, "", 0),
+                new RemoteManifest.Asset(AstroEndpoints.FALLBACK_ROOTLESS_ROOTFS, "", 0));
     }
 }

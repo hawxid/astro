@@ -8,7 +8,7 @@
     <string name="local_scan">Scanning the local network — this can take a while</string>
     <string name="no_results">No results found</string>
     <string name="ew_welcome">Add your own exploit. Follow the steps, then tap Continue.</string>
-    <string name="ew_path">(/sdcard/Stryker/exploits/)</string>
+    <string name="ew_path">(/sdcard/Astro/exploits/)</string>
     <string name="select">Path to exploit: click to select</string>
     <string name="no_pattern">That line is not in the file. Obfuscation or a different script format can cause this. Check it and try again.</string>
     <string name="warn">Warning</string>
@@ -89,7 +89,7 @@
     <string name="successful_pattern">successful pattern</string>
     <string name="how_it_works_nenter_message_or_part_of_it_which_script_displays_on_success_result_if_no_msg_found_result_marked_as_failed">Enter the message the script prints on success, or part of it. No match means the run is marked failed.</string>
     <string name="example_n_exploit_successful_marked_as_good_result_nif_no_such_msg_failed">Example:\n[vuln] Target vulnerable — flagged as success.\nNo match — flagged as failed.</string>
-    <string name="error_mount">Mount failed. Check that the Stryker folder exists.</string>
+    <string name="error_mount">Mount failed. Check that the Astro folder exists.</string>
     <string name="exploit_list">List of exploits</string>
     <string name="enter_mac">Enter MAC address</string>
     <string name="captured_be_here">Caught handshakes will be here!</string>
@@ -204,7 +204,7 @@
     <string name="settings_delete_confirm_message">Removes the chroot and every tool in it, all app data, saved networks and settings, then uninstalls Astro. This cannot be undone.</string>
     <string name="settings_delete_progress_title">Deleting Astro</string>
     <string name="settings_delete_step_unmount">Unmounting the chroot</string>
-    <string name="settings_delete_step_wipe">Wiping /data/local/stryker</string>
+    <string name="settings_delete_step_wipe">Wiping /data/local/astro</string>
     <string name="settings_delete_step_uninstall">Uninstalling the app</string>
     <string name="settings_delete_unmount_failed">Could not unmount the chroot — delete cancelled to protect your data</string>
     <string name="settings_delete_wipe_failed">Could not wipe the chroot — the app was not uninstalled</string>
@@ -300,14 +300,14 @@ manager</string>
     <string name="arsenal_add_subtitle">Pick a script, name it, add a success pattern.</string>
     <string name="arsenal_add_step_file">Source file</string>
     <string name="arsenal_add_file_placeholder">Choose a file</string>
-    <string name="arsenal_add_file_hint">Lives under /sdcard/Stryker/exploits</string>
+    <string name="arsenal_add_file_hint">Lives under /sdcard/Astro/exploits</string>
     <string name="arsenal_add_field_title">Exploit name</string>
     <string name="arsenal_add_field_args">Arguments</string>
     <string name="arsenal_add_field_args_hint">Use {IP}, {PORT}, {MAC}, {GW}, {MASK} or any {VAR} — Arsenal asks for values before launch.</string>
     <string name="arsenal_add_field_success">Success pattern</string>
     <string name="arsenal_add_field_success_hint">Substring printed on success. Empty = always successful.</string>
     <string name="arsenal_add_pick_file_title">Pick a script</string>
-    <string name="arsenal_add_no_files">No files in /sdcard/Stryker/exploits — copy one there first.</string>
+    <string name="arsenal_add_no_files">No files in /sdcard/Astro/exploits — copy one there first.</string>
     <string name="arsenal_add_file_required">Choose a script first.</string>
     <string name="arsenal_add_title_required">Give it a name.</string>
     <string name="arsenal_add_no_pattern_title">No success pattern</string>
@@ -323,7 +323,7 @@ manager</string>
     <string name="arsenal_run_fill_vars">Fill all {variables} before launching.</string>
     <string name="arsenal_run_delete">Remove from hub</string>
     <string name="arsenal_run_delete_confirm_title">Remove from hub?</string>
-    <string name="arsenal_run_delete_confirm_body">Remove %1$s from your hub? The file stays in /sdcard/Stryker/exploits.</string>
+    <string name="arsenal_run_delete_confirm_body">Remove %1$s from your hub? The file stays in /sdcard/Astro/exploits.</string>
 
     <string name="arsenal_db_search_hint">Search ExploitDB (e.g. eternalblue)</string>
     <string name="arsenal_db_search_required">Type a query.</string>
@@ -358,8 +358,8 @@ manager</string>
     <string name="arsenal_db_add_to_hub">Add to Hub</string>
     <string name="arsenal_db_missing_path">No path on this entry.</string>
     <string name="arsenal_db_missing_id">No EDB-ID on this entry.</string>
-    <string name="arsenal_db_copying">Copying script to /sdcard/Stryker/exploits…</string>
-    <string name="arsenal_db_saved_file">Saved to /sdcard/Stryker/exploits</string>
+    <string name="arsenal_db_copying">Copying script to /sdcard/Astro/exploits…</string>
+    <string name="arsenal_db_saved_file">Saved to /sdcard/Astro/exploits</string>
     <string name="arsenal_db_added_to_hub">Added to hub</string>
 
     <string name="arsenal_run_batch_title">Exploit Hub</string>
@@ -542,12 +542,12 @@ manager</string>
     <string name="hs_section_files">Captures</string>
     <string name="hs_status_count">%1$d captured</string>
     <string name="hs_status_empty">No captures yet</string>
-    <string name="hs_storage_path">/sdcard/Stryker/captured</string>
+    <string name="hs_storage_path">/sdcard/Astro/captured</string>
     <string name="hs_meta_size">Size</string>
     <string name="hs_meta_cracked">Cracked</string>
     <string name="hs_meta_total">Total</string>
     <string name="hs_empty_title">Capture handshakes from the Wi-Fi screen</string>
-    <string name="hs_empty_body">Captures in /sdcard/Stryker/captured appear here.</string>
+    <string name="hs_empty_body">Captures in /sdcard/Astro/captured appear here.</string>
     <string name="hs_open_capture">Open Wi-Fi scanner</string>
     <string name="hs_refresh">Refresh</string>
     <string name="hs_action_brute">Crack with wordlist</string>
@@ -578,7 +578,7 @@ manager</string>
     <string name="hs_rename_title">Rename capture</string>
     <string name="hs_rename_hint">new-name.cap</string>
     <string name="hs_wordlist_title">Pick a wordlist</string>
-    <string name="hs_wordlist_empty">Drop wordlists into /sdcard/Stryker/wordlists</string>
+    <string name="hs_wordlist_empty">Drop wordlists into /sdcard/Astro/wordlists</string>
     <string name="hs_password_label">Password</string>
     <string name="hs_password_copy">Copy password</string>
     <string name="hs_password_copied">Password copied</string>
@@ -747,7 +747,7 @@ manager</string>
     <string name="msf_runner_killed">Background jobs killed</string>
 
     <string name="payload_title">Payload generator</string>
-    <string name="payload_subtitle">Forge a stager with msfvenom + msfpc and drop it into Stryker/payloads.</string>
+    <string name="payload_subtitle">Forge a stager with msfvenom + msfpc and drop it into Astro/payloads.</string>
     <string name="payload_section_preset">Preset</string>
     <string name="payload_section_target">Target</string>
     <string name="payload_section_output">Output</string>
@@ -766,7 +766,7 @@ manager</string>
     <string name="payload_log_title">Build log</string>
     <string name="payload_status_idle">Fill in the form and tap Generate</string>
     <string name="payload_status_running">Forging payload — keep dialog open</string>
-    <string name="payload_status_done">Saved to /sdcard/Stryker/payloads</string>
+    <string name="payload_status_done">Saved to /sdcard/Astro/payloads</string>
     <string name="payload_status_failed">Build failed — see log</string>
     <string name="payload_invalid">Fill all four fields first</string>
 
@@ -845,7 +845,7 @@ manager</string>
     <string name="hydra_action_copy">Copy credentials</string>
     <string name="hydra_validation_target">Set a service and a host first</string>
     <string name="hydra_validation_creds">Enter a password (or switch to wordlists)</string>
-    <string name="hydra_validation_wordlist">Pick a wordlist — drop files into /sdcard/Stryker/wordlists</string>
+    <string name="hydra_validation_wordlist">Pick a wordlist — drop files into /sdcard/Astro/wordlists</string>
     <string name="hydra_toast_copied">Copied to clipboard</string>
 
     <string name="geomac_title">GeoMac</string>
@@ -1179,7 +1179,7 @@ manager</string>
     <string name="ide_capture_timeout">line %d · GETWINHI timed out</string>
 
     <string name="screen_mirror_title">Screen Mirror</string>
-    <string name="screen_mirror_subtitle">Live host-screen mirror over CDC ACM. Run stryker-screen.ps1 on the PC, tap Start here.</string>
+    <string name="screen_mirror_subtitle">Live host-screen mirror over CDC ACM. Run astro-screen.ps1 on the PC, tap Start here.</string>
     <string name="screen_mirror_start">Start</string>
     <string name="screen_mirror_stop">Stop</string>
     <string name="screen_mirror_waiting">Waiting for first FRAME…</string>

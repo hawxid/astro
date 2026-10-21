@@ -18,7 +18,7 @@
     <string name="intro_caps_title">Checking
 this device</string>
 
-    <string name="intro_engine_title">How Stryker\nruns</string>
+    <string name="intro_engine_title">How Astro\nruns</string>
     <string name="intro_engine_body">Already chosen for this device. Change it only if you know why.</string>
 
     <string name="intro_perms_title">Two\npermissions</string>
@@ -36,7 +36,7 @@ this device</string>
     <string name="intro_action_start">Get started</string>
     <string name="intro_action_grant">Grant access</string>
     <string name="intro_action_install">Install</string>
-    <string name="intro_action_launch">Launch Stryker</string>
+    <string name="intro_action_launch">Launch Astro</string>
     <string name="intro_action_retry">Try again</string>
 
     <string name="intro_show_details">View log</string>

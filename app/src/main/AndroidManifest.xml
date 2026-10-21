@@ -60,14 +60,14 @@
     </queries>
 
     <application
-        android:name=".StrykerApp"
+        android:name=".AstroApp"
         android:enableOnBackInvokedCallback="false"
         android:icon="@mipmap/appicon"
         android:label="@string/app_name"
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/appicon_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Stryker"
+        android:theme="@style/Theme.Astro"
         android:usesCleartextTraffic="true">
 
         <property
@@ -138,7 +138,7 @@
             android:name=".about.ThanksActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="false"
-            android:theme="@style/Theme.Stryker.Immersive" />
+            android:theme="@style/Theme.Astro.Immersive" />
 
         <activity
             android:name=".hid.ui.HidIdeActivity"
@@ -151,7 +151,7 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.Stryker" />
+            android:theme="@style/Theme.Astro" />
 
         <service
             android:name=".nuclei.NucleiScanService"
@@ -178,7 +178,7 @@
             android:name=".appintro.AppIntroActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.Stryker.Immersive" />
+            android:theme="@style/Theme.Astro.Immersive" />
         <activity
             android:name=".searchsploit.ExploitWebview"
             android:exported="false"

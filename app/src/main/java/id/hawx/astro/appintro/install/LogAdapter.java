@@ -125,10 +125,10 @@ public final class LogAdapter extends RecyclerView.Adapter<LogAdapter.VH> {
                 res = R.color.red;
                 break;
             case CMD:
-                res = R.color.stryker_accent;
+                res = R.color.astro_accent;
                 break;
             case STEP:
-                res = R.color.stryker_accent_contrast;
+                res = R.color.astro_accent_contrast;
                 break;
             case INFO:
             default:

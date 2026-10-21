@@ -36,7 +36,7 @@
             android:letterSpacing="0.08"
             android:text="@string/about_section_links"
             android:textAllCaps="true"
-            android:textColor="@color/stryker_accent"
+            android:textColor="@color/astro_accent"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -311,7 +311,7 @@
             android:letterSpacing="0.08"
             android:text="@string/about_section_legal"
             android:textAllCaps="true"
-            android:textColor="@color/stryker_accent"
+            android:textColor="@color/astro_accent"
             android:textSize="11sp"
             android:textStyle="bold" />
 

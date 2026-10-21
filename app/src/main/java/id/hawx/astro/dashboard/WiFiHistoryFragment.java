@@ -118,7 +118,7 @@ public class WiFiHistoryFragment extends Fragment {
         cancel.setOnClickListener(view12 -> valuedialog.dismiss());
         title.setText("Enter path to file");
         valueLayout.setHint("Path");
-        value.setText("/sdcard/Stryker/saved_networks.csv");
+        value.setText("/sdcard/Astro/saved_networks.csv");
         ok.setOnClickListener(view1 -> {
             String path = Objects.requireNonNull(value.getText()).toString();
             if (path.isEmpty()) {
@@ -128,7 +128,7 @@ public class WiFiHistoryFragment extends Fragment {
             } else if (!path.endsWith(".csv")) {
                 valueLayout.setError("File must be a csv");
             } else if (!Core.contains(core.customCommand("cat " + path), "SSID,")) {
-                valueLayout.setError("File is not a valid Stryker network file");
+                valueLayout.setError("File is not a valid Astro network file");
             } else {
                 try {
                     valueLayout.setError(null);

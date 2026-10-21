@@ -21,7 +21,7 @@
     <string name="setup_install_fallback">%1$s did not work here. Trying %2$s.</string>
     <string name="setup_install_fallback_title">Switching engine</string>
     <string name="setup_install_all_failed_title">No engine booted</string>
-    <string name="setup_install_all_failed_body">Stryker needs one to run commands. Continue anyway, or check the log.</string>
+    <string name="setup_install_all_failed_body">Astro needs one to run commands. Continue anyway, or check the log.</string>
     <string name="setup_install_manual">Continue anyway</string>
     <string name="setup_install_offline_title">No connection</string>
     <string name="setup_install_offline_body">The engine downloads from GitHub. Connect and retry.</string>
@@ -33,7 +33,7 @@
     <string name="setup_gate_title">Engine did not start</string>
     <string name="setup_gate_body">%1$s failed to boot. Switching to %2$s and reinstalling.</string>
     <string name="setup_gate_action">Reinstall</string>
-    <string name="setup_gate_dead_body">No engine boots on this device. Stryker cannot run without one.</string>
+    <string name="setup_gate_dead_body">No engine boots on this device. Astro cannot run without one.</string>
     <string name="setup_gate_retry">Try again</string>
     <string name="setup_gate_quit">Close</string>
 

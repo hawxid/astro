@@ -61,7 +61,7 @@ public class HubAdapter extends RecyclerView.Adapter<HubAdapter.VH> {
 
         int tint;
         if ("Python".equalsIgnoreCase(exploit.getLang())) {
-            tint = ContextCompat.getColor(context, R.color.stryker_accent);
+            tint = ContextCompat.getColor(context, R.color.astro_accent);
         } else {
             tint = 0xFF6A1B9A;
         }

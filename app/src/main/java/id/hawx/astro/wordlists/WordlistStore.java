@@ -86,14 +86,14 @@ public class WordlistStore {
     private java.util.List<String> candidates(String name) {
         java.util.LinkedHashSet<String> dirs = new java.util.LinkedHashSet<>();
         dirs.add(core.guestShare() + "/wordlists");
-        dirs.add("/sdcard/Stryker/wordlists");
+        dirs.add("/sdcard/Astro/wordlists");
         dirs.add("/host/wordlists");
         try {
             File ext = core.context.getExternalFilesDir(null);
             if (ext != null) {
-                dirs.add(ext.getAbsolutePath() + "/Stryker/wordlists");
+                dirs.add(ext.getAbsolutePath() + "/Astro/wordlists");
                 dirs.add("/sdcard/Android/data/" + core.context.getPackageName()
-                        + "/files/Stryker/wordlists");
+                        + "/files/Astro/wordlists");
             }
         } catch (Throwable ignored) {
         }

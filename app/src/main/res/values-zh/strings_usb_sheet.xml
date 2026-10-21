@@ -22,7 +22,7 @@
 
 
     <string name="usb_note_phoneholds_title">Android 正在使用此网卡</string>
-    <string name="usb_note_phoneholds_body">手机自带的 %1$s 驱动占用着它。Stryker 必须先从 Android 手中取走，%2$s 才能使用，而有些内核会拒绝 — 移交失败就是这个原因。</string>
+    <string name="usb_note_phoneholds_body">手机自带的 %1$s 驱动占用着它。Astro 必须先从 Android 手中取走，%2$s 才能使用，而有些内核会拒绝 — 移交失败就是这个原因。</string>
 
     <string name="usb_note_noguestdriver_title">客户机中没有驱动</string>
     <string name="usb_note_noguestdriver_body">%1$s 没有此芯片的模块，因此没有接口启用。</string>
@@ -39,7 +39,7 @@
     <string name="usb_match_unknown">不在数据库中</string>
 
     <string name="usb_note_noperm_title">无 USB 权限</string>
-    <string name="usb_note_noperm_body">Android 未允许 Stryker 打开此网卡，因此无法移交给客户机。请再次请求并允许。</string>
+    <string name="usb_note_noperm_body">Android 未允许 Astro 打开此网卡，因此无法移交给客户机。请再次请求并允许。</string>
 
 
     <string name="usb_step_scanning">正在查看端口…</string>

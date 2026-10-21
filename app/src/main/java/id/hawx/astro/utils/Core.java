@@ -96,7 +96,7 @@ public class Core {
     public final static String EXECUTE = "/data/data/id.hawx.astro/files/chroot_exec ";
     public final static String BUSYBOX = "/data/data/id.hawx.astro/files/busybox ";
     public final static String SHELL = "bash";
-    public final static String CHROOT_ROOT = "/data/local/stryker/release";
+    public final static String CHROOT_ROOT = "/data/local/astro/release";
 
     public final static String CHROOT_MARKER_VERSION = "6.5";
     public final static String CHROOT_MARKER = CHROOT_ROOT + "/" + CHROOT_MARKER_VERSION;
@@ -213,7 +213,7 @@ public class Core {
 
     public void copyToClipBoard(String s){
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText("Stryker", s);
+        ClipData clip = ClipData.newPlainText("Astro", s);
         clipboard.setPrimaryClip(clip);
     }
     public ArrayList<String> getNetwork(String bssid){
@@ -326,14 +326,14 @@ public class Core {
 
     public String guestShare() {
         if (isRootless()) return guest().guestSharePath();
-        return "/sdcard/Stryker";
+        return "/sdcard/Astro";
     }
 
     public String hostPath(String path) {
         if (path == null || path.isEmpty()) return null;
         String mapped = null;
         String guestRoot = null;
-        for (String candidate : new String[]{"/sdcard/Stryker", "/host"}) {
+        for (String candidate : new String[]{"/sdcard/Astro", "/host"}) {
             if (path.equals(candidate) || path.startsWith(candidate + "/")) {
                 guestRoot = candidate;
                 break;
@@ -342,7 +342,7 @@ public class Core {
         if (guestRoot != null) {
             mapped = getShareRoot() + path.substring(guestRoot.length());
         } else {
-            String legacyRoot = getStorage() + "Stryker";
+            String legacyRoot = getStorage() + "Astro";
             if (path.startsWith(legacyRoot)) {
                 mapped = getShareRoot() + path.substring(legacyRoot.length());
             } else if (path.startsWith(getStorage())) {
@@ -497,9 +497,9 @@ public class Core {
             File d = guest().shareDir();
             if (d != null) return d.getAbsolutePath();
             File ext = context.getExternalFilesDir(null);
-            if (ext != null) return new File(ext, "Stryker").getAbsolutePath();
+            if (ext != null) return new File(ext, "Astro").getAbsolutePath();
         }
-        return getStorage() + "Stryker";
+        return getStorage() + "Astro";
     }
 
     public boolean hasAllFilesAccess() {
@@ -829,12 +829,12 @@ public class Core {
             if (s.contains(" " + root + "/proc ")) proc = true;
             if (s.contains(" " + root + "/sys ")) sys = true;
             if (s.contains(" " + root + "/dev ")) dev = true;
-            if (s.contains(" " + root + "/sdcard/Stryker ")) sdcard = true;
+            if (s.contains(" " + root + "/sdcard/Astro ")) sdcard = true;
         }
         return proc && sys && dev && sdcard;
     }
     public boolean isOldMounted(){
-        return checkFolder("/data/local/stryker/beta/sdcard/Stryker");
+        return checkFolder("/data/local/astro/beta/sdcard/Astro");
     }
     public boolean ping(String ip, int port,int timeout) {
         try {

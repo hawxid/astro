@@ -46,7 +46,7 @@ public class ThanksActivity extends AppCompatActivity {
     private void fillPeople() {
         LinearLayout container = findViewById(R.id.thanks_people);
         LayoutInflater inflater = LayoutInflater.from(this);
-        int accent = ContextCompat.getColor(this, R.color.stryker_accent);
+        int accent = ContextCompat.getColor(this, R.color.astro_accent);
 
         for (String name : getResources().getStringArray(R.array.thanks_people)) {
             View row = inflater.inflate(R.layout.thanks_person_row, container, false);

@@ -103,7 +103,7 @@ public class LocalMain extends Fragment {
         mRecyclerView.setAdapter(mAdapter);
 
         refresh.setColorSchemeColors(
-                getResources().getColor(R.color.stryker_accent),
+                getResources().getColor(R.color.astro_accent),
                 0xFFAB47BC);
         refresh.setOnRefreshListener(this::triggerScan);
         rescanBtn.setOnClickListener(v -> triggerScan());

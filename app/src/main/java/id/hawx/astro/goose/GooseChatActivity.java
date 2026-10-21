@@ -64,7 +64,7 @@ public class GooseChatActivity extends AppCompatActivity implements GooseAcpClie
 
     private String copyUploadToGooseDir(String name, byte[] data) {
         try {
-            java.io.File dir = new java.io.File("/sdcard/Stryker/goose/uploads");
+            java.io.File dir = new java.io.File("/sdcard/Astro/goose/uploads");
             if (!dir.exists()) dir.mkdirs();
             String safe = name.replaceAll("[^a-zA-Z0-9._-]", "_");
             if (safe.isEmpty()) safe = "file";
@@ -835,9 +835,9 @@ public class GooseChatActivity extends AppCompatActivity implements GooseAcpClie
     // TODO: rollback - guard dihapus, balik ke versi simple
 
     
-    private static final String GOOSE_PROFILE_DIR = "/sdcard/Stryker/goose/profile/";
+    private static final String GOOSE_PROFILE_DIR = "/sdcard/Astro/goose/profile/";
 
-    /** Load profiles from /sdcard/Stryker/goose/profile/*.json */
+    /** Load profiles from /sdcard/Astro/goose/profile/*.json */
     private java.util.List<String[]> loadProfiles() {
         java.util.List<String[]> out = new java.util.ArrayList<>();
         try {
@@ -1114,7 +1114,7 @@ private void showFilesDialog() {
         // ".." buat mundur (kecuali udah di root sdcard)
         File cur = new File(browserPath);
         File parent = cur.getParentFile();
-        boolean canUp = parent != null && browserPath.startsWith("/sdcard/Stryker");
+        boolean canUp = parent != null && browserPath.startsWith("/sdcard/Astro");
         if (canUp) {
             names.add("📁 ..");
             files.add(parent);
@@ -1182,8 +1182,8 @@ private void showFilesDialog() {
 
     /** Open an HTML file in the WebView visualization activity. */
     private void openViz(String filename) {
-        // Cek dulu di /sdcard/Stryker/ (langsung), baru coba export dari chroot
-        File sdcardFile = new File("/sdcard/Stryker/" + filename);
+        // Cek dulu di /sdcard/Astro/ (langsung), baru coba export dari chroot
+        File sdcardFile = new File("/sdcard/Astro/" + filename);
         if (sdcardFile.exists()) {
             android.content.Intent i = new android.content.Intent(
                     this, GhostVizActivity.class);

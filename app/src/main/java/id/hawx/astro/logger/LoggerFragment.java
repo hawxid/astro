@@ -55,7 +55,7 @@ public class LoggerFragment extends Fragment {
     private static final long COUNT_RESYNC_MS = 1500L;
 
     @SuppressLint("SdCardPath")
-    private static final String EXPORT_PREFIX = "stryker";
+    private static final String EXPORT_PREFIX = "astro";
     private static final String EXPORT_SUFFIX = ".log";
 
     private Activity activity;
@@ -428,8 +428,8 @@ public class LoggerFragment extends Fragment {
                 Intent intent = new Intent(Intent.ACTION_SEND);
                 intent.setType("text/plain");
                 intent.putExtra(Intent.EXTRA_STREAM, uri);
-                intent.putExtra(Intent.EXTRA_SUBJECT, "Stryker log");
-                intent.putExtra(Intent.EXTRA_TEXT, "Stryker log at: " + sdf.format(new Date()));
+                intent.putExtra(Intent.EXTRA_SUBJECT, "Astro log");
+                intent.putExtra(Intent.EXTRA_TEXT, "Astro log at: " + sdf.format(new Date()));
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 Intent chooser = Intent.createChooser(intent, getString(R.string.logs_share));
                 chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);

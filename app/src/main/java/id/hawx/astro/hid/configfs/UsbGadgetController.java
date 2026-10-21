@@ -16,7 +16,7 @@ import java.util.Set;
 
 public final class UsbGadgetController {
 
-    public static final String GADGET_NAME = "stryker";
+    public static final String GADGET_NAME = "astro";
     public static final String GADGET_BASE = "/config/usb_gadget/" + GADGET_NAME;
     private static final String VENDOR_GADGET = "/config/usb_gadget/g1";
 

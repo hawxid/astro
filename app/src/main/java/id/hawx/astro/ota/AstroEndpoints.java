@@ -1,6 +1,6 @@
 package id.hawx.astro.ota;
 
-public final class StrykerEndpoints {
+public final class AstroEndpoints {
 
     public static final String GITHUB_REPO = "https://github.com/hawxid/astro";
 
@@ -20,6 +20,6 @@ public final class StrykerEndpoints {
 
     public static final String PREFS = "stryker_ota";
 
-    private StrykerEndpoints() {
+    private AstroEndpoints() {
     }
 }

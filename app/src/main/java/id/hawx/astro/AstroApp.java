@@ -14,13 +14,13 @@ import id.hawx.astro.ota.NotificationCenter;
 import id.hawx.astro.ota.UpdateScheduler;
 import id.hawx.astro.utils.Utils;
 
-public class StrykerApp extends com.stryker.terminal.App {
+public class AstroApp extends com.stryker.terminal.App {
 
     @Override
     public void onCreate() {
         super.onCreate();
         LogStore store = LogStore.init(this);
-        store.add(LogEntry.INFO, "session", "==== Stryker " + BuildConfig.VERSION_NAME
+        store.add(LogEntry.INFO, "session", "==== Astro " + BuildConfig.VERSION_NAME
                 + " session start ====");
         String abi = Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : "unknown";
         store.add(LogEntry.INFO, "session", "Device: " + Build.MANUFACTURER + " " + Build.MODEL

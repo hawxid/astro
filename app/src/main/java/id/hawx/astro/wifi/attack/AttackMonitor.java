@@ -282,7 +282,7 @@ public final class AttackMonitor {
     }
 
     public void note(String text) {
-        console("[stryker] " + text);
+        console("[astro] " + text);
     }
 
     private String consoleDump() {

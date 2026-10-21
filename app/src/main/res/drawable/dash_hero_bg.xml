@@ -2,5 +2,5 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <corners android:radius="100dp" />
-    <solid android:color="@color/stryker_accent" />
+    <solid android:color="@color/astro_accent" />
 </shape>

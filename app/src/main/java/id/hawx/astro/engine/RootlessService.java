@@ -53,7 +53,7 @@ public class RootlessService extends Service {
         try {
             id.hawx.astro.logger.LogStore.from(getApplicationContext());
         } catch (Throwable ignored) {}
-        updateNotification("VM stopped: 6h foreground limit reached, reopen Stryker to resume");
+        updateNotification("VM stopped: 6h foreground limit reached, reopen Astro to resume");
         stopSelf();
     }
 

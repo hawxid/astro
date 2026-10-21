@@ -90,7 +90,7 @@ public class Logger {
             file.createNewFile();
             FileOutputStream fOut = new FileOutputStream(file);
             OutputStreamWriter editor = new OutputStreamWriter(fOut);
-            editor.append("=====[Powered by Stryker " + BuildConfig.VERSION_NAME + "]=====" + "\n\n");
+            editor.append("=====[Powered by Astro " + BuildConfig.VERSION_NAME + "]=====" + "\n\n");
             editor.append("Nmap scan report for ").append(ip).append("\n\n");
             editor.append("==================================" + "\n\n\n");
             for (String line : output) {
@@ -99,7 +99,7 @@ public class Logger {
             editor.flush();
             fOut.flush();
             editor.close();
-            customCommand("su -c 'cp " + path + filename + " /sdcard/Stryker/reports/'");
+            customCommand("su -c 'cp " + path + filename + " /sdcard/Astro/reports/'");
         } catch (IOException e) {
             e.printStackTrace();
         }

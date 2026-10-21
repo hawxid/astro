@@ -87,7 +87,7 @@ public class TargetsAdapter extends RecyclerView.Adapter<TargetsAdapter.VH> {
         switch (state) {
             case RUNNING:
                 int progress = parseProgress(s.progress);
-                color = ContextCompat.getColor(context, R.color.stryker_accent);
+                color = ContextCompat.getColor(context, R.color.astro_accent);
                 chipText = "RUN";
                 h.status.setText(context.getString(R.string.nuclei_status_progress, String.valueOf(progress)));
                 h.progress.setVisibility(View.VISIBLE);

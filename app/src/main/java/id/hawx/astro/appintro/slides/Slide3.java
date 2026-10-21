@@ -184,7 +184,7 @@ public class Slide3 extends Fragment implements IntroPage {
                 runOnUi(() -> downloadText.setText(""));
 
                 markStage(InstallStage.UNPACKING, RowState.ACTIVE);
-                log(LogLevel.STEP, "Extracting archive into /data/local/stryker");
+                log(LogLevel.STEP, "Extracting archive into /data/local/astro");
                 log(LogLevel.INFO, "Full Debian rootfs — extraction can take several minutes");
                 runOnUi(() -> progress.setIndeterminate(true));
 
@@ -216,18 +216,18 @@ public class Slide3 extends Fragment implements IntroPage {
                     } else {
                         log(LogLevel.WARN, "Astro payload did not verify — /CORE tools may be missing");
                     }
-                    core.deleteFile("/sdcard/Stryker/exploits/");
+                    core.deleteFile("/sdcard/Astro/exploits/");
                     core.copyFile("/data/data/id.hawx.astro/files/checker.py",
-                            "/data/local/stryker/release/exploits/checker.py");
-                    core.copyFile("/data/local/stryker/release/exploits/", "/sdcard/Stryker/exploits");
+                            "/data/local/astro/release/exploits/checker.py");
+                    core.copyFile("/data/local/astro/release/exploits/", "/sdcard/Astro/exploits");
                     core.chmodFolder("/data/data/id.hawx.astro/files");
                     markStage(InstallStage.DEPLOYING_EXPLOITS, RowState.DONE);
-                    log(LogLevel.SUCCESS, "Exploits deployed to /sdcard/Stryker/exploits");
+                    log(LogLevel.SUCCESS, "Exploits deployed to /sdcard/Astro/exploits");
 
                     markStage(InstallStage.FINALIZING, RowState.ACTIVE);
                     log(LogLevel.CMD, "echo update > " + Core.CHROOT_MARKER);
                     core.customCommand("echo update > " + Core.CHROOT_MARKER);
-                    core.deleteFile("/sdcard/Stryker/exploits/checker.py");
+                    core.deleteFile("/sdcard/Astro/exploits/checker.py");
                     markStage(InstallStage.FINALIZING, RowState.DONE);
                     log(LogLevel.SUCCESS, "Version marker written");
 
@@ -367,8 +367,8 @@ public class Slide3 extends Fragment implements IntroPage {
     @SuppressLint("SdCardPath")
     private boolean clear() {
         core.chmodFolder("/data/data/id.hawx.astro/files/");
-        core.createFolder(core.getStorage() + "/Stryker/");
-        core.createFolder("/data/local/stryker");
+        core.createFolder(core.getStorage() + "/Astro/");
+        core.createFolder("/data/local/astro");
         boolean anyMount = !core.mountsUnder(Core.CHROOT_ROOT).isEmpty();
         if (anyMount || core.isMounted() || core.checkFolder(Core.CHROOT_ROOT + "/bin")) {
             log(LogLevel.STEP, "Removing the previous Linux system");
@@ -378,15 +378,15 @@ public class Slide3 extends Fragment implements IntroPage {
                 return false;
             }
         }
-        core.deleteFile(core.getStorage() + "Stryker/release");
+        core.deleteFile(core.getStorage() + "Astro/release");
         core.deleteFile(core.getStorage() + "Download/stryker.apk");
-        core.createFolder(core.getStorage() + "Stryker");
-        core.createFolder(core.getStorage() + "Stryker/hs");
-        core.createFolder(core.getStorage() + "Stryker/captured");
-        core.createFolder(core.getStorage() + "Stryker/exploits");
-        core.createFolder(core.getStorage() + "Stryker/wordlists");
-        core.createFolder(core.getStorage() + "Stryker/reports");
-        core.createFolder(core.getStorage() + "Stryker/rs");
+        core.createFolder(core.getStorage() + "Astro");
+        core.createFolder(core.getStorage() + "Astro/hs");
+        core.createFolder(core.getStorage() + "Astro/captured");
+        core.createFolder(core.getStorage() + "Astro/exploits");
+        core.createFolder(core.getStorage() + "Astro/wordlists");
+        core.createFolder(core.getStorage() + "Astro/reports");
+        core.createFolder(core.getStorage() + "Astro/rs");
         return true;
     }
 
@@ -405,9 +405,9 @@ public class Slide3 extends Fragment implements IntroPage {
             extractFailure = core.tarFailureReason();
             return false;
         }
-        log(LogLevel.CMD, tar + " -xzf " + DOWNLOADED_CHROOT_PATH + " -C /data/local/stryker/");
+        log(LogLevel.CMD, tar + " -xzf " + DOWNLOADED_CHROOT_PATH + " -C /data/local/astro/");
         ArrayList<String> out = core.customCommand(
-                tar + " -xzf " + DOWNLOADED_CHROOT_PATH + " -C /data/local/stryker/ 2>&1"
+                tar + " -xzf " + DOWNLOADED_CHROOT_PATH + " -C /data/local/astro/ 2>&1"
                         + "; echo " + TAR_RC + "$?", 0);
 
         Integer rc = null;

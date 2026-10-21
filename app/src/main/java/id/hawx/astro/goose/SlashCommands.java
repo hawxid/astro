@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * Customizable slash commands for Ghost.
- * Config lives at /sdcard/Stryker/goose/slash_commands.json — edit without rebuilding!
+ * Config lives at /sdcard/Astro/goose/slash_commands.json — edit without rebuilding!
  *
  * Format:
  * {
@@ -26,7 +26,7 @@ import java.util.List;
  */
 public class SlashCommands {
 
-    public static final String CONFIG_PATH = "/sdcard/Stryker/goose/slash_commands.json";
+    public static final String CONFIG_PATH = "/sdcard/Astro/goose/slash_commands.json";
 
     public static class Cmd {
         public final String name;
@@ -47,7 +47,7 @@ public class SlashCommands {
             "    {\"name\": \"/ping\", \"desc\": \"Ping a host\", \"prompt\": \"ping {args} with 4 packets\"},\n" +
             "    {\"name\": \"/cve\", \"desc\": \"Lookup CVE details\", \"prompt\": \"lookup details for {args} including severity, description, and affected versions\"},\n" +
             "    {\"name\": \"/scan\", \"desc\": \"Full port scan\", \"prompt\": \"do a comprehensive port scan on {args} using nmap\"},\n" +
-            "    {\"name\": \"/report\", \"desc\": \"Generate report\", \"prompt\": \"create a summary report of our conversation and save it to /sdcard/Stryker/goose/report.md\"}\n" +
+            "    {\"name\": \"/report\", \"desc\": \"Generate report\", \"prompt\": \"create a summary report of our conversation and save it to /sdcard/Astro/goose/report.md\"}\n" +
             "  ]\n" +
             "}\n";
     }
@@ -112,7 +112,7 @@ public class SlashCommands {
         for (Cmd c : load()) {
             sb.append("`").append(c.name).append("` — ").append(c.desc).append("\n");
         }
-        sb.append("\n_Edit `/sdcard/Stryker/goose/slash_commands.json` to customize._");
+        sb.append("\n_Edit `/sdcard/Astro/goose/slash_commands.json` to customize._");
         return sb.toString();
     }
 }

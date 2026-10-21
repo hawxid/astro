@@ -21,7 +21,7 @@
     <string name="usb_note_guestdown_body">%1$s has to be up before the adapter can be handed to it.</string>
 
     <string name="usb_note_phoneholds_title">Android is using this adapter</string>
-    <string name="usb_note_phoneholds_body">The phone\'s own %1$s driver has it. Stryker has to take it away from Android before %2$s can use it, and some kernels refuse — if the handover fails, this is why.</string>
+    <string name="usb_note_phoneholds_body">The phone\'s own %1$s driver has it. Astro has to take it away from Android before %2$s can use it, and some kernels refuse — if the handover fails, this is why.</string>
 
     <string name="usb_note_noguestdriver_title">No driver in the guest</string>
     <string name="usb_note_noguestdriver_body">%1$s has no module for this chipset, so no interface came up.</string>
@@ -38,7 +38,7 @@
     <string name="usb_match_unknown">not in the database</string>
 
     <string name="usb_note_noperm_title">No USB access</string>
-    <string name="usb_note_noperm_body">Android has not let Stryker open this adapter, so it can\'t be handed to the guest. Ask again and allow it.</string>
+    <string name="usb_note_noperm_body">Android has not let Astro open this adapter, so it can\'t be handed to the guest. Ask again and allow it.</string>
 
 
     <string name="usb_step_scanning">Looking at the port…</string>

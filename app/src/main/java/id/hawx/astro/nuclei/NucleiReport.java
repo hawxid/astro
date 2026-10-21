@@ -256,7 +256,7 @@ public class NucleiReport extends Fragment {
         String subtitleText = site.getNucleis().size() + " findings · ";
         switch (state) {
             case RUNNING:
-                color = ContextCompat.getColor(requireContext(), R.color.stryker_accent);
+                color = ContextCompat.getColor(requireContext(), R.color.astro_accent);
                 chip = "RUN";
                 subtitleText += "Running · " + pct + "%";
                 progress.setVisibility(View.VISIBLE);

@@ -26,7 +26,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
     public void setOnFileClickListener(OnFileClickListener l) { fileClickListener = l; }
 
     private static boolean isGoosePath(String cp) {
-        return cp.startsWith("/sdcard/Stryker/goose/") || cp.startsWith("/storage/emulated/0/Stryker/goose/");
+        return cp.startsWith("/sdcard/Astro/goose/") || cp.startsWith("/storage/emulated/0/Astro/goose/");
     }
 
     private final List<ChatMessage> messages = new ArrayList<>();
@@ -134,7 +134,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
                     String fname = fbm.group(1).trim();
                     String safe = fname.replaceAll("[^a-zA-Z0-9._-]", "_");
                     if (safe.isEmpty()) safe = "file";
-                    String upath = "/sdcard/Stryker/goose/uploads/" + safe;
+                    String upath = "/sdcard/Astro/goose/uploads/" + safe;
                     fbm.appendReplacement(fbsb, java.util.regex.Matcher.quoteReplacement(
                         "\uD83D\uDCC4 " + fname + "\n[file:" + upath + "]"));
                 } while (fbm.find());
@@ -159,7 +159,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
         String fileName = null;
         if (m.type == ChatMessage.Type.AGENT || m.type == ChatMessage.Type.USER) {
             java.util.regex.Matcher autoM = java.util.regex.Pattern.compile(
-                "(/sdcard/Stryker/goose/[^\\s`'\"\\]]+?\\.(png|jpg|jpeg|gif))",
+                "(/sdcard/Astro/goose/[^\\s`'\"\\]]+?\\.(png|jpg|jpeg|gif))",
                 java.util.regex.Pattern.CASE_INSENSITIVE).matcher(displayText);
             if (autoM.find()) {
                 try {
