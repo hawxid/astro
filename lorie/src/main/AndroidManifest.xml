@@ -25,10 +25,13 @@
             android:resizeableActivity="true"
             android:windowSoftInputMode="stateHidden|adjustNothing"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+            <!-- VENDOR PATCH (Astro): filter LAUNCHER dicabut — viewer tidak
+                 punya ikon sendiri di launcher HP. Satu-satunya pintu X di
+                 Astro adalah activity X11PocActivity ("Astro X11"); viewer
+                 dibuka via intent eksplisit se-package dari sana. (Ikon
+                 "Termux:X11" bawaan upstream membingungkan + override
+                 exported=false di manifest app membuatnya tampil sebagai
+                 "app tidak terinstall" saat diketuk.) -->
             <intent-filter>
                 <category android:name="android.intent.category.SECONDARY_HOME" />
             </intent-filter>

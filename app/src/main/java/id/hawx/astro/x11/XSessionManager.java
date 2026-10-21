@@ -21,7 +21,7 @@ import id.hawx.astro.utils.Core;
  *  - Server hidup MALAS (lazy): hanya saat ada permintaan GUI. Nol proses
  *    saat berhenti.
  *  - Pelacakan proses server via FILE PID (bukan pgrep pola nama), ditulis
- *    skrip start sesaat setelah spawn dengan verifikasi /proc/<pid>/cmdline.
+ *    skrip start sesaat setelah spawn dengan verifikasi /proc/<pid>/comm.
  *  - Timeout tunggu socket 10 detik (SD665 di bawah beban bisa telat).
  *  - Sesi mulai -> daftarkan font chroot ke server (xset fp+, path sisi host)
  *    + terapkan Xft.dpi global + start openbox. Obat masalah font xterm
@@ -141,12 +141,30 @@ public class XSessionManager {
 
     // ------------------------------------------------------------ probe
 
-    /** Skrip probe: STATE dari file PID + verifikasi cmdline; SOCK; RSS. */
+    /**
+     * Skrip probe: STATE dari file PID + verifikasi COMM proses; bila file
+     * PID tidak kenal siapa-siapa, PINDAI /proc/*/comm mencari server yatim
+     * (sisa sesi build lama / app data ke-reset) dan ADOPSI: tulis PID-nya
+     * ke file PID agar bisa dikelola (termasuk dimatikan) oleh manajer ini.
+     *
+     * IDENTITAS PROSES = COMM (nice-name), BUKAN cmdline: app_process
+     * menulis ulang cmdline-nya menjadi hanya nice-name (bukti perangkat:
+     * `pgrep -af termux-x11` -> "32111 termux-x11"). Versi awal M2 mencari
+     * token CmdEntryPoint di cmdline dan karena itu buta total — tidak bisa
+     * mengenali server-nya sendiri, dan pola pkill CmdEntryPoint pun meleset.
+     * Nama yang dikenal: "astro-x11" (build ini) + "termux-x11" (warisan PoC).
+     */
     private String probeScript() {
         return "PID=''; [ -f " + pidPath() + " ] && PID=$(cat " + pidPath() + " 2>/dev/null); "
-                + "if [ -n \"$PID\" ] && [ -d /proc/$PID ] && tr '\\0' ' ' < /proc/$PID/cmdline 2>/dev/null | grep -q CmdEntryPoint; then "
+                + "OK=''; if [ -n \"$PID\" ] && [ -d /proc/$PID ]; then "
+                + "case \"$(cat /proc/$PID/comm 2>/dev/null)\" in astro-x11|termux-x11) OK=1;; esac; fi; "
+                + "if [ -n \"$OK\" ]; then "
                 + "echo STATE=RUNNING; echo PID=$PID; grep VmRSS /proc/$PID/status 2>/dev/null | sed 's/^/RSS=/'; "
-                + "else echo STATE=STOPPED; fi; "
+                + "else FOUND=''; for d in /proc/[0-9]*; do "
+                + "case \"$(cat $d/comm 2>/dev/null)\" in astro-x11|termux-x11) FOUND=${d#/proc/}; break;; esac; done; "
+                + "if [ -n \"$FOUND\" ]; then echo $FOUND > " + pidPath() + "; echo STATE=RUNNING; echo PID=$FOUND; echo ADOPT=1; "
+                + "grep VmRSS /proc/$FOUND/status 2>/dev/null | sed 's/^/RSS=/'; "
+                + "else echo STATE=STOPPED; fi; fi; "
                 + "[ -S " + sockPath() + " ] && echo SOCK=1 || echo SOCK=0";
     }
 
@@ -168,6 +186,8 @@ public class XSessionManager {
                 p.sock = "1".equals(line.substring(5));
             } else if (line.startsWith("PID=") || line.startsWith("RSS=")) {
                 d.append(line).append(' ');
+            } else if (line.equals("ADOPT=1")) {
+                d.append("(server yatim diadopsi) ");
             }
         }
         p.detail = d.toString().trim();
@@ -187,22 +207,27 @@ public class XSessionManager {
 
     private String startScript() {
         // PID utama dari $! spawn (setsid mengeksekusi app_process di tempat
-        // pada shell non-interaktif). Pindaian /proc hanya cadangan, dan wajib
-        // mengandung DUA token (app_process + CmdEntryPoint) agar tidak kena
-        // proses grep/tr sesaat milik pemindai sendiri.
+        // pada shell non-interaktif). Verifikasi + pindaian cadangan memakai
+        // COMM (nice-name "astro-x11") — app_process menulis ulang cmdline
+        // menjadi hanya nice-name, jadi token kelas tidak pernah terlihat.
+        // JANGAN hapus socket di sini: bisa saja milik server yatim yang masih
+        // hidup (berkasnya terhapus = server yatim makin tak terlihat, padahal
+        // listener abstraknya tetap memegang display). Socket basi milik
+        // proses mati dibersihkan Xorg sendiri; socket yatim ditangani probe
+        // adopsi / jalur zombie. Yang dibersihkan di sini hanya file PID.
         return "mkdir -p " + tmp() + "; "
-                + "rm -f " + sockPath() + " " + pidPath() + "; "
+                + "rm -f " + pidPath() + "; "
                 + "TMPDIR=" + tmp() + " "
                 + "XKB_CONFIG_ROOT=" + root() + "/usr/share/X11/xkb "
                 + "CLASSPATH=$(pm path id.hawx.astro | cut -d: -f2) "
                 + "setsid /system/bin/app_process / --nice-name=astro-x11 "
                 + "com.termux.x11.CmdEntryPoint :0 >" + serverLog() + " 2>&1 </dev/null & "
                 + "SVPID=$!; sleep 0.2; "
-                + "if [ -d /proc/$SVPID ] && tr '\\0' ' ' < /proc/$SVPID/cmdline 2>/dev/null | grep -q CmdEntryPoint; then "
+                + "if [ \"$(cat /proc/$SVPID/comm 2>/dev/null)\" = \"astro-x11\" ]; then "
                 + "echo $SVPID > " + pidPath() + "; "
                 + "else for d in /proc/[0-9]*; do "
-                + "C=$(tr '\\0' ' ' < $d/cmdline 2>/dev/null); "
-                + "case \"$C\" in *app_process*CmdEntryPoint*) echo ${d#/proc/} > " + pidPath() + "; break;; esac; done; fi; "
+                + "if [ \"$(cat $d/comm 2>/dev/null)\" = \"astro-x11\" ]; then "
+                + "echo ${d#/proc/} > " + pidPath() + "; break; fi; done; fi; "
                 + "[ -f " + pidPath() + " ] && echo PIDFILE_OK || echo PIDFILE_GAGAL";
     }
 
@@ -278,10 +303,14 @@ public class XSessionManager {
     }
 
     private void killServerSync() {
+        // Penjaga comm sebelum membunuh: lindungi dari PID daur ulang —
+        // bunuh hanya bila proses di PID itu benar-benar server X kita.
         run("PID=''; [ -f " + pidPath() + " ] && PID=$(cat " + pidPath() + " 2>/dev/null); "
-                + "if [ -n \"$PID\" ] && [ -d /proc/$PID ]; then kill -TERM $PID 2>/dev/null; sleep 1; "
-                + "[ -d /proc/$PID ] && kill -KILL $PID 2>/dev/null; fi; "
-                + "rm -f " + sockPath() + " " + pidPath());
+                + "if [ -n \"$PID\" ] && [ -d /proc/$PID ]; then "
+                + "case \"$(cat /proc/$PID/comm 2>/dev/null)\" in astro-x11|termux-x11) "
+                + "kill -TERM $PID 2>/dev/null; sleep 1; "
+                + "[ -d /proc/$PID ] && kill -KILL $PID 2>/dev/null;; esac; fi; "
+                + "rm -f " + sockPath() + " " + pidPath() + " " + tmp() + "/.X0-lock");
         state = State.STOPPED;
     }
 

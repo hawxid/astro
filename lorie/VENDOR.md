@@ -40,6 +40,12 @@ yang menjalankan CmdEntryPoint dari shell root-nya.
    mendeklarasikan `android:name=".LorieApp"` dan merger menolak konflik
    dengan `.AstroApp` milik app (build 39583230666). Nilai app yang menang;
    rantai kelasnya memang AstroApp → LorieApp.
+8. `lorie/src/main/AndroidManifest.xml` — filter MAIN/LAUNCHER pada
+   `com.termux.x11.MainActivity` DICABUT (2026-10-21, pasca-M2): viewer
+   tidak lagi punya ikon "Termux:X11" sendiri di launcher HP. Satu pintu X
+   = X11PocActivity "Astro X11"; viewer dibuka intent eksplisit se-package
+   (override `exported=false` di manifest app tetap berlaku & kini benar:
+   tanpa filter launcher tidak ada ikon hantu "app tidak terinstall").
 
 ## Cara jalan (resep resmi chroot, README upstream)
 
