@@ -78,7 +78,7 @@
             android:name=".geomac.GeoMacInline"
             android:exported="true"
             android:label="Find MAC cords"
-            android:theme="@style/Theme.StrykerFloatingDialog">
+            android:theme="@style/Theme.AstroFloatingDialog">
             <meta-data
                 android:name="android.app.lib_name"
                 android:value="" />
@@ -95,7 +95,7 @@
             android:name=".macchanger.MACChangerInline"
             android:exported="true"
             android:label="Change device MAC"
-            android:theme="@style/Theme.StrykerFloatingDialog">
+            android:theme="@style/Theme.AstroFloatingDialog">
             <meta-data
                 android:name="android.app.lib_name"
                 android:value="" />
