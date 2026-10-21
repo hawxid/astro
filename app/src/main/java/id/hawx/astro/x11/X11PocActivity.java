@@ -25,7 +25,7 @@ import id.hawx.astro.utils.Core;
  */
 public class X11PocActivity extends AppCompatActivity {
 
-    private static final String CHROOT = "/data/local/astro";
+    private static final String CHROOT = Core.CHROOT_ROOT; // rootfs asli: /data/local/astro/release
     private static final String LOG = CHROOT + "/tmp/x11-server.log";
 
     private Core core;
