@@ -143,7 +143,7 @@ public class XSessionManager {
 
     /**
      * Skrip probe: STATE dari file PID + verifikasi COMM proses; bila file
-     * PID tidak kenal siapa-siapa, PINDAI /proc/*/comm mencari server yatim
+     * PID tidak kenal siapa-siapa, PINDAI comm tiap proses mencari server yatim
      * (sisa sesi build lama / app data ke-reset) dan ADOPSI: tulis PID-nya
      * ke file PID agar bisa dikelola (termasuk dimatikan) oleh manajer ini.
      *
