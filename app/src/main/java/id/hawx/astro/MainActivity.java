@@ -51,7 +51,6 @@ import id.hawx.astro.nuclei.InstallNuclei;
 import id.hawx.astro.ota.UpdateManager;
 import id.hawx.astro.settings.SettingsNew;
 import id.hawx.astro.utils.Core;
-import id.hawx.astro.utils.PromoDialogs;
 import id.hawx.astro.hid.ui.HidFragment;
 import id.hawx.astro.usbarsenal.ui.UsbArsenalFragment;
 import id.hawx.astro.vnc.VNCFragment;
@@ -409,11 +408,6 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(this::usbDialog);
     }
 
-    private void schedulePromo() {
-        new android.os.Handler(getMainLooper()).postDelayed(
-                () -> PromoDialogs.maybeShow(MainActivity.this), 1500);
-    }
-
     private void startRootlessLaunch() {
         id.hawx.astro.engine.GuestEngine engine =
                 id.hawx.astro.engine.Engines.active(core);
@@ -445,7 +439,6 @@ public class MainActivity extends AppCompatActivity {
         }
         id.hawx.astro.engine.RootlessService.start(this);
         landOn(new Dashboard());
-        schedulePromo();
         checkForUsb();
         if (!isConnected()) {
             new Thread(() -> core.getInterfacesList()).start();
@@ -617,7 +610,6 @@ public class MainActivity extends AppCompatActivity {
             }
             landOn(new Dashboard());
             runOnUiThread(() -> {
-                schedulePromo();
                 checkForUsb();
             });
             if (!isConnected()) {
