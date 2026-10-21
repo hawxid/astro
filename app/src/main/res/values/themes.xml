@@ -15,7 +15,7 @@
         <item name="materialCardViewStyle">@style/Widget.Stryker.CardView</item>
         <item name="floatingActionButtonStyle">@style/Widget.Stryker.FAB</item>
         <item name="materialAlertDialogTheme">@style/Widget.Stryker.AlertDialog</item>
-        <item name="backgroundColor">#fff</item>
+        <item name="backgroundColor">#F7F8FF</item>
     </style>
     <style name="Theme.StrykerFloatingDialog" parent="Theme.Stryker">
         <item name="android:background">@android:color/transparent</item>

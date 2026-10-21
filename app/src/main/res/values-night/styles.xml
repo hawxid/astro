@@ -2,11 +2,15 @@
 <resources>
     <style name="Widget.Stryker.CardView" parent="Widget.Material3.CardView.Filled">
         <item name="android:backgroundTint">@color/dialog_background_color</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Astro.Card</item>
+        <item name="strokeColor">@color/astro_stroke</item>
+        <item name="strokeWidth">1dp</item>
     </style>
 
     <style name="Widget.Stryker.Button" parent="Widget.Material3.Button">
         <item name="android:fontFamily">@font/lato</item>
         <item name="android:textColor">@android:color/white</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Astro.Pill</item>
     </style>
 
     <style name="Widget.Stryker.TextView" parent="android:TextAppearance.Material.Widget.TextView">
@@ -37,6 +41,7 @@
     <style name="Widget.Stryker.FAB" parent="Base.Widget.Material3.FloatingActionButton">
         <item name="shapeAppearance">@null</item>
         <item name="shapeAppearanceOverlay">@null</item>
+        <item name="backgroundTint">@color/stryker_accent</item>
     </style>
 
     <style name="Widget.Stryker.NavigationView" parent="Widget.Material3.NavigationView">
@@ -56,7 +61,7 @@
     </style>
 
     <style name="ThemeOverlay.App.Switch" parent="">
-        <item name="colorOnSurface">#3F99FF</item>
+        <item name="colorOnSurface">#A088F0</item>
         <item name="colorSecondary">@color/stryker_accent</item>
     </style>
 </resources>

@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="dialog_background_color">#FFFFFFFF</color>
-    <color name="stryker_accent_contrast">#304FFE</color>
-    <color name="stryker_accent">#1565C0</color>
-    <color name="stryker_logo_accent">#1565C0</color>
+    <color name="stryker_accent_contrast">#6D5DF6</color>
+    <color name="stryker_accent">#4F46E5</color>
+    <color name="stryker_logo_accent">#4F46E5</color>
     <color name="yellow">#F9A825</color>
     <color name="red">#C62828</color>
     <color name="green">#2E7D32</color>
-    <color name="welcome_ink">#3B82F6</color>
-    <color name="welcome_line_1">#A6C8FF</color>
-    <color name="welcome_line_2">#4A90E2</color>
+    <color name="welcome_ink">#4F46E5</color>
+    <color name="welcome_line_1">#C7C2FF</color>
+    <color name="welcome_line_2">#6D5DF6</color>
     <color name="welcome_line_3">#FFFFFF</color>
-    <color name="welcome_logo_tile">#EAF1FB</color>
-    <color name="welcome_logo_stroke">#D3E2F7</color>
+    <color name="welcome_logo_tile">#ECEAFE</color>
+    <color name="welcome_logo_stroke">#CFC9F5</color>
 
-    <color name="intro_ink">#1565C0</color>
-    <color name="intro_line_1">#A6C8FF</color>
-    <color name="intro_line_2">#7FB3F0</color>
+    <color name="intro_ink">#4F46E5</color>
+    <color name="intro_line_1">#C7C2FF</color>
+    <color name="intro_line_2">#8F86F5</color>
     <color name="intro_line_3">#FFFFFF</color>
 
     <color name="light_contrast">#FFFFFF</color>
@@ -27,11 +27,11 @@
     <color name="local_circle">#ffffff</color>
     <color name="device_img">#757575</color>
     <color name="console">#000000</color>
-    <color name="itemcolor">#DBF3FD</color>
-    <color name="toolbar_color">#ededed</color>
+    <color name="itemcolor">#E6E9FC</color>
+    <color name="toolbar_color">#EEF0FA</color>
     <color name="toolbar_darkness_color">#fff</color>
 
-    <color name="accent_wifi">#1565C0</color>
+    <color name="accent_wifi">#4F46E5</color>
     <color name="accent_local">#AB47BC</color>
     <color name="accent_handshakes">#00897B</color>
     <color name="accent_exploits">#EF6C00</color>
@@ -50,10 +50,10 @@
     <color name="row_locked">#61757575</color>
 
     <color name="icon_tile_neutral">#E9EBEE</color>
-    <color name="tile_blue">#E3F2FD</color>
+    <color name="tile_blue">#E4E7FB</color>
     <color name="tile_cyan">#E0F7FA</color>
     <color name="tile_green">#E8F5E9</color>
-    <color name="tile_indigo">#E8EAF6</color>
+    <color name="tile_indigo">#ECEAFE</color>
     <color name="tile_orange">#FFF3E0</color>
     <color name="tile_pink">#FCE4EC</color>
     <color name="tile_purple">#F3E5F5</color>
@@ -75,8 +75,9 @@
     <color name="intro_surface">#E6FFFFFF</color>
     <color name="intro_outline">#2A0A2540</color>
 
-    <color name="dash_surface">#F4F4F7</color>
-    <color name="dash_surface_high">#EAEAEF</color>
+    <color name="dash_surface">#EFF1FA</color>
+    <color name="dash_surface_high">#E1E5F8</color>
 
     <color name="dash_secondary">#757575</color>
+    <color name="astro_stroke">#1A4F46E5</color>
 </resources>
