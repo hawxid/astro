@@ -371,9 +371,14 @@ public class X11PocActivity extends AppCompatActivity {
 
     private String statusScript() {
         String root = Core.CHROOT_ROOT;
+        // Kebenaran server = listener :0 di /proc/net/unix (selaras probe
+        // manajer); file PID kini berisi "PID starttime" — ambil kolom 1.
         return "echo '--- server ---'; "
-                + "PID=''; [ -f " + root + "/tmp/astro-x11-server.pid ] && PID=$(cat " + root + "/tmp/astro-x11-server.pid 2>/dev/null); "
-                + "if [ -n \"$PID\" ] && [ -d /proc/$PID ]; then echo \"jalan (pid $PID)\"; grep VmRSS /proc/$PID/status 2>/dev/null; else echo '(tidak jalan)'; fi; "
+                + "set -- $(cat " + root + "/tmp/astro-x11-server.pid 2>/dev/null); P=$1; "
+                + "INO=$(awk -v s='" + root + "/tmp/.X11-unix/X0' -v a='@" + root + "/tmp/.X11-unix/X0' '$8==s || $8==a {print $7; exit}' /proc/net/unix 2>/dev/null); "
+                + "if [ -n \"$INO\" ]; then echo \"jalan — listener :0 aktif (pid tercatat: ${P:-?})\"; [ -n \"$P\" ] && grep VmRSS /proc/$P/status 2>/dev/null; "
+                + "elif [ -n \"$P\" ] && [ -d /proc/$P ]; then echo \"proses $P hidup tapi tidak mendengarkan (zombie)\"; "
+                + "else echo '(tidak jalan)'; fi; "
                 + "echo '--- socket ---'; ls " + root + "/tmp/.X11-unix/ 2>/dev/null || echo '(tidak ada socket)'; "
                 + "echo '--- openbox ---'; pgrep -x openbox >/dev/null 2>&1 && echo 'openbox jalan' || echo '(openbox tidak jalan)'; "
                 + "echo '--- xkb data ---'; ls " + root + "/usr/share/X11/xkb >/dev/null 2>&1 && echo 'xkb-data ADA' || echo 'xkb-data BELUM ADA'; "

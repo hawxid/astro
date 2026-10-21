@@ -20,8 +20,10 @@ import id.hawx.astro.utils.Core;
  *    di dalam chroot, diluncurkan bersama sesi (jendela bisa digeser).
  *  - Server hidup MALAS (lazy): hanya saat ada permintaan GUI. Nol proses
  *    saat berhenti.
- *  - Pelacakan proses server via FILE PID (bukan pgrep pola nama), ditulis
- *    skrip start sesaat setelah spawn dengan verifikasi /proc/<pid>/comm.
+ *  - Pelacakan proses server via FILE PID berisi "PID starttime", ditulis
+ *    skrip start dari $! spawn. Kebenaran sesi dibaca dari /proc/net/unix
+ *    (listener :0 -> inode -> pemilik via fd), TANPA token nama proses —
+ *    nama di jalur app_process terbukti tidak bisa dipegang (comm = "main").
  *  - Timeout tunggu socket 10 detik (SD665 di bawah beban bisa telat).
  *  - Sesi mulai -> daftarkan font chroot ke server (xset fp+, path sisi host)
  *    + terapkan Xft.dpi global + start openbox. Obat masalah font xterm
@@ -142,35 +144,50 @@ public class XSessionManager {
     // ------------------------------------------------------------ probe
 
     /**
-     * Skrip probe: STATE dari file PID + verifikasi COMM proses; bila file
-     * PID tidak kenal siapa-siapa, PINDAI comm tiap proses mencari server yatim
-     * (sisa sesi build lama / app data ke-reset) dan ADOPSI: tulis PID-nya
-     * ke file PID agar bisa dikelola (termasuk dimatikan) oleh manajer ini.
+     * Skrip probe — SUMBER KEBENARAN = /proc/net/unix, BUKAN nama proses.
      *
-     * IDENTITAS PROSES = COMM (nice-name), BUKAN cmdline: app_process
-     * menulis ulang cmdline-nya menjadi hanya nice-name (bukti perangkat:
-     * `pgrep -af termux-x11` -> "32111 termux-x11"). Versi awal M2 mencari
-     * token CmdEntryPoint di cmdline dan karena itu buta total — tidak bisa
-     * mengenali server-nya sendiri, dan pola pkill CmdEntryPoint pun meleset.
-     * Nama yang dikenal: "astro-x11" (build ini) + "termux-x11" (warisan PoC).
+     * Pelajaran berdarah 2026-10-21 (tiga asumsi nama gugur di perangkat):
+     * cmdline app_process ditulis ulang, comm server X ternyata hanya
+     * "main" (nama generik runtime), jadi TIDAK ADA token nama yang bisa
+     * dipegang. Yang tidak bisa bohong: entri listener display :0 di
+     * /proc/net/unix (nama berkas ATAU abstrak) + inode-nya.
+     *
+     * Alur: cari inode listener X0 -> petakan ke PID pemilik lewat
+     * /proc/PID/fd -> bila file PID belum tahu, ADOPSI (tulis "pid
+     * starttime"). Pemilik ada tapi berkas socket hilang = ZOMBIE banci
+     * (kasus nyata: spawn kedua yang mati fatal meng-unlink socket server
+     * yang hidup). Tanpa listener: zombie klasik = PID file PID masih
+     * hidup dengan starttime yang cocok tapi tidak mendengarkan.
+     * File PID berisi "PID STARTTIME" (starttime = field 22 /proc/stat,
+     * anti daur ulang PID).
      */
     private String probeScript() {
-        return "PID=''; [ -f " + pidPath() + " ] && PID=$(cat " + pidPath() + " 2>/dev/null); "
-                + "OK=''; if [ -n \"$PID\" ] && [ -d /proc/$PID ]; then "
-                + "case \"$(cat /proc/$PID/comm 2>/dev/null)\" in astro-x11|termux-x11) OK=1;; esac; fi; "
-                + "if [ -n \"$OK\" ]; then "
-                + "echo STATE=RUNNING; echo PID=$PID; grep VmRSS /proc/$PID/status 2>/dev/null | sed 's/^/RSS=/'; "
-                + "else FOUND=''; for d in /proc/[0-9]*; do "
-                + "case \"$(cat $d/comm 2>/dev/null)\" in astro-x11|termux-x11) FOUND=${d#/proc/}; break;; esac; done; "
-                + "if [ -n \"$FOUND\" ]; then echo $FOUND > " + pidPath() + "; echo STATE=RUNNING; echo PID=$FOUND; echo ADOPT=1; "
-                + "grep VmRSS /proc/$FOUND/status 2>/dev/null | sed 's/^/RSS=/'; "
-                + "else echo STATE=STOPPED; fi; fi; "
-                + "[ -S " + sockPath() + " ] && echo SOCK=1 || echo SOCK=0";
+        String sock = sockPath();
+        return "SOCK=" + sock + "; PIDF=" + pidPath() + "; "
+                + "INO=$(awk -v s=\"$SOCK\" -v a=\"@$SOCK\" '$8==s || $8==a {print $7; exit}' /proc/net/unix 2>/dev/null); "
+                + "if [ -n \"$INO\" ]; then OWNER=''; "
+                + "for d in /proc/[0-9]*; do "
+                + "if ls -l $d/fd 2>/dev/null | grep -q \"socket:\\[$INO\\]\"; then OWNER=${d#/proc/}; break; fi; done; "
+                + "if [ -n \"$OWNER\" ]; then "
+                + "ST=$(awk '{print $22}' /proc/$OWNER/stat 2>/dev/null); "
+                + "if [ \"$(cat $PIDF 2>/dev/null)\" != \"$OWNER $ST\" ]; then echo \"$OWNER $ST\" > $PIDF; echo ADOPT=1; fi; "
+                + "echo STATE=RUNNING; echo PID=$OWNER; "
+                + "grep VmRSS /proc/$OWNER/status 2>/dev/null | sed 's/^/RSS=/'; "
+                + "if [ -S $SOCK ]; then echo SOCK=1; else echo SOCK=0; echo ZOMBIE=1; fi; "
+                + "else echo STATE=STOPPED; echo SOCK=0; fi; "
+                + "else "
+                + "set -- $(cat $PIDF 2>/dev/null); P=$1; S=$2; "
+                + "if [ -n \"$P\" ] && [ -d /proc/$P ] && [ -n \"$S\" ] && "
+                + "[ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
+                + "echo STATE=RUNNING; echo PID=$P; echo SOCK=0; echo ZOMBIE=1; "
+                + "grep VmRSS /proc/$P/status 2>/dev/null | sed 's/^/RSS=/'; "
+                + "else echo STATE=STOPPED; [ -S $SOCK ] && echo SOCK=1 || echo SOCK=0; fi; fi";
     }
 
     private static class Probe {
         State state = State.STOPPED;
         boolean sock = false;
+        boolean zombie = false;
         String detail = "";
     }
 
@@ -184,6 +201,8 @@ public class XSessionManager {
                 p.state = "RUNNING".equals(line.substring(6)) ? State.RUNNING : State.STOPPED;
             } else if (line.startsWith("SOCK=")) {
                 p.sock = "1".equals(line.substring(5));
+            } else if (line.equals("ZOMBIE=1")) {
+                p.zombie = true;
             } else if (line.startsWith("PID=") || line.startsWith("RSS=")) {
                 d.append(line).append(' ');
             } else if (line.equals("ADOPT=1")) {
@@ -206,15 +225,13 @@ public class XSessionManager {
     // ------------------------------------------------------------ start
 
     private String startScript() {
-        // PID utama dari $! spawn (setsid mengeksekusi app_process di tempat
-        // pada shell non-interaktif). Verifikasi + pindaian cadangan memakai
-        // COMM (nice-name "astro-x11") — app_process menulis ulang cmdline
-        // menjadi hanya nice-name, jadi token kelas tidak pernah terlihat.
-        // JANGAN hapus socket di sini: bisa saja milik server yatim yang masih
-        // hidup (berkasnya terhapus = server yatim makin tak terlihat, padahal
-        // listener abstraknya tetap memegang display). Socket basi milik
-        // proses mati dibersihkan Xorg sendiri; socket yatim ditangani probe
-        // adopsi / jalur zombie. Yang dibersihkan di sini hanya file PID.
+        // Identitas spawn = $! (setsid mengeksekusi app_process di tempat
+        // pada shell non-interaktif) + starttime-nya, ditulis ke file PID
+        // SEGERA — tanpa cek nama apa pun (nama proses di jalur ini terbukti
+        // tidak bisa dipegang: cmdline ditulis ulang, comm cuma "main").
+        // Keberhasilan sebenarnya diputuskan poll socket di ensureRunningSync.
+        // Socket TIDAK dihapus di sini (bisa milik server yatim yang hidup);
+        // jalur zombie di ensure yang membersihkan sebelum spawn.
         return "mkdir -p " + tmp() + "; "
                 + "rm -f " + pidPath() + "; "
                 + "TMPDIR=" + tmp() + " "
@@ -222,13 +239,10 @@ public class XSessionManager {
                 + "CLASSPATH=$(pm path id.hawx.astro | cut -d: -f2) "
                 + "setsid /system/bin/app_process / --nice-name=astro-x11 "
                 + "com.termux.x11.CmdEntryPoint :0 >" + serverLog() + " 2>&1 </dev/null & "
-                + "SVPID=$!; sleep 0.2; "
-                + "if [ \"$(cat /proc/$SVPID/comm 2>/dev/null)\" = \"astro-x11\" ]; then "
-                + "echo $SVPID > " + pidPath() + "; "
-                + "else for d in /proc/[0-9]*; do "
-                + "if [ \"$(cat $d/comm 2>/dev/null)\" = \"astro-x11\" ]; then "
-                + "echo ${d#/proc/} > " + pidPath() + "; break; fi; done; fi; "
-                + "[ -f " + pidPath() + " ] && echo PIDFILE_OK || echo PIDFILE_GAGAL";
+                + "SVPID=$!; "
+                + "ST=$(awk '{print $22}' /proc/$SVPID/stat 2>/dev/null); "
+                + "if [ -n \"$ST\" ]; then echo \"$SVPID $ST\" > " + pidPath() + "; echo PIDFILE_OK; "
+                + "else echo PIDFILE_GAGAL; fi";
     }
 
     /** Setup satu-kali per sesi, dijalankan DI DALAM chroot setelah socket siap. */
@@ -253,13 +267,20 @@ public class XSessionManager {
      */
     private boolean ensureRunningSync(StringBuilder report) {
         Probe p = probeSync();
-        if (p.state == State.RUNNING && p.sock) {
+        if (p.state == State.RUNNING && p.sock && !p.zombie) {
             report.append("server sudah jalan");
             return true;
         }
-        if (p.state == State.RUNNING && !p.sock) {
-            report.append("server zombie (proses hidup, socket hilang) — dibunuh, start ulang. ");
+        if (p.zombie) {
+            report.append("server zombie/banci (listener/socket tak sehat) — dibunuh, start ulang. ");
             killServerSync();
+            // tunggu listener lama benar-benar lepas dari /proc/net/unix
+            long dl = System.currentTimeMillis() + 3_000L;
+            while (System.currentTimeMillis() < dl) {
+                Probe q0 = probeSync();
+                if (q0.state == State.STOPPED && !q0.zombie) break;
+                try { Thread.sleep(200); } catch (InterruptedException ignored) {}
+            }
         }
         state = State.STARTING;
         String out = run(startScript());
@@ -272,7 +293,7 @@ public class XSessionManager {
         long deadline = System.currentTimeMillis() + 10_000L;
         while (System.currentTimeMillis() < deadline) {
             Probe q = probeSync();
-            if (q.state == State.RUNNING && q.sock) {
+            if (q.state == State.RUNNING && q.sock && !q.zombie) {
                 // setup sesi di chroot (font, dpi, openbox) bila chroot ter-mount
                 try {
                     if (core.isMounted()) {
@@ -303,13 +324,15 @@ public class XSessionManager {
     }
 
     private void killServerSync() {
-        // Penjaga comm sebelum membunuh: lindungi dari PID daur ulang —
-        // bunuh hanya bila proses di PID itu benar-benar server X kita.
-        run("PID=''; [ -f " + pidPath() + " ] && PID=$(cat " + pidPath() + " 2>/dev/null); "
-                + "if [ -n \"$PID\" ] && [ -d /proc/$PID ]; then "
-                + "case \"$(cat /proc/$PID/comm 2>/dev/null)\" in astro-x11|termux-x11) "
-                + "kill -TERM $PID 2>/dev/null; sleep 1; "
-                + "[ -d /proc/$PID ] && kill -KILL $PID 2>/dev/null;; esac; fi; "
+        // Penjaga STARTTIME sebelum membunuh: bunuh hanya bila proses di
+        // PID file PID masih proses yang sama dengan yang dicatat (starttime
+        // /proc/stat field 22 identik) — anti PID daur ulang, tanpa nama.
+        run("set -- $(cat " + pidPath() + " 2>/dev/null); P=$1; S=$2; "
+                + "if [ -n \"$P\" ] && [ -n \"$S\" ] && [ -d /proc/$P ] && "
+                + "[ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
+                + "kill -TERM $P 2>/dev/null; sleep 1; "
+                + "if [ -d /proc/$P ] && [ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
+                + "kill -KILL $P 2>/dev/null; fi; fi; "
                 + "rm -f " + sockPath() + " " + pidPath() + " " + tmp() + "/.X0-lock");
         state = State.STOPPED;
     }
