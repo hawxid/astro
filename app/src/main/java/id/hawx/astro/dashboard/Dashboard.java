@@ -19,6 +19,8 @@ import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.arsenal.ArsenalFragment;
@@ -423,6 +425,10 @@ public class Dashboard extends Fragment {
             panel.addView(gear);
             xfceClock = panelText("");
             panel.addView(xfceClock);
+            TextView power = panelText("\u23FB");
+            power.setTextSize(15f);
+            power.setOnClickListener(v -> confirmUnmountDesktop());
+            panel.addView(power);
         }
         if (dock != null) {
             dock.addView(dockBtn("\u2328", v -> openTerminal()));
@@ -460,6 +466,32 @@ public class Dashboard extends Fragment {
                 }
             }).start();
         }
+    }
+
+    /**
+     * Popup sesi ala tombol shutdown desktop (pojok panel): konfirmasi
+     * unmount chroot — semantik sama persis tombol unmount Dashboard
+     * lama / Settings: unmountCore -> sukses = toast + tutup app.
+     */
+    private void confirmUnmountDesktop() {
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.settings_unmount_confirm_title)
+                .setMessage(R.string.settings_unmount_confirm_message)
+                .setPositiveButton(R.string.settings_unmount_title, (d, w) -> {
+                    new Thread(() -> {
+                        boolean ok = core.unmountCore();
+                        if (ok) {
+                            core.toaster(getString(R.string.settings_unmount_success));
+                            if (activity != null) {
+                                activity.runOnUiThread(() -> activity.finishAffinity());
+                            }
+                        } else {
+                            core.toaster(getString(R.string.settings_unmount_failed));
+                        }
+                    }).start();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     // ================= pembuka layar lain =================
