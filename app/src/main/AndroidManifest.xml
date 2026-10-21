@@ -234,12 +234,24 @@
         <activity
             android:name=".x11.X11PocActivity"
             android:exported="true"
-            android:label="Astro X11 PoC">
+            android:taskAffinity="id.hawx.astro.x11task"
+            android:label="Astro X11">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Editor launcher X11 (internal) -->
+        <activity
+            android:name=".x11.LauncherEditActivity"
+            android:exported="false"
+            android:label="Edit Launcher" />
+        <!-- Pengerasan (rencana §2.5.4): penampil X lorie tidak perlu terbuka
+             untuk app lain; Astro membukanya via intent eksplisit se-package. -->
+        <activity
+            android:name="com.termux.x11.MainActivity"
+            android:exported="false"
+            tools:replace="android:exported" />
     </application>
 
 </manifest>

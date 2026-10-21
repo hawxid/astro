@@ -1,148 +1,383 @@
 package id.hawx.astro.x11;
 
-import android.content.ComponentName;
 import android.content.Intent;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.io.File;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import id.hawx.astro.utils.Core;
 
 /**
- * PoC fondasi X11 (milestone 1) — BUKAN fitur final.
+ * Milestone 2 — layar X11: pengelola sesi X + daftar launcher tool GUI.
+ * (Berevolusi dari X11PocActivity milestone 1; nama kelas dipertahankan agar
+ * entri manifest + ikon launcher tidak berubah.)
  *
- * Membuktikan: server X Lorie (modul :lorie, snapshot termux-x11) bisa hidup
- * on-demand dari shell root Astro, socket lahir di tmp chroot, klien X dari
- * chroot (xterm) tampil di MainActivity bawaan lorie, dan server mati bersih.
- * Prinsip user: socket X hanya dibuat saat launcher ke tool GUI dipicu.
+ * Berisi: kartu sesi (start/stop/buka layar, status, chip watchdog idle
+ * 15 menit yang dicek malas saat onResume, penggeser skala Xft.dpi),
+ * daftar launcher (tap = jalankan/fokus, Stop per entri, Edit),
+ * ekspor/impor JSON, dan panel status diagnostik warisan PoC.
  */
 public class X11PocActivity extends AppCompatActivity {
 
-    private static final String CHROOT = Core.CHROOT_ROOT; // rootfs asli: /data/local/astro/release
-    private static final String LOG = CHROOT + "/tmp/x11-server.log";
-
     private Core core;
-    private TextView status;
+    private XSessionManager mgr;
+    private LauncherStore store;
+
+    private TextView sessionStatus;
+    private TextView statusPane;
+    private LinearLayout idleChip;
+    private LinearLayout rowsBox;
+    private TextView dpiLabel;
+    private SeekBar dpiSeek;
+    private boolean showHidden = false;
+    private boolean busy = false;
+
+    private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         core = new Core(this);
+        mgr = XSessionManager.get(this);
+        store = new LauncherStore(this);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (16 * getResources().getDisplayMetrics().density);
-        root.setPadding(pad, pad, pad, pad);
+        root.setPadding(dp(16), dp(16), dp(16), dp(16));
 
         TextView title = new TextView(this);
-        title.setText("X11 PoC — Fondasi");
+        title.setText("X11 — Sesi & Launcher");
         title.setTextSize(20);
         title.setTypeface(null, Typeface.BOLD);
         root.addView(title);
 
         TextView hint = new TextView(this);
-        hint.setText("Syarat di chroot: apt install -y xterm xkb-data\n"
-                + "Alur tes: 1) Start Server  2) Buka Layar X  3) Jalankan xterm");
-        hint.setPadding(0, pad / 2, 0, pad / 2);
+        hint.setText("Server X hidup malas: hanya saat ada tool GUI yang dibuka.\n"
+                + "Syarat chroot: apt install -y xterm xkb-data openbox x11-xserver-utils xfonts-base fonts-dejavu-core");
+        hint.setPadding(0, dp(6), 0, dp(10));
         root.addView(hint);
 
-        root.addView(makeButton("1 · Start Server X", v -> runRoot(startScript(), true)));
-        root.addView(makeButton("2 · Buka Layar X", v -> openDisplay()));
-        root.addView(makeButton("3 · Jalankan xterm (chroot)", v -> runXterm()));
-        root.addView(makeButton("Stop Server", v -> runRoot(stopScript(), true)));
-        root.addView(makeButton("Segarkan Status", v -> runRoot(statusScript(), true)));
+        // ---- kartu sesi ----
+        sessionStatus = new TextView(this);
+        sessionStatus.setTypeface(Typeface.MONOSPACE);
+        sessionStatus.setTextSize(12);
+        sessionStatus.setText("Server: …");
+        root.addView(sessionStatus);
 
-        status = new TextView(this);
-        status.setTypeface(Typeface.MONOSPACE);
-        status.setTextSize(12);
-        status.setPadding(0, pad, 0, 0);
-        status.setText("Menunggu…");
+        LinearLayout sessRow = new LinearLayout(this);
+        sessRow.setOrientation(LinearLayout.HORIZONTAL);
+        sessRow.addView(actionButton("Start Server", v -> doStart()));
+        sessRow.addView(actionButton("Stop Server", v -> doStop()));
+        sessRow.addView(actionButton("Buka Layar X", v -> mgr.openViewer()));
+        root.addView(sessRow);
+
+        // ---- chip watchdog idle (bundle: cek malas saat onResume, tanpa polling) ----
+        idleChip = new LinearLayout(this);
+        idleChip.setOrientation(LinearLayout.HORIZONTAL);
+        idleChip.setGravity(Gravity.CENTER_VERTICAL);
+        idleChip.setPadding(0, dp(6), 0, 0);
+        TextView idleText = new TextView(this);
+        idleText.setText("⚠ Server X nganggur > 15 menit");
+        idleText.setTextColor(Color.rgb(230, 160, 60));
+        idleChip.addView(idleText);
+        idleChip.addView(actionButton("Matikan", v -> doStop()));
+        idleChip.setVisibility(View.GONE);
+        root.addView(idleChip);
+
+        // ---- skala DPI ----
+        LinearLayout dpiRow = new LinearLayout(this);
+        dpiRow.setOrientation(LinearLayout.HORIZONTAL);
+        dpiRow.setGravity(Gravity.CENTER_VERTICAL);
+        dpiRow.setPadding(0, dp(10), 0, 0);
+        dpiLabel = new TextView(this);
+        dpiSeek = new SeekBar(this);
+        dpiSeek.setMax(8); // 96..288 langkah 24
+        dpiSeek.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        dpiSeek.setProgress((mgr.getDpi() - 96) / 24);
+        dpiRow.addView(dpiLabel);
+        dpiRow.addView(dpiSeek);
+        dpiRow.addView(actionButton("Terapkan", v -> {
+            mgr.setDpi(96 + dpiSeek.getProgress() * 24);
+            mgr.applyDpiLive((ok, msg) -> toast(msg));
+        }));
+        root.addView(dpiRow);
+        updateDpiLabel();
+        dpiSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar sb, int p, boolean user) { updateDpiLabel(); }
+            @Override public void onStartTrackingTouch(SeekBar sb) {}
+            @Override public void onStopTrackingTouch(SeekBar sb) {
+                mgr.setDpi(96 + sb.getProgress() * 24);
+            }
+        });
+
+        // ---- header launcher ----
+        LinearLayout lh = new LinearLayout(this);
+        lh.setOrientation(LinearLayout.HORIZONTAL);
+        lh.setGravity(Gravity.CENTER_VERTICAL);
+        lh.setPadding(0, dp(14), 0, dp(4));
+        TextView lt = new TextView(this);
+        lt.setText("Launcher");
+        lt.setTextSize(17);
+        lt.setTypeface(null, Typeface.BOLD);
+        lt.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        lh.addView(lt);
+        lh.addView(actionButton("+ Baru", v -> {
+            Intent i = new Intent(this, LauncherEditActivity.class);
+            startActivity(i);
+        }));
+        lh.addView(actionButton("Tersembunyi", v -> {
+            showHidden = !showHidden;
+            rebuildRows();
+        }));
+        root.addView(lh);
+
+        rowsBox = new LinearLayout(this);
+        rowsBox.setOrientation(LinearLayout.VERTICAL);
+        root.addView(rowsBox);
+
+        // ---- ekspor / impor ----
+        LinearLayout ioRow = new LinearLayout(this);
+        ioRow.setOrientation(LinearLayout.HORIZONTAL);
+        ioRow.setPadding(0, dp(10), 0, 0);
+        ioRow.addView(actionButton("Ekspor ke /sdcard", v ->
+                new Thread(() -> toast(store.exportToSdcard())).start()));
+        ioRow.addView(actionButton("Impor dari /sdcard", v ->
+                new Thread(() -> {
+                    String msg = store.importFromSdcard();
+                    runOnUiThread(() -> { toast(msg); rebuildRows(); });
+                }).start()));
+        root.addView(ioRow);
+
+        // ---- panel status diagnostik ----
+        LinearLayout stHead = new LinearLayout(this);
+        stHead.setOrientation(LinearLayout.HORIZONTAL);
+        stHead.setGravity(Gravity.CENTER_VERTICAL);
+        stHead.setPadding(0, dp(14), 0, 0);
+        TextView stt = new TextView(this);
+        stt.setText("Status");
+        stt.setTypeface(null, Typeface.BOLD);
+        stt.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        stHead.addView(stt);
+        stHead.addView(actionButton("Segarkan", v -> refreshAll()));
+        root.addView(stHead);
+
+        statusPane = new TextView(this);
+        statusPane.setTypeface(Typeface.MONOSPACE);
+        statusPane.setTextSize(11);
+        statusPane.setText("Menunggu…");
         ScrollView scroll = new ScrollView(this);
-        scroll.addView(status);
+        scroll.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(190)));
+        scroll.addView(statusPane);
         root.addView(scroll);
 
-        setContentView(root);
-        runRoot(statusScript(), true);
+        ScrollView outer = new ScrollView(this);
+        outer.addView(root);
+        setContentView(outer);
+
+        if (store.lastLoadWarning != null) toast(store.lastLoadWarning);
     }
 
-    private Button makeButton(String label, View.OnClickListener listener) {
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshAll(); // sekalian cek watchdog idle (malas, tanpa polling)
+    }
+
+    // ------------------------------------------------------------ actions
+
+    private Button actionButton(String label, View.OnClickListener listener) {
         Button b = new Button(this);
         b.setText(label);
         b.setOnClickListener(listener);
         return b;
     }
 
-    private String startScript() {
-        return "mkdir -p " + CHROOT + "/tmp; "
-                + "if pgrep -f termux-x11 >/dev/null; then echo '== server SUDAH jalan =='; "
-                + "else TMPDIR=" + CHROOT + "/tmp "
-                + "XKB_CONFIG_ROOT=" + CHROOT + "/usr/share/X11/xkb "
-                + "CLASSPATH=$(pm path id.hawx.astro | cut -d: -f2) "
-                + "setsid /system/bin/app_process / --nice-name=termux-x11 "
-                + "com.termux.x11.CmdEntryPoint :0 >" + LOG + " 2>&1 </dev/null & "
-                + "echo '== server dipicu =='; fi; "
-                + "sleep 2; echo '--- proses ---'; pgrep -af termux-x11; "
-                + "echo '--- socket ---'; ls -la " + CHROOT + "/tmp/.X11-unix/ 2>/dev/null || echo '(socket belum lahir)'; "
-                + "echo '--- log server ---'; tail -15 " + LOG + " 2>/dev/null";
+    private void toast(String msg) {
+        runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
     }
 
-    private String stopScript() {
-        return "pkill -f termux-x11; sleep 1; "
-                + "if pgrep -f termux-x11 >/dev/null; then echo '== server MASIH jalan =='; "
-                + "else echo '== server mati bersih =='; fi; "
-                + "ls " + CHROOT + "/tmp/.X11-unix/ 2>/dev/null || echo '(direktori socket bersih)'";
+    private void doStart() {
+        if (busy) return;
+        busy = true;
+        sessionStatus.setText("⏳ Menyiapkan server X…");
+        mgr.start((ok, msg) -> {
+            busy = false;
+            toast(msg);
+            refreshAll();
+        });
     }
 
-    private String statusScript() {
-        return "echo '--- proses ---'; pgrep -af termux-x11 || echo '(server tidak jalan)'; "
-                + "echo '--- socket ---'; ls -la " + CHROOT + "/tmp/.X11-unix/ 2>/dev/null || echo '(tidak ada socket)'; "
-                + "echo '--- xkb data ---'; ls " + CHROOT + "/usr/share/X11/xkb >/dev/null 2>&1 && echo 'xkb-data ADA' || echo 'xkb-data BELUM ADA (apt install -y xkb-data)'; "
-                + "echo '--- xterm ---'; ls " + CHROOT + "/usr/bin/xterm >/dev/null 2>&1 && echo 'xterm ADA' || echo 'xterm BELUM ADA (apt install -y xterm)'; "
-                + "echo '--- log server (ekor) ---'; tail -8 " + LOG + " 2>/dev/null || echo '(belum ada log)'";
+    private void doStop() {
+        if (busy) return;
+        busy = true;
+        sessionStatus.setText("⏳ Menghentikan sesi X…");
+        mgr.stopSession((ok, msg) -> {
+            busy = false;
+            toast(msg);
+            refreshAll();
+        });
     }
 
-    private void runRoot(String script, boolean showInStatus) {
-        if (showInStatus) status.setText("Memproses…");
+    private void doLaunch(LauncherEntry e) {
+        mgr.launch(e, (ok, msg) -> {
+            toast(msg);
+            refreshAll();
+        });
+    }
+
+    // ------------------------------------------------------------ render
+
+    private void updateDpiLabel() {
+        int dpi = 96 + dpiSeek.getProgress() * 24;
+        dpiLabel.setText("Skala teks GTK (DPI): " + dpi + "  ");
+    }
+
+    private void refreshAll() {
+        mgr.probe((state, detail) -> {
+            if (!busy) {
+                sessionStatus.setText("Server: " + (state == XSessionManager.State.RUNNING ? "JALAN" : "BERHENTI")
+                        + (detail.isEmpty() ? "" : " • " + detail));
+            }
+            boolean idle = state == XSessionManager.State.RUNNING
+                    && mgr.idleMillis() >= XSessionManager.IDLE_LIMIT_MS;
+            idleChip.setVisibility(idle ? View.VISIBLE : View.GONE);
+        });
+        rebuildRows();
+        refreshStatusPane();
+    }
+
+    private void rebuildRows() {
+        new Thread(() -> {
+            List<LauncherEntry> list = store.list();
+            Map<String, Boolean> running = new HashMap<>();
+            for (LauncherEntry e : list) {
+                if ("gui".equals(e.type)) {
+                    running.put(e.id, mgr.entryRunningSync(e.id, e.firstWord()));
+                }
+            }
+            runOnUiThread(() -> {
+                rowsBox.removeAllViews();
+                for (LauncherEntry e : list) {
+                    if (e.hidden && !showHidden) continue;
+                    rowsBox.addView(buildRow(e, Boolean.TRUE.equals(running.get(e.id))));
+                }
+                if (rowsBox.getChildCount() == 0) {
+                    TextView empty = new TextView(this);
+                    empty.setText("(belum ada launcher — ketuk + Baru)");
+                    rowsBox.addView(empty);
+                }
+            });
+        }).start();
+    }
+
+    private View iconView(LauncherEntry e) {
+        if (e.icon != null && e.icon.startsWith("file:")) {
+            File f = new File("/sdcard/Astro/icons", e.icon.substring(5));
+            if (f.exists()) {
+                ImageView iv = new ImageView(this);
+                iv.setImageBitmap(BitmapFactory.decodeFile(f.getAbsolutePath()));
+                iv.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(44)));
+                return iv;
+            }
+        }
+        TextView tv = new TextView(this);
+        String label = (e.icon != null && !e.icon.trim().isEmpty() && !e.icon.startsWith("file:"))
+                ? e.icon.trim()
+                : (e.name == null || e.name.isEmpty() ? "?" : e.name.substring(0, 1).toUpperCase());
+        tv.setText(label);
+        tv.setTextSize(22);
+        tv.setGravity(Gravity.CENTER);
+        tv.setLayoutParams(new LinearLayout.LayoutParams(dp(48), dp(48)));
+        return tv;
+    }
+
+    private View buildRow(LauncherEntry e, boolean running) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(4), 0, dp(4));
+
+        row.addView(iconView(e));
+
+        LinearLayout mid = new LinearLayout(this);
+        mid.setOrientation(LinearLayout.VERTICAL);
+        mid.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView name = new TextView(this);
+        name.setText(e.name + (e.hidden ? " (tersembunyi)" : ""));
+        name.setTypeface(null, Typeface.BOLD);
+        mid.addView(name);
+        TextView sub = new TextView(this);
+        sub.setText(("gui".equals(e.type) ? "GUI" : "CLI") + " • " + e.command);
+        sub.setTextSize(11);
+        sub.setSingleLine(true);
+        mid.addView(sub);
+        if ("gui".equals(e.type)) {
+            TextView dot = new TextView(this);
+            dot.setText(running ? "● berjalan" : "○ berhenti");
+            dot.setTextSize(11);
+            dot.setTextColor(running ? Color.rgb(60, 200, 120) : Color.GRAY);
+            mid.addView(dot);
+        }
+        row.addView(mid);
+
+        if (running) {
+            row.addView(actionButton("Stop", v -> mgr.stopEntry(e, (ok, msg) -> {
+                toast(msg);
+                refreshAll();
+            })));
+        }
+        row.addView(actionButton("Edit", v -> {
+            Intent i = new Intent(this, LauncherEditActivity.class);
+            i.putExtra("entry_id", e.id);
+            startActivity(i);
+        }));
+
+        row.setOnClickListener(v -> doLaunch(e));
+        return row;
+    }
+
+    // ------------------------------------------------------------ panel status
+
+    private void refreshStatusPane() {
         new Thread(() -> {
             String out;
             try {
-                out = core.executeCommand(script);
+                out = core.executeCommand(statusScript());
             } catch (Exception e) {
                 out = "ERROR: " + e;
             }
             String result = out;
-            runOnUiThread(() -> status.setText(result));
+            runOnUiThread(() -> statusPane.setText(result));
         }).start();
     }
 
-    private void runXterm() {
-        status.setText("Mengirim perintah xterm ke chroot…");
-        core.threadChrootCommand("export DISPLAY=:0; "
-                + "(xterm >/tmp/xterm.log 2>&1 &) ; sleep 1; "
-                + "echo '--- xterm.log ---'; cat /tmp/xterm.log 2>/dev/null; "
-                + "echo '--- proses xterm ---'; pgrep -af xterm || echo '(xterm tidak jalan)'");
-        // threadChrootCommand tidak mengembalikan output; status dicek manual
-        new Thread(() -> {
-            try { Thread.sleep(2500); } catch (InterruptedException ignored) {}
-            runOnUiThread(() -> runRoot(statusScript(), true));
-        }).start();
-        Toast.makeText(this, "xterm dipicu — cek Layar X", Toast.LENGTH_SHORT).show();
-    }
-
-    private void openDisplay() {
-        try {
-            Intent i = new Intent();
-            i.setComponent(new ComponentName("id.hawx.astro", "com.termux.x11.MainActivity"));
-            startActivity(i);
-        } catch (Exception e) {
-            Toast.makeText(this, "Gagal buka Layar X: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
+    private String statusScript() {
+        String root = Core.CHROOT_ROOT;
+        return "echo '--- server ---'; "
+                + "PID=''; [ -f " + root + "/tmp/astro-x11-server.pid ] && PID=$(cat " + root + "/tmp/astro-x11-server.pid 2>/dev/null); "
+                + "if [ -n \"$PID\" ] && [ -d /proc/$PID ]; then echo \"jalan (pid $PID)\"; grep VmRSS /proc/$PID/status 2>/dev/null; else echo '(tidak jalan)'; fi; "
+                + "echo '--- socket ---'; ls " + root + "/tmp/.X11-unix/ 2>/dev/null || echo '(tidak ada socket)'; "
+                + "echo '--- openbox ---'; pgrep -x openbox >/dev/null 2>&1 && echo 'openbox jalan' || echo '(openbox tidak jalan)'; "
+                + "echo '--- xkb data ---'; ls " + root + "/usr/share/X11/xkb >/dev/null 2>&1 && echo 'xkb-data ADA' || echo 'xkb-data BELUM ADA'; "
+                + "echo '--- log sesi (font/openbox) ---'; tail -4 " + root + "/tmp/astro-x11-session.log 2>/dev/null || echo '(belum ada)'; "
+                + "echo '--- log server (ekor) ---'; tail -6 " + root + "/tmp/x11-server.log 2>/dev/null || echo '(belum ada log)'";
     }
 }
