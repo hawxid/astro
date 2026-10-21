@@ -249,7 +249,7 @@ public class TerminalSession extends TerminalOutput {
     mShellPid = SOCK_ALIVE_PID;
     StrykerLog.e(EmulatorDebug.LOG_TAG, "libterminal.so failed to load: " + JNI.loadError());
     byte[] msg = ("\r\n[Terminal engine unavailable: " + JNI.loadError() + "]"
-        + "\r\n[Reinstall Stryker; if it persists report this at "
+        + "\r\n[Reinstall Astro; if it persists report this at "
         + "github.com/hawxid/astro/issues]\r\n")
         .getBytes(StandardCharsets.UTF_8);
     mProcessToTerminalIOQueue.write(msg, 0, msg.length);
