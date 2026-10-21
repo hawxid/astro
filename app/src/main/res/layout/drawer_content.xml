@@ -142,6 +142,10 @@
             android:textStyle="bold" />
 
         <include
+            android:id="@+id/desktop_item"
+            layout="@layout/drawer_row" />
+
+        <include
             android:id="@+id/dasboard_item"
             layout="@layout/drawer_row" />
 

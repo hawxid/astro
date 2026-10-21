@@ -230,28 +230,14 @@
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />
 
-        <!-- Desktop shell (milestone 3 tahap 1): rumah desktop X11 -->
-        <activity
-            android:name=".x11.DesktopActivity"
-            android:exported="true"
-            android:label="Astro Desktop">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- X11 PoC (milestone 1 fondasi): ikon launcher terpisah khusus build tes -->
+        <!-- Sesi & Launcher X11: sejak integrasi M3 (2026-10-21) ini layar
+             INTERNAL — dibuka dari taskbar DesktopFragment, tanpa ikon
+             launcher sendiri (keputusan bentuk produk Hawx: satu app). -->
         <activity
             android:name=".x11.X11PocActivity"
-            android:exported="true"
+            android:exported="false"
             android:taskAffinity="id.hawx.astro.x11task"
-            android:label="Astro X11">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:label="Astro X11" />
         <!-- Editor launcher X11 (internal) -->
         <activity
             android:name=".x11.LauncherEditActivity"

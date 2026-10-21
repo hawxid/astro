@@ -17,7 +17,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -26,18 +26,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Astro Desktop v1 (Milestone 3, tahap shell) — permintaan Hawx
- * 2026-10-21: langsung ke shell desktop, tanpa berhenti di integrasi
- * fitur setengah. Layar ini adalah "rumah" desktop-nya:
- *  - kartu status sesi X (probe manajer yang sama, jujur via /proc/net/unix)
- *  - grid launcher dari LauncherStore yang sama dengan layar X11
- *  - taskbar bawah: pintu Sesi & Log (layar X11), chip Layar X, + Baru
- * Ketuk sel = luncurkan (GUI membuka viewer lewat manajer); tekan lama =
- * edit. Deep Space: latar #070B16, kartu #101828, aksen violet/sian.
- * Diagnostik rinci tetap di X11PocActivity (panel status + log debug).
+ * Astro Desktop (Milestone 3) — wajah utama Astro di dalam MainActivity.
+ *
+ * Awalnya activity terpisah (DesktopActivity, build 195c799e jalan),
+ * lalu Hawx mengoreksi bentuk produknya 2026-10-21: bukan "app kedua",
+ * melainkan RE-UI app utamanya — desktop ini FRAGMENT pembuka
+ * MainActivity, berdampingan dengan semua tool lama lewat drawer
+ * (model XFCE: desktop = permukaan, drawer = whisker menu).
+ * Isi: kartu status sesi X, grid launcher (store yang sama), taskbar.
+ * Diagnostik rinci tetap di X11PocActivity (kini internal, tanpa ikon).
  */
-public class DesktopActivity extends AppCompatActivity {
+public class DesktopFragment extends Fragment {
 
+    private android.content.Context appCtx;
     private XSessionManager mgr;
     private LauncherStore store;
 
@@ -64,7 +65,7 @@ public class DesktopActivity extends AppCompatActivity {
     }
 
     private Button flatButton(String text) {
-        Button b = new Button(this);
+        Button b = new Button(requireContext());
         b.setText(text);
         b.setAllCaps(false);
         b.setTextColor(0xFFE8E6F0);
@@ -76,17 +77,20 @@ public class DesktopActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        mgr = XSessionManager.get(this);
-        store = new LauncherStore(this);
+    public View onCreateView(android.view.LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        appCtx = requireContext().getApplicationContext();
+        mgr = XSessionManager.get(requireContext());
+        store = new LauncherStore(requireContext());
 
-        LinearLayout root = new LinearLayout(this);
+        LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xFF070B16);
         root.setPadding(dp(16), dp(16), dp(16), dp(12));
+        root.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
 
-        TextView title = new TextView(this);
+        TextView title = new TextView(requireContext());
         title.setText("Astro Desktop");
         title.setTextSize(22);
         title.setTypeface(null, Typeface.BOLD);
@@ -94,7 +98,7 @@ public class DesktopActivity extends AppCompatActivity {
         root.addView(title);
 
         // ---- kartu status sesi ----
-        LinearLayout card = new LinearLayout(this);
+        LinearLayout card = new LinearLayout(requireContext());
         card.setOrientation(LinearLayout.VERTICAL);
         card.setBackground(cardBg(0xFF101828));
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
@@ -103,15 +107,15 @@ public class DesktopActivity extends AppCompatActivity {
         cardLp.setMargins(0, dp(12), 0, dp(6));
         card.setLayoutParams(cardLp);
 
-        LinearLayout srow = new LinearLayout(this);
+        LinearLayout srow = new LinearLayout(requireContext());
         srow.setOrientation(LinearLayout.HORIZONTAL);
         srow.setGravity(Gravity.CENTER_VERTICAL);
-        dotView = new TextView(this);
+        dotView = new TextView(requireContext());
         dotView.setText("●");
         dotView.setTextSize(16);
         dotView.setTextColor(Color.GRAY);
         srow.addView(dotView);
-        statusText = new TextView(this);
+        statusText = new TextView(requireContext());
         statusText.setText("Server X: …");
         statusText.setTypeface(null, Typeface.BOLD);
         statusText.setTextColor(0xFFF2F0FA);
@@ -119,13 +123,13 @@ public class DesktopActivity extends AppCompatActivity {
         srow.addView(statusText);
         card.addView(srow);
 
-        detailText = new TextView(this);
+        detailText = new TextView(requireContext());
         detailText.setTextSize(11);
         detailText.setTextColor(0xFF9A94B8);
         detailText.setPadding(0, dp(4), 0, dp(8));
         card.addView(detailText);
 
-        LinearLayout brow = new LinearLayout(this);
+        LinearLayout brow = new LinearLayout(requireContext());
         brow.setOrientation(LinearLayout.HORIZONTAL);
         btnToggle = flatButton("Start Server");
         btnToggle.setOnClickListener(v -> {
@@ -147,14 +151,14 @@ public class DesktopActivity extends AppCompatActivity {
         root.addView(card);
 
         // ---- grid launcher ----
-        TextView gtitle = new TextView(this);
+        TextView gtitle = new TextView(requireContext());
         gtitle.setText("Launcher");
         gtitle.setTypeface(null, Typeface.BOLD);
         gtitle.setTextColor(0xFFF2F0FA);
         gtitle.setPadding(0, dp(10), 0, dp(6));
         root.addView(gtitle);
 
-        grid = new GridView(this);
+        grid = new GridView(requireContext());
         grid.setNumColumns(4);
         grid.setVerticalSpacing(dp(10));
         grid.setHorizontalSpacing(dp(6));
@@ -168,7 +172,7 @@ public class DesktopActivity extends AppCompatActivity {
         });
         grid.setOnItemLongClickListener((parent, view, pos, id) -> {
             LauncherEntry e = entries.get(pos);
-            Intent i = new Intent(this, LauncherEditActivity.class);
+            Intent i = new Intent(requireContext(), LauncherEditActivity.class);
             i.putExtra("entry_id", e.id);
             startActivity(i);
             return true;
@@ -176,36 +180,36 @@ public class DesktopActivity extends AppCompatActivity {
         root.addView(grid);
 
         // ---- taskbar ----
-        LinearLayout bar = new LinearLayout(this);
+        LinearLayout bar = new LinearLayout(requireContext());
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackground(cardBg(0xFF101828));
         bar.setPadding(dp(10), dp(8), dp(10), dp(8));
         Button btnSesi = flatButton("☰ Sesi & Log");
         btnSesi.setOnClickListener(v ->
-                startActivity(new Intent(this, X11PocActivity.class)));
+                startActivity(new Intent(requireContext(), X11PocActivity.class)));
         bar.addView(btnSesi);
-        chipLayar = new TextView(this);
+        chipLayar = new TextView(requireContext());
         chipLayar.setText("🖥 Layar X");
         chipLayar.setTextColor(0xFF9A94B8);
         chipLayar.setPadding(dp(14), dp(8), dp(14), dp(8));
         chipLayar.setOnClickListener(v -> mgr.openViewer());
         bar.addView(chipLayar);
-        View spacer = new View(this);
+        View spacer = new View(requireContext());
         spacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
         bar.addView(spacer);
         Button btnAdd = flatButton("+ Baru");
         btnAdd.setOnClickListener(v ->
-                startActivity(new Intent(this, LauncherEditActivity.class)));
+                startActivity(new Intent(requireContext(), LauncherEditActivity.class)));
         bar.addView(btnAdd);
         root.addView(bar);
 
-        setContentView(root);
-        X11DebugLog.log("DESKTOP", "DesktopActivity dibuka");
+        X11DebugLog.log("DESKTOP", "DesktopFragment dibuat (di dalam MainActivity)");
+        return root;
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         refresh();
     }
@@ -225,7 +229,8 @@ public class DesktopActivity extends AppCompatActivity {
             for (LauncherEntry e : list) {
                 if (!e.hidden) run.put(e.id, mgr.entryRunningSync(e.id, e.firstWord()));
             }
-            runOnUiThread(() -> {
+            if (getActivity() == null) return;
+            getActivity().runOnUiThread(() -> {
                 entries.clear();
                 running.clear();
                 for (LauncherEntry e : list) {
@@ -239,20 +244,21 @@ public class DesktopActivity extends AppCompatActivity {
     }
 
     private void toast(String msg) {
-        runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
+        // Callback manajer sudah diposting ke main thread.
+        Toast.makeText(appCtx, msg, Toast.LENGTH_LONG).show();
     }
 
     private View iconView(LauncherEntry e) {
         if (e.icon != null && e.icon.startsWith("file:")) {
             File f = new File("/sdcard/Astro/icons", e.icon.substring(5));
             if (f.exists()) {
-                ImageView iv = new ImageView(this);
+                ImageView iv = new ImageView(requireContext());
                 iv.setImageBitmap(BitmapFactory.decodeFile(f.getAbsolutePath()));
                 iv.setLayoutParams(new LinearLayout.LayoutParams(dp(46), dp(46)));
                 return iv;
             }
         }
-        TextView tv = new TextView(this);
+        TextView tv = new TextView(requireContext());
         String label = (e.icon != null && !e.icon.trim().isEmpty() && !e.icon.startsWith("file:"))
                 ? e.icon.trim()
                 : (e.name == null || e.name.isEmpty() ? "?" : e.name.substring(0, 1).toUpperCase());
@@ -271,12 +277,12 @@ public class DesktopActivity extends AppCompatActivity {
         @Override
         public View getView(int pos, View convert, ViewGroup parent) {
             LauncherEntry e = entries.get(pos);
-            LinearLayout cell = new LinearLayout(DesktopActivity.this);
+            LinearLayout cell = new LinearLayout(requireContext());
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER_HORIZONTAL);
             cell.setPadding(dp(2), dp(8), dp(2), dp(8));
             cell.addView(iconView(e));
-            TextView name = new TextView(DesktopActivity.this);
+            TextView name = new TextView(requireContext());
             boolean isRun = Boolean.TRUE.equals(running.get(e.id));
             name.setText((isRun ? "● " : "") + e.name);
             name.setTextSize(11);

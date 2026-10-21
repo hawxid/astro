@@ -92,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
     private static final java.util.Set<Integer> ROOT_ONLY_IDS = new java.util.HashSet<>(java.util.Arrays.asList(
             R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item));
     private static final java.util.Set<Integer> VM_INDEPENDENT_IDS = new java.util.HashSet<>(java.util.Arrays.asList(
-            R.id.dasboard_item, R.id.logs_item, R.id.about_item,
+            R.id.desktop_item, R.id.dasboard_item, R.id.logs_item, R.id.about_item,
             R.id.wpair_item, R.id.bt_item, R.id.osint_item, R.id.geomac_item,
             R.id.wordlists_item));
     private MetasploitUtils metasploitUtils;
@@ -187,7 +187,7 @@ public class MainActivity extends AppCompatActivity {
         if (versionTv != null) versionTv.setText("v" + BuildConfig.VERSION_NAME);
 
         if (lastSelectedItemId == 0) {
-            receiver.changeFragmentQuiet(R.id.dasboard_item);
+            receiver.changeFragmentQuiet(R.id.desktop_item);
         }
 
         boolean openUpdate = getIntent() != null
@@ -438,7 +438,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         id.hawx.astro.engine.RootlessService.start(this);
-        landOn(new Dashboard());
+        landOn(new id.hawx.astro.x11.DesktopFragment());
         checkForUsb();
         if (!isConnected()) {
             new Thread(() -> core.getInterfacesList()).start();
@@ -621,7 +621,7 @@ public class MainActivity extends AppCompatActivity {
                 landOn(new Error());
                 return;
             }
-            landOn(new Dashboard());
+            landOn(new id.hawx.astro.x11.DesktopFragment());
             runOnUiThread(() -> {
                 checkForUsb();
             });
@@ -911,6 +911,7 @@ public class MainActivity extends AppCompatActivity {
             if (itemId == R.id.wifi_item) return new Wifi();
             if (itemId == R.id.lan_item) return new LocalMain();
             if (itemId == R.id.macchanger_item) return new MACChangerFragment();
+            if (itemId == R.id.desktop_item) return new id.hawx.astro.x11.DesktopFragment();
             if (itemId == R.id.dasboard_item) return new Dashboard();
             if (itemId == R.id.arsenal_item) return new ArsenalFragment();
             if (itemId == R.id.manager_item) return new CoreManager();
@@ -964,6 +965,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static java.util.LinkedHashMap<Integer, DrawerSpec> buildDrawerSpecs() {
         java.util.LinkedHashMap<Integer, DrawerSpec> m = new java.util.LinkedHashMap<>();
+        m.put(R.id.desktop_item,      new DrawerSpec("Desktop",          R.drawable.windows,     0xFF7C4DFF));
         m.put(R.id.dasboard_item,     new DrawerSpec("Dashboard",        R.drawable.home,        0xFF1565C0));
         m.put(R.id.terminal_item,     new DrawerSpec("Terminal",         R.drawable.terminal,    0xFF1565C0));
         m.put(R.id.logs_item,         new DrawerSpec("Logs",             R.drawable.bug_report,  0xFF1565C0));
