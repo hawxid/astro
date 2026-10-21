@@ -24,6 +24,17 @@ yang menjalankan CmdEntryPoint dari shell root-nya.
 5. Di luar direktori ini: `settings.gradle` mendaftarkan `:lorie` +
    `:shell-loader:stub`; `app/build.gradle` depend ke `:lorie` (syarat
    host-detection di build.gradle lorie); `AstroApp` extends LorieApp.
+6. **Patch build upstream DITERAPKAN DULUAN ke sumber vendor** (28 berkas):
+   ketujuh `src/main/cpp/patches/*.patch` (pixman, xkbcomp, xkbfile, x11,
+   Xtrans, libepoxy, xserver) biasanya diterapkan CMake di tempat saat
+   configure — di build multi-ABI, configure paralel menulis berkas yang
+   sama bersamaan dan merusaknya (build 39568059860: definisi ganda
+   `lorieRecheckGpuCopies` + baris terpotong di `present_scmd.c`).
+   Dengan patch sudah diterapkan di snapshot ini, penjaga bawaan CMake
+   (`patch -R --dry-run`) mendeteksi keadaan terapan dan tidak menulis
+   apa pun — balapan hilang. Verifikasi lokal: semua patch menempel
+   bersih (0 reject), `-R --dry-run` OK untuk ketujuhnya,
+   `present_scmd.c` hasil identik byte-per-byte dengan penerapan bersih.
 
 ## Cara jalan (resep resmi chroot, README upstream)
 

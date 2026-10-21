@@ -252,6 +252,21 @@ present_flip_try_ready(ScreenPtr screen)
     }
 }
 
+/* lorie: called when the renderer notifies that a GPU copy batch finished, or that it just lost
+ * its surface, instead of waiting for the next vblank poll. _safe iteration since
+ * present_re_execute() may destroy the vblank. */
+void
+lorieRecheckGpuCopies(void)
+{
+    present_vblank_ptr vblank, tmp;
+    Bool gpuCopyStalled = !lorieConnectionAlive() || !lorieRendererAvailable();
+
+    xorg_list_for_each_entry_safe(vblank, tmp, &present_exec_queue, event_queue) {
+        if (vblank->gpu_copy_pending && (lorieGpuCopyIsDone(vblank->gpu_copy_serial) || gpuCopyStalled))
+            present_re_execute(vblank);
+    }
+}
+
 static void
 present_flip_idle(ScreenPtr screen)
 {
@@ -599,6 +614,8 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
                     damage = &window->clipList;
 
                 DamageDamageRegion(&vblank->window->drawable, damage);
+
+                screen_priv->info->after_flip(vblank->crtc, vblank->event_id, ust, vblank->target_msc, vblank->pixmap);
                 return;
             }
 
