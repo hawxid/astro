@@ -421,12 +421,13 @@ public class Dashboard extends Fragment {
             spacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
             panel.addView(spacer);
             TextView gear = panelText("\u2699");
+            gear.setTextSize(20f);
             gear.setOnClickListener(v -> showCustomize());
             panel.addView(gear);
             xfceClock = panelText("");
             panel.addView(xfceClock);
             TextView power = panelText("\u23FB");
-            power.setTextSize(15f);
+            power.setTextSize(20f);
             power.setOnClickListener(v -> confirmUnmountDesktop());
             panel.addView(power);
         }

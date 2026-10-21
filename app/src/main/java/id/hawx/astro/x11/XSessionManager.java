@@ -166,8 +166,19 @@ public class XSessionManager {
         return "SOCK=" + sock + "; PIDF=" + pidPath() + "; "
                 + "INO=$(awk -v s=\"$SOCK\" -v a=\"@$SOCK\" '$8==s || $8==a {print $7; exit}' /proc/net/unix 2>/dev/null); "
                 + "if [ -n \"$INO\" ]; then OWNER=''; "
-                + "for d in /proc/[0-9]*; do "
-                + "if ls -l $d/fd 2>/dev/null | grep -q \"socket:\\[$INO\\]\"; then OWNER=${d#/proc/}; break; fi; done; "
+                // JALUR CEPAT (fix lemot 2026-10-22): scan /proc/*/fd untuk
+                // SEMUA proses itu mahal (ratusan ls+grep per probe, dan
+                // probe dibayar berkali-kali per launch). Bila file PID
+                // cocok (PID hidup + starttime sama + fd socket terbukti
+                // miliknya — cek SATU proses saja), scan total dilewati.
+                // Scan penuh hanya untuk adopsi server yatim (file PID
+                // tidak cocok), kasus langka setelah app mati paksa.
+                + "set -- $(cat $PIDF 2>/dev/null); FP=$1; FS=$2; "
+                + "if [ -n \"$FP\" ] && [ -d /proc/$FP ] && [ -n \"$FS\" ] && "
+                + "[ \"$(awk '{print $22}' /proc/$FP/stat 2>/dev/null)\" = \"$FS\" ] && "
+                + "ls -l /proc/$FP/fd 2>/dev/null | grep -q \"socket:\\[$INO\\]\"; then OWNER=$FP; "
+                + "else for d in /proc/[0-9]*; do "
+                + "if ls -l $d/fd 2>/dev/null | grep -q \"socket:\\[$INO\\]\"; then OWNER=${d#/proc/}; break; fi; done; fi; "
                 + "if [ -n \"$OWNER\" ]; then "
                 + "ST=$(awk '{print $22}' /proc/$OWNER/stat 2>/dev/null); "
                 + "if [ \"$(cat $PIDF 2>/dev/null)\" != \"$OWNER $ST\" ]; then echo \"$OWNER $ST\" > $PIDF; echo ADOPT=1; fi; "
