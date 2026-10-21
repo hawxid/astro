@@ -527,6 +527,10 @@ public class MainActivity extends AppCompatActivity {
         finish();
     }
 
+    private static boolean emptyPref(String value) {
+        return value == null || value.isEmpty();
+    }
+
     private void runLaunchFlow() {
         if (core == null || landed || launchRunning) return;
         launchRunning = true;
@@ -567,13 +571,6 @@ public class MainActivity extends AppCompatActivity {
                 core.customCommand("pm grant id.hawx.astro android.permission.READ_EXTERNAL_STORAGE", true);
                 core.customCommand("dumpsys deviceidle whitelist +id.hawx.astro", true);
                 core.putString("vnc_passwd", "stryker");
-                String wlan = "wlan0";
-                ArrayList<String> interfaces = core.getInterfacesList();
-                if (interfaces.contains("swlan0")) wlan = "swlan0";
-                core.putString("wlan_scan", wlan);
-                core.putString("wlan_wifi", wlan);
-                core.putString("wlan_deauth", wlan);
-                core.putString("wlan_wps", wlan);
                 core.putInt("max_par", 3);
                 core.remove("installed_modules");
                 core.putBoolean("store_scan", true);
@@ -584,6 +581,23 @@ public class MainActivity extends AppCompatActivity {
                 core.putInt("night", 2);
                 core.putInt("threads", 100);
                 core.chmodFolder("/data/data/id.hawx.astro/files");
+            }
+            // Fill any interface prefs that are still empty — the wizard
+            // normally writes them (Slide2), and an install that adopted
+            // its chroot before this seeding existed can reach this point
+            // with them unset, which leaves scan/capture features
+            // silently finding nothing. Seed-if-empty only: never
+            // overwrites an interface the user picked.
+            if (emptyPref(core.getString("wlan_wifi"))
+                    || emptyPref(core.getString("wlan_scan"))
+                    || emptyPref(core.getString("wlan_deauth"))
+                    || emptyPref(core.getString("wlan_wps"))) {
+                String detected = "wlan0";
+                if (core.getInterfacesList().contains("swlan0")) detected = "swlan0";
+                if (emptyPref(core.getString("wlan_wifi"))) core.putString("wlan_wifi", detected);
+                if (emptyPref(core.getString("wlan_scan"))) core.putString("wlan_scan", detected);
+                if (emptyPref(core.getString("wlan_deauth"))) core.putString("wlan_deauth", detected);
+                if (emptyPref(core.getString("wlan_wps"))) core.putString("wlan_wps", detected);
             }
             if (core.probeFile(Core.CHROOT_MARKER) == Core.Presence.NO
                     || core.probeFolder(Core.CHROOT_ROOT + "/usr") == Core.Presence.NO) {
