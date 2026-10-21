@@ -230,6 +230,17 @@
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />
 
+        <!-- Desktop shell (milestone 3 tahap 1): rumah desktop X11 -->
+        <activity
+            android:name=".x11.DesktopActivity"
+            android:exported="true"
+            android:label="Astro Desktop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- X11 PoC (milestone 1 fondasi): ikon launcher terpisah khusus build tes -->
         <activity
             android:name=".x11.X11PocActivity"

@@ -172,7 +172,7 @@ public class XSessionManager {
                 + "ST=$(awk '{print $22}' /proc/$OWNER/stat 2>/dev/null); "
                 + "if [ \"$(cat $PIDF 2>/dev/null)\" != \"$OWNER $ST\" ]; then echo \"$OWNER $ST\" > $PIDF; echo ADOPT=1; fi; "
                 + "echo STATE=RUNNING; echo PID=$OWNER; "
-                + "grep VmRSS /proc/$OWNER/status 2>/dev/null | sed 's/^/RSS=/'; "
+                + "grep VmRSS /proc/$OWNER/status 2>/dev/null | awk '{print \"RSS=\"$2\" \"$3}'; "
                 + "if [ -S $SOCK ]; then echo SOCK=1; else echo SOCK=0; echo ZOMBIE=1; fi; "
                 + "else echo STATE=STOPPED; echo SOCK=0; fi; "
                 + "else "
@@ -180,7 +180,7 @@ public class XSessionManager {
                 + "if [ -n \"$P\" ] && [ -d /proc/$P ] && [ -n \"$S\" ] && "
                 + "[ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
                 + "echo STATE=RUNNING; echo PID=$P; echo SOCK=0; echo ZOMBIE=1; "
-                + "grep VmRSS /proc/$P/status 2>/dev/null | sed 's/^/RSS=/'; "
+                + "grep VmRSS /proc/$P/status 2>/dev/null | awk '{print \"RSS=\"$2\" \"$3}'; "
                 + "else echo STATE=STOPPED; [ -S $SOCK ] && echo SOCK=1 || echo SOCK=0; fi; fi";
     }
 
@@ -211,8 +211,17 @@ public class XSessionManager {
         }
         p.detail = d.toString().trim();
         state = p.state;
+        // Log debug: catat hanya saat ringkasan probe BERUBAH (probe dipanggil
+        // tiap 200ms saat poll socket — mencatat semuanya membanjiri log).
+        String summary = p.state + "/sock=" + p.sock + "/zombie=" + p.zombie + " " + p.detail;
+        if (!summary.equals(lastProbeSummary)) {
+            lastProbeSummary = summary;
+            X11DebugLog.log("PROBE", summary);
+        }
         return p;
     }
+
+    private String lastProbeSummary = "";
 
     public void probe(ProbeCallback cb) {
         exec.execute(() -> {
@@ -273,6 +282,7 @@ public class XSessionManager {
         }
         if (p.zombie) {
             report.append("server zombie/banci (listener/socket tak sehat) — dibunuh, start ulang. ");
+            X11DebugLog.log("ZOMBIE", "probe=" + p.detail + " sock=" + p.sock + " — bunuh + start ulang");
             killServerSync();
             // tunggu listener lama benar-benar lepas dari /proc/net/unix
             long dl = System.currentTimeMillis() + 3_000L;
@@ -284,6 +294,7 @@ public class XSessionManager {
         }
         state = State.STARTING;
         String out = run(startScript());
+        X11DebugLog.log("SPAWN", "hasil startScript: " + out.trim().replace("\n", " | "));
         if (!out.contains("PIDFILE_OK")) {
             report.append("spawn gagal menulis file PID. Log: ").append(tailServerLog());
             state = State.STOPPED;
@@ -308,11 +319,13 @@ public class XSessionManager {
                 }
                 touchActivity();
                 state = State.RUNNING;
+                X11DebugLog.log("SESI", "server JALAN + socket siap — " + report);
                 return true;
             }
             try { Thread.sleep(200); } catch (InterruptedException ignored) {}
         }
         report.append("timeout 10 detik menunggu socket. Log: ").append(tailServerLog());
+        X11DebugLog.log("SPAWN", "TIMEOUT 10s menunggu socket. Log server: " + tailServerLog());
         state = State.STOPPED;
         return false;
     }
@@ -334,6 +347,7 @@ public class XSessionManager {
                 + "if [ -d /proc/$P ] && [ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
                 + "kill -KILL $P 2>/dev/null; fi; fi; "
                 + "rm -f " + sockPath() + " " + pidPath() + " " + tmp() + "/.X0-lock");
+        X11DebugLog.log("KILL", "server dimatikan (penjaga starttime), socket + file PID dibersihkan");
         state = State.STOPPED;
     }
 
@@ -348,6 +362,7 @@ public class XSessionManager {
     // ------------------------------------------------------------ stop sesi
 
     public void stopSession(Callback cb) {
+        X11DebugLog.log("SESI", "stopSession diminta dari UI");
         exec.execute(() -> {
             // 1) tutup activity penampil dulu (biar tidak memamerkan overlay error)
             try {
@@ -410,7 +425,9 @@ public class XSessionManager {
                 post(cb, false, "Chroot belum jalan — start dulu dari Dashboard Astro");
                 return;
             }
+            X11DebugLog.log("LAUNCH", "GUI " + entry.id + " :: " + entry.command);
             if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
+                X11DebugLog.log("LAUNCH", entry.id + " sudah jalan — fokus ke viewer");
                 main.post(this::openViewer);
                 post(cb, true, entry.name + " sudah jalan — display dibuka");
                 return;
@@ -449,6 +466,7 @@ public class XSessionManager {
                     + "echo DISTOP; else echo SUDAH_MATI; fi; "
                     + "rm -f " + entryPidPath(entry.id);
             String out = run(script);
+            X11DebugLog.log("STOP-ENTRY", entry.id + " -> " + out.trim());
             post(cb, true, out.contains("DISTOP") ? entry.name + " dihentikan" : entry.name + " sudah tidak jalan");
         });
     }

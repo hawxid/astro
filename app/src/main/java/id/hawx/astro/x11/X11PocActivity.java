@@ -176,6 +176,17 @@ public class X11PocActivity extends AppCompatActivity {
         stt.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         stHead.addView(stt);
         stHead.addView(actionButton("Segarkan", v -> refreshAll()));
+        stHead.addView(actionButton("Log Debug", v -> {
+            // tampilkan ekor log debug manajer di panel yang sama
+            new Thread(() -> {
+                String t = X11DebugLog.tail(80);
+                runOnUiThread(() -> statusPane.setText("--- x11-debug.log (/sdcard/Astro) ---\n" + t));
+            }).start();
+        }));
+        stHead.addView(actionButton("Hapus Log", v -> {
+            X11DebugLog.clear();
+            toast("Log debug dibersihkan");
+        }));
         root.addView(stHead);
 
         statusPane = new TextView(this);
@@ -382,6 +393,7 @@ public class X11PocActivity extends AppCompatActivity {
                 + "echo '--- socket ---'; ls " + root + "/tmp/.X11-unix/ 2>/dev/null || echo '(tidak ada socket)'; "
                 + "echo '--- openbox ---'; pgrep -x openbox >/dev/null 2>&1 && echo 'openbox jalan' || echo '(openbox tidak jalan)'; "
                 + "echo '--- xkb data ---'; ls " + root + "/usr/share/X11/xkb >/dev/null 2>&1 && echo 'xkb-data ADA' || echo 'xkb-data BELUM ADA'; "
+                + "echo '--- font x11 ---'; ls " + root + "/usr/share/fonts/X11/misc/fonts.dir >/dev/null 2>&1 && echo 'fonts.dir ADA (font core X siap didaftarkan)' || echo 'fonts.dir BELUM ADA (xset fp+ akan ditolak server)'; "
                 + "echo '--- log sesi (font/openbox) ---'; tail -4 " + root + "/tmp/astro-x11-session.log 2>/dev/null || echo '(belum ada)'; "
                 + "echo '--- log server (ekor) ---'; tail -6 " + root + "/tmp/x11-server.log 2>/dev/null || echo '(belum ada log)'";
     }
