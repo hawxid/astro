@@ -25,6 +25,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
@@ -123,6 +124,22 @@ public class MainActivity extends AppCompatActivity {
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
         fragmentManager = getSupportFragmentManager();
+        // Desktop = SATU panel (perintah Hawx 2026-10-22): bar app
+        // (hamburger + Astro + gear) disembunyikan HANYA saat Dashboard
+        // (desktop) yang tampil — panel XFCE di Dashboard mengambil alih
+        // semua fungsinya (Applications = drawer, gear = Settings ini,
+        // power = unmount). Di layar lain bar app tampil seperti biasa.
+        final View appBar = findViewById(R.id.app_bar);
+        fragmentManager.registerFragmentLifecycleCallbacks(
+                new FragmentManager.FragmentLifecycleCallbacks() {
+                    @Override
+                    public void onFragmentResumed(@NonNull FragmentManager fm,
+                                                  @NonNull Fragment f) {
+                        if (f.getParentFragment() != null || appBar == null) return;
+                        appBar.setVisibility(f instanceof Dashboard
+                                ? View.GONE : View.VISIBLE);
+                    }
+                }, true);
         fragmentManager.beginTransaction().replace(R.id.flContent, new Initializing()).commit();
         settings = findViewById(R.id.settings_icon);
         settings.setOnClickListener(view -> {

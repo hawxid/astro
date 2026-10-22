@@ -420,9 +420,21 @@ public class Dashboard extends Fragment {
             View spacer = new View(context);
             spacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
             panel.addView(spacer);
+            TextView cust = panelText("\u270E");
+            cust.setTextSize(17f);
+            cust.setOnClickListener(v -> showCustomize());
+            panel.addView(cust);
             TextView gear = panelText("\u2699");
             gear.setTextSize(20f);
-            gear.setOnClickListener(v -> showCustomize());
+            // Settings beneran (bukan Customize): picu klik ikon settings
+            // di bar app MainActivity — listener-nya yang mengurus
+            // buka/tutup SettingsNew, persis kayak bar app masih tampil.
+            gear.setOnClickListener(v -> {
+                if (getActivity() != null) {
+                    View si = getActivity().findViewById(R.id.settings_icon);
+                    if (si != null) si.performClick();
+                }
+            });
             panel.addView(gear);
             xfceClock = panelText("");
             panel.addView(xfceClock);
