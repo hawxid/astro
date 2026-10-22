@@ -17,6 +17,16 @@ public class AstroApp extends com.termux.x11.LorieApp {
 
     @Override
     public void onCreate() {
+        // DIAGNOSTIK SEMENTARA: tangkap stack trace crash ke log debug X11.
+        final Thread.UncaughtExceptionHandler prevCrash =
+                Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try {
+                id.hawx.astro.x11.X11DebugLog.log("CRASH",
+                        t.getName() + ": " + android.util.Log.getStackTraceString(e));
+            } catch (Throwable ignored) {}
+            if (prevCrash != null) prevCrash.uncaughtException(t, e);
+        });
         super.onCreate();
         LogStore store = LogStore.init(this);
         store.add(LogEntry.INFO, "session", "==== Astro " + BuildConfig.VERSION_NAME

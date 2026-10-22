@@ -162,6 +162,8 @@ public class LorieApp extends com.stryker.terminal.App { // ASTRO VENDOR PATCH
                     }
                 } catch (RemoteException ignored) {}
 
+                XDebug.log("KNOCK", "ACTION_START tag='" + tag + "' activity="
+                        + (activity != null) + " binderAlive=" + binder.isBinderAlive());
                 if (activity != null) {
                     try {
                         Log.v("LorieApp", "Got new ACTION_START intent");
@@ -170,6 +172,7 @@ public class LorieApp extends com.stryker.terminal.App { // ASTRO VENDOR PATCH
                         Log.e("LorieApp", "Something went wrong while we extracted connection details from binder.", e);
                     }
                 } else {
+                    XDebug.log("KNOCK", "tidak ada activity untuk tag '" + tag + "' -> pending");
                     pendingConnections.put(tag, binder);
                 }
                 break;

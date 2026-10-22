@@ -723,6 +723,7 @@ public class MainActivity extends AppCompatActivity implements XHost {
     }
 
     void connectToService(IBinder ibinder) {
+        XDebug.log("VIEW", "connectToService tag='" + getTag() + "'");
         service = ICmdEntryInterface.Stub.asInterface(ibinder);
         try {
             if (service != null && service.asBinder().isBinderAlive()) {
@@ -759,6 +760,7 @@ public class MainActivity extends AppCompatActivity implements XHost {
 
         try {
             ParcelFileDescriptor fd = service.getXConnection();
+            XDebug.log("VIEW", "tryConnect fd=" + (fd != null) + " tag='" + getTag() + "'");
             if (fd != null) {
                 Log.v("MainActivity", "Extracting X connection socket.");
                 getLorieView().connect(fd.detachFd());
@@ -1288,6 +1290,8 @@ public class MainActivity extends AppCompatActivity implements XHost {
     void clientConnectedStateChanged() {
         runOnUiThread(()-> {
             boolean connected = getLorieView().connected();
+            XDebug.log("VIEW", "clientConnectedStateChanged connected=" + connected
+                    + " tag='" + getTag() + "'");
             lastServerHeartbeat = SystemClock.uptimeMillis();
             if (!connected)
                 setCapturingEnabled(false);

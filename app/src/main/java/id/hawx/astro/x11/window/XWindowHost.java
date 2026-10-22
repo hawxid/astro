@@ -70,6 +70,7 @@ public class XWindowHost implements XHost {
     private final IBinder.DeathRecipient deathRecipient = () -> handler.post(this::disconnectService);
 
     public XWindowHost(Activity activity, int display) {
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "host dibuat display=" + display);
         this.activity = activity;
         this.display = display;
         this.tag = "d" + display;
@@ -123,6 +124,7 @@ public class XWindowHost implements XHost {
 
         LorieApp app = (LorieApp) activity.getApplicationContext();
         IBinder pending = app.pendingConnections.get(tag);
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "attach tag=" + tag + " pending=" + (pending != null));
         if (pending != null) connectToService(pending);
         else tryConnect();
     }
@@ -144,6 +146,7 @@ public class XWindowHost implements XHost {
     // ---- koneksi (cermin MainActivity upstream) ----
 
     private void connectToService(IBinder binder) {
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "connectToService tag=" + tag);
         service = ICmdEntryInterface.Stub.asInterface(binder);
         try {
             if (service != null && service.asBinder().isBinderAlive()) {
@@ -175,6 +178,7 @@ public class XWindowHost implements XHost {
         }
         try {
             ParcelFileDescriptor fd = service.getXConnection();
+            id.hawx.astro.x11.X11DebugLog.log("FLOAT", "tryConnect fd=" + (fd != null) + " tag=" + tag);
             if (fd != null) {
                 view.connect(fd.detachFd());
                 view.triggerCallback();
