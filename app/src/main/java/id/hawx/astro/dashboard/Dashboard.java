@@ -426,8 +426,13 @@ public class Dashboard extends Fragment {
             panel.addView(gear);
             xfceClock = panelText("");
             panel.addView(xfceClock);
-            TextView power = panelText("\u23FB");
-            power.setTextSize(20f);
+            // Ikon power VEKTOR (bukan glyph ⏻ — ke-render kotak di font HP).
+            android.widget.ImageView power = new android.widget.ImageView(context);
+            power.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(48)));
+            power.setPadding(dp(10), dp(12), dp(10), dp(12));
+            power.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            power.setImageResource(R.drawable.ic_power);
+            power.setColorFilter(0xFFE8E6F0);
             power.setOnClickListener(v -> confirmUnmountDesktop());
             panel.addView(power);
         }
