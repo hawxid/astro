@@ -46,12 +46,11 @@ yang menjalankan CmdEntryPoint dari shell root-nya.
    = X11PocActivity "Astro X11"; viewer dibuka intent eksplisit se-package
    (override `exported=false` di manifest app tetap berlaku & kini benar:
    tanpa filter launcher tidak ada ikon hantu "app tidak terinstall").
-9. `MainActivity.setImeHeight` — log diagnostik IME (2026-10-22):
-   setiap perubahan tinggi IME dicatat ke `/sdcard/Astro/x11-debug.log`
-   (tinggi yang dipercaya app + tinggi decor) untuk mendiagnosis bar
-   softkey yang nongkrong kejauhan di atas keyboard di ROM Android 17.
-   Murni pencatatan; perilaku tidak berubah. Dicabut setelah diagnosis
-   tuntas.
+9. ~~Log diagnostik IME di `MainActivity`~~ — DICABUT 2026-10-22
+   setelah diagnosis tuntas: log membuktikan IME=837 waras, bar
+   nangkring di ~2x837 -> akar masalah = jendela ke-resize OS +
+   hitungan manual dobel; obatnya patch #10. Vonis perangkat Hawx:
+   "softkey sekarang aman".
 10. Keyboard DINAMIS via OS (2026-10-22, arah Hawx): manifest viewer
     `adjustNothing` -> `adjustResize` + `ImeHeightProvider` dimatikan
     di `MainActivity.onCreate`. Diagnosis: log membuktikan IME=837px

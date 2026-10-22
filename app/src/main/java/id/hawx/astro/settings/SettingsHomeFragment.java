@@ -146,6 +146,49 @@ public class SettingsHomeFragment extends Fragment {
             unmountLayout.setOnClickListener(v -> confirmUnmount());
             deleteLayout.setOnClickListener(v -> confirmDelete());
         }
+
+        wireSettingsRail(view);
+    }
+
+    // Jendela sidebar (UI pass 2026-10-22, mockup v8/v10 yang dikunci
+    // Hawx): seksi-seksi lama sekarang pane di kanan; rail kategori di
+    // kiri mengganti tampil/sembunyi. Semua ikatan baris tetap by-id di
+    // onViewCreated — metode ini HANYA mengatur pane mana yang tampak
+    // + cat baris kategori yang aktif.
+    private void wireSettingsRail(View view) {
+        int[][] pairs = {
+                {R.id.set_cat_wifi, R.id.set_pane_wifi},
+                {R.id.set_cat_local, R.id.set_pane_local},
+                {R.id.set_cat_geo, R.id.set_pane_geo},
+                {R.id.set_cat_msf, R.id.set_pane_msf},
+                {R.id.set_cat_privacy, R.id.set_pane_privacy},
+                {R.id.set_cat_system, R.id.set_pane_system},
+        };
+        View[] cats = new View[pairs.length];
+        View[] panes = new View[pairs.length];
+        for (int i = 0; i < pairs.length; i++) {
+            cats[i] = view.findViewById(pairs[i][0]);
+            panes[i] = view.findViewById(pairs[i][1]);
+            if (cats[i] == null || panes[i] == null) return;
+        }
+        for (int i = 0; i < cats.length; i++) {
+            final int idx = i;
+            cats[i].setOnClickListener(v -> {
+                for (int j = 0; j < cats.length; j++) {
+                    panes[j].setVisibility(j == idx ? View.VISIBLE : View.GONE);
+                    cats[j].setBackground(j == idx ? railSelectedBg() : null);
+                }
+            });
+        }
+        cats[0].setBackground(railSelectedBg());
+    }
+
+    private android.graphics.drawable.GradientDrawable railSelectedBg() {
+        android.graphics.drawable.GradientDrawable g =
+                new android.graphics.drawable.GradientDrawable();
+        g.setColor(0xFF1B2A52);
+        g.setCornerRadius(10 * getResources().getDisplayMetrics().density);
+        return g;
     }
 
     private void bindWifiEngineRow(View view, boolean armed) {

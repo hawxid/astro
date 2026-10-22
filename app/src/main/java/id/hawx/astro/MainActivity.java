@@ -967,16 +967,23 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static final class DrawerSpec {
-        final String title;
-        final int iconRes;
-        final int activeTint;
+    // Dibuka publik (UI pass 2026-10-22): menu Applications popup di
+    // Dashboard memakai tabel yang sama dengan drawer — satu sumber
+    // kebenaran judul/ikon/aksi (receiver.changeFragment(rowId)).
+    public static final class DrawerSpec {
+        public final String title;
+        public final int iconRes;
+        public final int activeTint;
 
         DrawerSpec(String title, int iconRes, int activeTint) {
             this.title = title;
             this.iconRes = iconRes;
             this.activeTint = activeTint;
         }
+    }
+
+    public static java.util.Map<Integer, DrawerSpec> drawerSpecs() {
+        return DRAWER_SPECS;
     }
 
     private static java.util.LinkedHashMap<Integer, DrawerSpec> buildDrawerSpecs() {
