@@ -988,6 +988,22 @@ public class MainActivity extends AppCompatActivity {
             return;
 
         imeHeight = height;
+        // VENDOR PATCH (Astro #9, diagnostik): catat tinggi IME yang
+        // dipercaya app ke log debug bersama (file yang sama dengan
+        // X11DebugLog sisi app) — buat membuktikan laporan insets vs
+        // tinggi keyboard asli di ROM Android 17 (kasus bar softkey
+        // nongkrong kejauhan di atas keyboard, 2026-10-22). Hanya saat
+        // nilai berubah (dedup di atas), tidak pernah melempar.
+        try {
+            int decorH = getWindow().getDecorView().getHeight();
+            String line = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                    .format(new java.util.Date())
+                    + " IME height=" + height + " decorH=" + decorH + "\n";
+            java.io.File f = new java.io.File("/sdcard/Astro/x11-debug.log");
+            java.io.FileWriter w = new java.io.FileWriter(f, true);
+            w.write(line);
+            w.close();
+        } catch (Exception ignored) {}
         setTerminalToolbarViewLayout();
     }
 

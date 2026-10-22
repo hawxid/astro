@@ -46,6 +46,12 @@ yang menjalankan CmdEntryPoint dari shell root-nya.
    = X11PocActivity "Astro X11"; viewer dibuka intent eksplisit se-package
    (override `exported=false` di manifest app tetap berlaku & kini benar:
    tanpa filter launcher tidak ada ikon hantu "app tidak terinstall").
+9. `MainActivity.setImeHeight` — log diagnostik IME (2026-10-22):
+   setiap perubahan tinggi IME dicatat ke `/sdcard/Astro/x11-debug.log`
+   (tinggi yang dipercaya app + tinggi decor) untuk mendiagnosis bar
+   softkey yang nongkrong kejauhan di atas keyboard di ROM Android 17.
+   Murni pencatatan; perilaku tidak berubah. Dicabut setelah diagnosis
+   tuntas.
 
 ## Cara jalan (resep resmi chroot, README upstream)
 
