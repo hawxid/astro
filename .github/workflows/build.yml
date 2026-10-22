@@ -24,8 +24,6 @@ jobs:
       - name: Reassemble large native libs
         run: |
           set -e
-          cat vendor-libs/jni-arm64/libqemu.so.* > app/src/main/jniLibs/arm64-v8a/libqemu.so
-          cat vendor-libs/jni-arm64/libuml.so.* > app/src/main/jniLibs/arm64-v8a/libuml.so
           cat vendor-libs/jni-arm64/ZedMonoMedium.ttf.* > terminal/src/main/assets/fonts/ZedMonoMedium.ttf
           (cd "$GITHUB_WORKSPACE" && sha256sum -c vendor-libs/jni-arm64/sha256sums.txt)
           echo "native libs OK"
