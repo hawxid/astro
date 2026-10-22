@@ -163,7 +163,8 @@ public class LorieApp extends com.stryker.terminal.App { // ASTRO VENDOR PATCH
                 } catch (RemoteException ignored) {}
 
                 XDebug.log("KNOCK", "ACTION_START tag='" + tag + "' activity="
-                        + (activity != null) + " binderAlive=" + binder.isBinderAlive());
+                        + (activity != null) + " binderAlive=" + binder.isBinderAlive()
+                        + " instances=" + MainActivity.getInstances().size());
                 if (activity != null) {
                     try {
                         Log.v("LorieApp", "Got new ACTION_START intent");

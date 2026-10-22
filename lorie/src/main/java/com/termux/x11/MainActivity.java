@@ -305,14 +305,18 @@ public class MainActivity extends AppCompatActivity implements XHost {
 
         app = (LorieApp) getApplication();
 
+        XDebug.log("VIEW", "onCreate mulai tagged=" + (this instanceof MainActivityTagged)
+                + " data=" + getIntent().getData());
         String parsedTag = relaunchAsTaggedIfNeeded(getIntent(), true);
         if (parsedTag == null) {
+            XDebug.log("VIEW", "onCreate redirect ke tagged, selesai");
             redirected = true;
             return;
         }
         tag = parsedTag;
 
         instances.put(tag, new WeakReference<>(this));
+        XDebug.log("VIEW", "instance terdaftar tag='" + tag + "'");
 
         prefs = app.getPrefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;

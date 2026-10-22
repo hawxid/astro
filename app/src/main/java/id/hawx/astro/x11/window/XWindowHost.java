@@ -77,9 +77,11 @@ public class XWindowHost implements XHost {
         LorieApp app = (LorieApp) activity.getApplicationContext();
         this.prefs = app.getPrefs(activity);
         this.view = new LorieView(activity, null);
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "LorieView jadi display=" + display);
         view.setHost(this);
         InputEventSender sender = new InputEventSender(this, view);
         this.inputHandler = new TouchInputHandler(this, sender);
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "handler jadi display=" + display);
         view.setOnKeyListener((v, keyCode, e) -> inputHandler.sendKeyEvent(e));
     }
 
@@ -107,6 +109,7 @@ public class XWindowHost implements XHost {
 
     /** Mulai mendengarkan ketukan server + ambil koneksi yang sudah pending. */
     public void attach() {
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "attach mulai tag=" + tag);
         knockReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context ctx, Intent intent) {
@@ -121,6 +124,7 @@ public class XWindowHost implements XHost {
         ContextCompat.registerReceiver(activity, knockReceiver,
                 new IntentFilter(CmdEntryPoint.ACTION_START),
                 ContextCompat.RECEIVER_NOT_EXPORTED);
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "receiver terdaftar tag=" + tag);
 
         LorieApp app = (LorieApp) activity.getApplicationContext();
         IBinder pending = app.pendingConnections.get(tag);
