@@ -361,9 +361,6 @@ public class Wifi extends Fragment {
 
     private void updateAdapterMeta() {
         String where = wlan == null || wlan.isEmpty() ? "—" : wlan;
-        if (core != null && core.engineOverride() != null) {
-            where = getString(R.string.wifi_guest_active_meta, where);
-        }
         ifaceMeta.setText(where);
         boolean has24 = false;
         boolean has5 = false;
