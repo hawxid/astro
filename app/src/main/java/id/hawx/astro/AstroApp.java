@@ -11,7 +11,6 @@ import androidx.annotation.Nullable;
 import id.hawx.astro.logger.LogEntry;
 import id.hawx.astro.logger.LogStore;
 import id.hawx.astro.ota.NotificationCenter;
-import id.hawx.astro.ota.UpdateScheduler;
 import id.hawx.astro.utils.Utils;
 
 public class AstroApp extends com.termux.x11.LorieApp {
@@ -38,7 +37,13 @@ public class AstroApp extends com.termux.x11.LorieApp {
         });
 
         NotificationCenter.ensureChannel(this);
-        UpdateScheduler.schedule(this);
+        // Hardening 2026-10-22 (perintah Hawx): poller OTA upstream
+        // dimatikan permanen. Batalkan pekerjaan berkala warisan build
+        // lama supaya tidak pernah jalan lagi di perangkat.
+        try {
+            androidx.work.WorkManager.getInstance(this)
+                    .cancelUniqueWork("stryker_update_poll");
+        } catch (Exception ignored) {}
         applyEdgeToEdgeInsets();
         com.stryker.terminal.backend.TerminalSession.setShellChooser(() -> {
             try {

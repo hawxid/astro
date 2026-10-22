@@ -949,7 +949,7 @@
     <string name="about_section_links">官方链接</string>
     <string name="about_section_legal">法律信息</string>
     <string name="about_link_site_label">项目网站</string>
-    <string name="about_link_site_url" translatable="false">stryker.zalexdev.com</string>
+    <string name="about_link_site_url" translatable="false">github.com/hawxid/astro</string>
     <string name="about_link_github_label">源代码</string>
     <string name="about_link_github_url" translatable="false">github.com/hawxid/astro</string>
     <string name="about_oss_licenses_label">开源许可证</string>

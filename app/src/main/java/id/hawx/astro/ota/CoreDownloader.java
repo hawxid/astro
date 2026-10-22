@@ -12,6 +12,8 @@ public final class CoreDownloader {
         if (manifest != null && manifest.chroot64 != null && manifest.chroot64.isUsable()) {
             return manifest.chroot64;
         }
-        return new RemoteManifest.Asset(AstroEndpoints.FALLBACK_CHROOT_64, "", 0);
+        return new RemoteManifest.Asset(AstroEndpoints.FALLBACK_CHROOT_64,
+                AstroEndpoints.FALLBACK_CHROOT_64_SHA256,
+                AstroEndpoints.FALLBACK_CHROOT_64_SIZE);
     }
 }

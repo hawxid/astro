@@ -48,42 +48,6 @@ public final class RemoteManifest {
         }
     }
 
-    public static final class RootlessAssets {
-        public final Asset qemu;
-        public final Asset kernel;
-        public final Asset initrd;
-        public final Asset libslirp;
-        public final Asset rootfs;
-        public final Asset umlKernel;
-        public final Asset umlStub;
-
-        RootlessAssets(Asset qemu, Asset kernel, Asset initrd, Asset libslirp, Asset rootfs) {
-            this(qemu, kernel, initrd, libslirp, rootfs, null, null);
-        }
-
-        RootlessAssets(Asset qemu, Asset kernel, Asset initrd, Asset libslirp, Asset rootfs,
-                       Asset umlKernel, Asset umlStub) {
-            this.qemu = qemu;
-            this.kernel = kernel;
-            this.initrd = initrd;
-            this.libslirp = libslirp;
-            this.rootfs = rootfs;
-            this.umlKernel = umlKernel;
-            this.umlStub = umlStub;
-        }
-
-        public boolean isComplete() {
-            return qemu != null && qemu.isUsable()
-                    && kernel != null && kernel.isUsable()
-                    && initrd != null && initrd.isUsable()
-                    && libslirp != null && libslirp.isUsable()
-                    && rootfs != null && rootfs.isUsable();
-        }
-
-        public boolean isCompleteForUml() {
-            return rootfs != null && rootfs.isUsable();
-        }
-    }
 
     public static final class NotificationItem {
         public final int id;
@@ -101,10 +65,7 @@ public final class RemoteManifest {
 
     public int manifestVersion = 1;
     public String coreVersion = "";
-    public String rootlessVersion = "";
-    public String kernelRelease = "";
     public Asset chroot64;
-    public RootlessAssets rootless;
     public AppUpdate app;
     public final List<News> news = new ArrayList<>();
     public final List<NotificationItem> notifications = new ArrayList<>();
@@ -126,20 +87,6 @@ public final class RemoteManifest {
                 manifest.coreVersion = "";
                 manifest.chroot64 = null;
             }
-        }
-
-        JSONObject rootless = pickForThisBuild(root, "rootless_v2", "rootless");
-        if (rootless != null) {
-            manifest.rootlessVersion = rootless.optString("version", "");
-            manifest.kernelRelease = rootless.optString("kernel_release", "");
-            manifest.rootless = new RootlessAssets(
-                    asset(rootless.optJSONObject("qemu")),
-                    asset(rootless.optJSONObject("kernel")),
-                    asset(rootless.optJSONObject("initrd")),
-                    asset(rootless.optJSONObject("libslirp")),
-                    asset(rootless.optJSONObject("rootfs")),
-                    asset(rootless.optJSONObject("uml_kernel")),
-                    asset(rootless.optJSONObject("uml_stub")));
         }
 
         JSONObject app = root.optJSONObject("app");
