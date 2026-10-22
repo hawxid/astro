@@ -224,9 +224,38 @@ public class Dashboard extends Fragment {
         body.findViewById(R.id.customize_all).setOnClickListener(setAll);
         body.findViewById(R.id.customize_none).setOnClickListener(setAll);
 
+        // Shortcut chroot ikut diatur di sini (satu pintu manajemen
+        // desktop): saklar tampil/sembunyi per entri + tombol tambah.
+        LinearLayout lList = body.findViewById(R.id.customize_launchers);
+        final List<LauncherEntry> entries = launcherStore != null
+                ? launcherStore.list() : new ArrayList<>();
+        final List<com.google.android.material.switchmaterial.SwitchMaterial> lSwitches =
+                new ArrayList<>();
+        for (LauncherEntry e : entries) {
+            com.google.android.material.switchmaterial.SwitchMaterial sw =
+                    new com.google.android.material.switchmaterial.SwitchMaterial(context);
+            sw.setText(e.name);
+            sw.setTextSize(15f);
+            sw.setChecked(!e.hidden);
+            sw.setPadding(0, dp(12), 0, dp(12));
+            lList.addView(sw);
+            lSwitches.add(sw);
+        }
+        body.findViewById(R.id.customize_add).setOnClickListener(v -> {
+            sheet.dismiss();
+            startActivity(new Intent(context, LauncherEditActivity.class));
+        });
+
         body.findViewById(R.id.customize_done).setOnClickListener(v -> {
             for (int i = 0; i < all.size(); i++) {
                 core.putBoolean(PREF_TOOL + all.get(i).key, switches.get(i).isChecked());
+            }
+            if (launcherStore != null) {
+                for (int i = 0; i < entries.size(); i++) {
+                    entries.get(i).hidden = !lSwitches.get(i).isChecked();
+                    launcherStore.upsert(entries.get(i));
+                }
+                launcherStore.save();
             }
             sheet.dismiss();
             buildTools();
@@ -246,7 +275,6 @@ public class Dashboard extends Fragment {
             for (LauncherEntry e : launcherStore.list()) {
                 if (!e.hidden) cells.add(chrootCell(e));
             }
-            cells.add(addToolCell());
         }
 
         final int perRow = 4;
@@ -355,21 +383,6 @@ public class Dashboard extends Fragment {
         return cell;
     }
 
-    private View addToolCell() {
-        LinearLayout cell = baseCell();
-        TextView plus = new TextView(context);
-        plus.setText("+");
-        plus.setTextSize(30);
-        plus.setGravity(android.view.Gravity.CENTER);
-        plus.setTextColor(0xFFA088F0);
-        plus.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
-        cell.addView(plus);
-        cell.addView(cellLabel("Tambah", false));
-        cell.setOnClickListener(v ->
-                startActivity(new Intent(context, LauncherEditActivity.class)));
-        return cell;
-    }
-
     // ================= panel + dock =================
 
     private TextView panelText(String text) {
@@ -453,8 +466,6 @@ public class Dashboard extends Fragment {
             dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
             dock.addView(dockBtn("\uD83E\uDDFE", v ->
                     startActivity(new Intent(context, X11PocActivity.class))));
-            dock.addView(dockBtn("\u2795", v ->
-                    startActivity(new Intent(context, LauncherEditActivity.class))));
         }
         refreshXState();
     }
