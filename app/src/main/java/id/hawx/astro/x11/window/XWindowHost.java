@@ -79,8 +79,13 @@ public class XWindowHost implements XHost {
         view.setHost(this);
         InputEventSender sender = new InputEventSender(this, view);
         this.inputHandler = new TouchInputHandler(this, sender);
-        view.setOnTouchListener(inputHandler);
         view.setOnKeyListener((v, keyCode, e) -> inputHandler.sendKeyEvent(e));
+    }
+
+    /** Teruskan event sentuh dari parent view (pola MainActivity upstream:
+     *  listener dipasang di parent, handler menerima parent + view). */
+    public boolean handleTouch(View parent, android.view.MotionEvent e) {
+        return inputHandler.handleTouchEvent(parent, view, e);
     }
 
     public void setListener(Listener l) {

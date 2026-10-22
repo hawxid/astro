@@ -98,6 +98,19 @@ public class XFloatingWindow extends FrameLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         host.view().setBackgroundColor(Color.BLACK);
 
+        // Input sentuh dipasang di parent (content), meniru MainActivity
+        // upstream: event diteruskan ke TouchInputHandler milik host.
+        content.setOnTouchListener((v, e) -> {
+            if (e.getAction() == MotionEvent.ACTION_DOWN
+                    && android.os.Build.VERSION.SDK_INT >= 29)
+                v.requestUnbufferedDispatch(e);
+            return host.handleTouch(v, e);
+        });
+        content.setOnHoverListener((v, e) -> host.handleTouch(v, e));
+        content.setOnGenericMotionListener((v, e) -> host.handleTouch(v, e));
+        if (android.os.Build.VERSION.SDK_INT >= 26)
+            host.view().setOnCapturedPointerListener((v, e) -> host.handleTouch(host.view(), e));
+
         // ---- grip resize pojok kanan-bawah ----
         TextView grip = new TextView(ctx);
         grip.setText("◢");
