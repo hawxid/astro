@@ -325,7 +325,9 @@ public class LorieView extends SurfaceView implements InputStub {
         }
     };
 
-    public LorieView(Context context, AttributeSet attrs) { super(context, attrs); }
+    public LorieView(Context context, AttributeSet attrs) { super(context, attrs);
+        XDebug.log("LV", "init lolos (nativeInit selamat)");
+    }
 
     {
         getHolder().addCallback(mSurfaceCallback);

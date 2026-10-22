@@ -328,6 +328,7 @@ public class MainActivity extends AppCompatActivity implements XHost {
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
+        XDebug.log("VIEW", "konten terpasang tag='" + tag + "'");
         applyWindowSettings();
 
         frm = findViewById(R.id.frame);
@@ -436,6 +437,7 @@ public class MainActivity extends AppCompatActivity implements XHost {
 
     @Override
     protected void onDestroy() {
+        XDebug.log("VIEW", "onDestroy tag='" + tag + "'");
         handler.removeCallbacks(screenIdleTimeoutCheck);
         handler.removeCallbacks(serverWatchdog);
         if (mInputHandler != null)
@@ -1165,6 +1167,8 @@ public class MainActivity extends AppCompatActivity implements XHost {
         boolean hideCutout = prefs.hideCutout.get();
 
         // Recreating would take the window out of picture-in-picture, so it waits for the normal size.
+        XDebug.log("VIEW", "applyWindowSettings oldFs=" + oldFullscreen + " fs=" + fullscreen
+                + " oldCut=" + oldHideCutout + " cut=" + hideCutout);
         if (!isInPictureInPictureMode && (oldHideCutout != hideCutout || oldFullscreen != fullscreen)) {
             oldHideCutout = hideCutout;
             oldFullscreen = fullscreen;

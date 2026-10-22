@@ -76,6 +76,7 @@ public class XWindowHost implements XHost {
         this.tag = "d" + display;
         LorieApp app = (LorieApp) activity.getApplicationContext();
         this.prefs = app.getPrefs(activity);
+        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "sebelum LorieView display=" + display);
         this.view = new LorieView(activity, null);
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "LorieView jadi display=" + display);
         view.setHost(this);
