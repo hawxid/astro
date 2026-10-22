@@ -52,6 +52,16 @@ yang menjalankan CmdEntryPoint dari shell root-nya.
    softkey yang nongkrong kejauhan di atas keyboard di ROM Android 17.
    Murni pencatatan; perilaku tidak berubah. Dicabut setelah diagnosis
    tuntas.
+10. Keyboard DINAMIS via OS (2026-10-22, arah Hawx): manifest viewer
+    `adjustNothing` -> `adjustResize` + `ImeHeightProvider` dimatikan
+    di `MainActivity.onCreate`. Diagnosis: log membuktikan IME=837px
+    waras, tapi bar nangkring di ~1660px dari bawah = 2x — jendela
+    rupanya tetap di-resize OS (Android 17) sementara lorie menghitung
+    IME sekali lagi secara manual. Dengan patch ini permukaan menyusut
+    native mengikuti keyboard, bar gravity-bottom ikut sendiri,
+    imeHeight kekal 0. Konsekuensi yang diterima: display X re-seed
+    tiap keyboard buka/tutup (jendela openbox tertata ulang) — itu
+    perilaku dinamis yang diminta.
 
 ## Cara jalan (resep resmi chroot, README upstream)
 

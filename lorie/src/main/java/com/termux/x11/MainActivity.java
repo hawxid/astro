@@ -381,7 +381,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        ImeHeightProvider.assistActivity(this);
+        // VENDOR PATCH (Astro #10): ImeHeightProvider DIMATIKAN.
+        // Dulu: jendela adjustNothing + tinggi keyboard disimulasi manual
+        // (insets -> bottomMargin bar + obscuredBottom). Di ROM Android 17
+        // jendela ternyata tetap di-resize OS, jadi angka IME terhitung
+        // DUA kali dan bar softkey nangkring ~2x tinggi keyboard dari
+        // bawah (bukti log 2026-10-22: IME=837 waras, bar di ~1660).
+        // Sekarang manifest = adjustResize: OS menyusutkan permukaan
+        // secara dinamis mengikuti keyboard, bar (gravity bottom) ikut
+        // native, imeHeight tetap 0 — tidak ada hitungan manual lagi.
+        // ImeHeightProvider.assistActivity(this);
 
         IBinder pendingConnection = app.pendingConnections.remove(tag);
         if (pendingConnection != null)

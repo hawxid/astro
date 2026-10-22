@@ -23,7 +23,7 @@
             android:supportsPictureInPicture="true"
             android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
             android:resizeableActivity="true"
-            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:windowSoftInputMode="stateHidden|adjustResize"
             android:exported="true">
             <!-- VENDOR PATCH (Astro): filter LAUNCHER dicabut — viewer tidak
                  punya ikon sendiri di launcher HP. Satu-satunya pintu X di
@@ -46,7 +46,7 @@
             android:autoRemoveFromRecents="true"
             android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
             android:resizeableActivity="true"
-            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:windowSoftInputMode="stateHidden|adjustResize"
             android:exported="false" />
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"
