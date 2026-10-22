@@ -209,6 +209,7 @@ public class X11PocActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        store = new LauncherStore(this); // baca segar — alasan sama seperti Dashboard
         refreshAll(); // sekalian cek watchdog idle (malas, tanpa polling)
     }
 

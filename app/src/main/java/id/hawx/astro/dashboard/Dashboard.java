@@ -94,6 +94,13 @@ public class Dashboard extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        // Store WAJIB dibaca segar tiap resume: editor menyimpan lewat
+        // instans store-nya sendiri ke file — instans di sini basi
+        // (bug 2026-10-22: shortcut baru tersimpan tapi tak pernah
+        // muncul di desktop). Grid juga digambar ulang penuh di sini;
+        // sebelumnya hanya saat status sesi X berubah.
+        if (context != null) launcherStore = new LauncherStore(context);
+        buildTools();
         refreshXState();
     }
 
