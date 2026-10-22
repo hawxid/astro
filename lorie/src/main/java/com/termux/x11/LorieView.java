@@ -446,7 +446,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
         if (getDisplay() == null || getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
             name = "builtin";
-        else if (SamsungDexUtils.checkDeXEnabled(activity))
+        else if (SamsungDexUtils.checkDeXEnabled(getContext()))
             name = "dex";
         else
             name = "external";

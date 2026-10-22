@@ -211,7 +211,7 @@ public class TouchInputHandler {
         mZoomer.setQuickScaleEnabled(false);
 
         mTapDetector = new TapGestureDetector(/*desktop*/ activity.context(), listener);
-        mSwipePinchDetector = new SwipeDetector(/*desktop*/ activity);
+        mSwipePinchDetector = new SwipeDetector(/*desktop*/ activity.context());
 
         // The threshold needs to be bigger than the ScaledTouchSlop used by the gesture-detectors,
         // so that a gesture cannot be both a tap and a swipe. It also needs to be small enough so
@@ -421,7 +421,7 @@ public class TouchInputHandler {
         else if (inputMode == InputMode.TOUCH)
             mInputStrategy = new InputStrategyInterface.NullInputStrategy();
         else if (inputMode == InputMode.SIMULATED_TOUCH)
-            mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mActivity);
+            mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mActivity.context());
         else
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
     }
@@ -441,7 +441,7 @@ public class TouchInputHandler {
 
         if (mInjector.pauseKeyInterceptingWithEsc) {
             if (mInjector.dexMetaKeyCapture)
-                SamsungDexUtils.dexMetaKeyCapture(mActivity, enabled);
+                SamsungDexUtils.dexMetaKeyCapture((android.app.Activity) mActivity.context(), enabled);
             keyIntercepting = enabled;
         }
     }
@@ -495,7 +495,7 @@ public class TouchInputHandler {
             mActivity.getLorieView().releasePointerCapture();
 
         keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || hasPointerCapture(mActivity.getLorieView());
-        SamsungDexUtils.dexMetaKeyCapture(mActivity, mInjector.dexMetaKeyCapture && keyIntercepting);
+        SamsungDexUtils.dexMetaKeyCapture((android.app.Activity) mActivity.context(), mInjector.dexMetaKeyCapture && keyIntercepting);
 
         swipeUpAction = extractUserActionFromPreferences(p, "swipeUp");
         swipeDownAction = extractUserActionFromPreferences(p, "swipeDown");
