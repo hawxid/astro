@@ -64,6 +64,7 @@ public class XWindowHost implements XHost {
 
     private ICmdEntryInterface service;
     private Listener listener;
+    private boolean surfaceReady;
     private BroadcastReceiver knockReceiver;
     private boolean stripVisible;
 
@@ -84,6 +85,23 @@ public class XWindowHost implements XHost {
         this.inputHandler = new TouchInputHandler(this, sender);
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "handler jadi display=" + display);
         view.setOnKeyListener((v, keyCode, e) -> inputHandler.sendKeyEvent(e));
+        // Urutan upstream: surface lahir DULU, koneksi X diambil SESUDAHNYA.
+        // Host tertanam yang connect sebelum surface ada bikin renderer
+        // native nggak pernah nampilin frame (layar hitam, koneksi sehat).
+        surfaceReady = view.getHolder().getSurface() != null
+                && view.getHolder().getSurface().isValid();
+        view.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
+            @Override public void surfaceCreated(android.view.SurfaceHolder h) {
+                surfaceReady = true;
+                id.hawx.astro.x11.X11DebugLog.log("FLOAT", "surface lahir tag=" + tag);
+                tryConnect();
+            }
+            @Override public void surfaceChanged(android.view.SurfaceHolder h,
+                                                 int f, int w, int hh) {}
+            @Override public void surfaceDestroyed(android.view.SurfaceHolder h) {
+                surfaceReady = false;
+            }
+        });
     }
 
     /** Teruskan event sentuh dari parent view (pola MainActivity upstream:
@@ -178,6 +196,11 @@ public class XWindowHost implements XHost {
         }
         if (service == null) {
             view.requestConnection();
+            scheduleConnect();
+            return true;
+        }
+        if (!surfaceReady) {
+            // Tahan: surfaceCreated akan memanggil tryConnect lagi.
             scheduleConnect();
             return true;
         }
