@@ -221,7 +221,13 @@ public class MainActivity extends AppCompatActivity {
     private void startTaggedActivity(Intent intent) {
         intent.setClass(this, MainActivityTagged.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent, freeformActivityOptions());
+        // ASTRO VENDOR PATCH (2026-10-22): jendela bertag dibuka FULLSCREEN,
+        // BUKAN freeform. Mode freeform bawaan fork ini di ROM Hawx bikin
+        // penampil melayang sebagai jendela sistem (surface X menyusut,
+        // bar softkey terjepit di dalam bingkai) dan tertutup saat diketuk.
+        // Chrome jendela Astro adalah urusan app sendiri (PoC jendela X),
+        // bukan window manager sistem.
+        startActivity(intent);
     }
 
     /** ActivityOptions requesting freeform windowing mode. */
