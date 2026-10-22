@@ -88,7 +88,7 @@ import java.util.TreeSet;
 
 @Keep @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements XHost {
     public static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     public static final String ACTION_CUSTOM = "com.termux.x11.ACTION_CUSTOM";
 
@@ -882,6 +882,19 @@ public class MainActivity extends AppCompatActivity {
     public LorieView getLorieView() {
         return findViewById(R.id.lorieView);
     }
+
+    // ---- XHost (ASTRO VENDOR ADDITION): jembatan agar LorieView & tumpukan
+    // input bisa di-host juga di luar activity ini. Semua mengembalikan
+    // keadaan lama persis.
+    @Override public Prefs getPrefs() { return prefs; }
+    @Override public android.content.Context context() { return this; }
+    @Override public void finishHost() { finish(); }
+    @Override public com.termux.x11.utils.TermuxX11ExtraKeys extraKeys() { return mExtraKeys; }
+    @Override public boolean useTermuxEKBarBehaviour() { return useTermuxEKBarBehaviour; }
+    @Override public void refreshInputDevices() {
+        if (mInputHandler != null) mInputHandler.refreshInputDevices();
+    }
+    @Override public void startActivityHost(android.content.Intent intent) { startActivity(intent); }
 
     public ViewPager getTerminalToolbarViewPager() {
         return findViewById(R.id.terminal_toolbar_view_pager);

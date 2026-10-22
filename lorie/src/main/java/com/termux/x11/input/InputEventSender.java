@@ -16,6 +16,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 
 import com.termux.x11.MainActivity;
+import com.termux.x11.XHost;
 
 import java.util.List;
 import java.util.Set;
@@ -36,7 +37,7 @@ public final class InputEventSender {
         KEYCODE_APP_SWITCH
     );
 
-    private final MainActivity mActivity;
+    private final XHost mActivity;
     private final InputStub mInjector;
     private final float[] mappedPoint = new float[2];
 
@@ -57,7 +58,7 @@ public final class InputEventSender {
     /** Last Caps/Num/Scroll Lock state sent to the host, or -1 if none has been sent yet. */
     private int mLockKeysState = -1;
 
-    public InputEventSender(MainActivity activity, InputStub injector) {
+    public InputEventSender(XHost activity, InputStub injector) {
         if (injector == null)
             throw new NullPointerException();
         mActivity = activity;

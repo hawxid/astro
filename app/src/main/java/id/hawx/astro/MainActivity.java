@@ -77,6 +77,8 @@ import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity {
 
+    private id.hawx.astro.x11.window.XWindowLayer xWindowLayer;
+
     public static final String EXTRA_OPEN_UPDATE = "open_update";
 
     private static TextView logo;
@@ -136,6 +138,12 @@ public class MainActivity extends AppCompatActivity {
         core = new Core(this);
         id.hawx.astro.logger.LogStore.from(getApplicationContext());
         setContentView(R.layout.activity_main);
+
+        // Lapisan jendela X floating (PoC 1) — overlay di atas desktop.
+        xWindowLayer = findViewById(R.id.x_window_layer);
+        xWindowLayer.setKillListener(display ->
+                id.hawx.astro.x11.XSessionManager.get(this).stopDisplay(display, (ok, msg) -> { }));
+        handleXWindowIntent(getIntent());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             String NOTIFICATION_PERMISSION = Manifest.permission.POST_NOTIFICATIONS;
             if (checkSelfPermission(NOTIFICATION_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
@@ -1297,5 +1305,28 @@ public class MainActivity extends AppCompatActivity {
         m.put(R.id.manager_item,      new DrawerSpec("Core manager",     R.drawable.tune,        0xFF5E35B1));
         m.put(R.id.about_item,        new DrawerSpec("About",            R.drawable.info_outlined, 0xFF1565C0));
         return m;
+    }
+
+    /** Buka jendela X floating untuk sebuah display (dipicu panel PoC / launcher). */
+    public void openXWindow(int display, String title) {
+        getWindow().setSoftInputMode(
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        if (xWindowLayer != null) xWindowLayer.openWindow(this, display, title);
+    }
+
+    private void handleXWindowIntent(android.content.Intent intent) {
+        if (intent == null) return;
+        int d = intent.getIntExtra("astro_x_window_display", -1);
+        if (d > 0) {
+            intent.removeExtra("astro_x_window_display");
+            openXWindow(d, "XTerm · :" + d);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleXWindowIntent(intent);
     }
 }

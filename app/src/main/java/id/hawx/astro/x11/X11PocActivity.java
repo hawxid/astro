@@ -103,6 +103,7 @@ public class X11PocActivity extends AppCompatActivity {
         LinearLayout pocRow = new LinearLayout(this);
         pocRow.setOrientation(LinearLayout.HORIZONTAL);
         pocRow.addView(actionButton("Spawn :1 + XTerm", v -> doPocSpawn()));
+        pocRow.addView(actionButton("Jendela Floating :1 (PoC 1)", v -> doPocFloating()));
         pocRow.addView(actionButton("Probe :0 + :1", v -> doPocProbe()));
         pocRow.addView(actionButton("Matikan :1", v -> doPocStop()));
         root.addView(pocRow);
@@ -262,6 +263,21 @@ public class X11PocActivity extends AppCompatActivity {
             busy = false;
             toast(msg);
             refreshAll();
+        });
+    }
+
+    /** PoC 1: spawn :1 lalu buka jendela floating tertanam di desktop Astro. */
+    private void doPocFloating() {
+        if (busy) return;
+        busy = true;
+        toast("Menyiapkan display :1 + jendela floating…");
+        mgr.launchOnDisplay(pocEntry(), 1, (ok, msg) -> {
+            busy = false;
+            android.content.Intent it = new android.content.Intent(this, id.hawx.astro.MainActivity.class);
+            it.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            it.putExtra("astro_x_window_display", 1);
+            startActivity(it);
         });
     }
 

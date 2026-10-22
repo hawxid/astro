@@ -66,7 +66,19 @@ public class LorieView extends SurfaceView implements InputStub {
     private boolean clipboardSyncEnabled = false;
     private boolean hardwareKbdScancodesWorkaround = false;
     private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-    private final MainActivity activity = MainActivity.findActivity(getContext());
+    // ASTRO VENDOR PATCH: host diputus dari MainActivity konkret — bisa
+    // activity upstream (ditemukan via findActivity) atau host tertanam
+    // yang dipasang lewat setHost() sebelum view dipakai.
+    private XHost host;
+    public void setHost(XHost h) { host = h; }
+    private XHost host() {
+        if (host == null) host = MainActivity.findActivity(getContext());
+        return host;
+    }
+    private com.termux.x11.utils.TermuxX11ExtraKeys extraKeys() {
+        XHost h = host();
+        return h == null ? null : h.extraKeys();
+    }
     private Callback mCallback;
     private final Point p = new Point();
     private final Rect contentInsets = new Rect();
@@ -160,8 +172,9 @@ public class LorieView extends SurfaceView implements InputStub {
         }
 
         void sendKeysWithoutCtrlAlt(Runnable keys) {
-            if (activity.mExtraKeys != null)
-                activity.mExtraKeys.withoutCtrlAlt(keys);
+            com.termux.x11.utils.TermuxX11ExtraKeys ek = extraKeys();
+            if (ek != null)
+                ek.withoutCtrlAlt(keys);
             else
                 keys.run();
         }
@@ -223,8 +236,9 @@ public class LorieView extends SurfaceView implements InputStub {
 
             currentComposingText = reuse ? newText : null;
 
-            if (activity.useTermuxEKBarBehaviour && activity.mExtraKeys != null)
-                activity.mExtraKeys.unsetSpecialKeys();
+            XHost h0 = host();
+            if (h0 != null && h0.useTermuxEKBarBehaviour() && extraKeys() != null)
+                extraKeys().unsetSpecialKeys();
             commitedText = true;
             return true;
         }
@@ -368,7 +382,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     void getDimensionsFromSettings(int width, int height) {
-        Prefs prefs = activity.prefs;
+        Prefs prefs = host().getPrefs();
         int w = width;
         int h = height;
         switch(prefs.displayResolutionMode.get()) {
@@ -492,7 +506,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     private void updateViewport() {
-        Prefs prefs = activity.prefs;
+        Prefs prefs = host().getPrefs();
 
         int surfaceW = getMeasuredWidth(), surfaceH = getMeasuredHeight();
         // Views the insets reserve room for are hidden while the dimensions are frozen.
@@ -581,7 +595,8 @@ public class LorieView extends SurfaceView implements InputStub {
         if (hardwareKbdScancodesWorkaround)
             return false;
 
-        return activity.handleKey(event);
+        XHost h1 = host();
+        return h1 != null && h1.handleKey(event);
     }
 
     @Override
@@ -605,7 +620,7 @@ public class LorieView extends SurfaceView implements InputStub {
         hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
         clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(mNativeContext, clipboardSyncEnabled, clipboardSyncEnabled);
-        activity.mInputHandler.refreshInputDevices();
+        if (host() != null) host().refreshInputDevices();
     }
 
     // It is used in native code
@@ -663,12 +678,13 @@ public class LorieView extends SurfaceView implements InputStub {
         } else
             clipboard.removePrimaryClipChangedListener(clipboardListener);
 
-        activity.mInputHandler.refreshInputDevices();
+        if (host() != null) host().refreshInputDevices();
     }
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        if (activity.prefs.enforceCharBasedInput.get())
+        XHost h2 = host();
+        if (h2 != null && h2.getPrefs().enforceCharBasedInput.get())
             outAttrs.inputType = InputType.TYPE_NULL;
         else
             outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_NORMAL;

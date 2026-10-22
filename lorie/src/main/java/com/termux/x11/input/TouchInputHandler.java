@@ -40,6 +40,7 @@ import com.termux.x11.CmdEntryPoint;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.LorieView;
 import com.termux.x11.MainActivity;
+import com.termux.x11.XHost;
 import com.termux.x11.Prefs;
 import com.termux.x11.utils.SamsungDexUtils;
 
@@ -100,7 +101,7 @@ public class TouchInputHandler {
 
     private InputStrategyInterface mInputStrategy;
     private final InputEventSender mInjector;
-    private final MainActivity mActivity;
+    private final XHost mActivity;
     private final InputManager.InputDeviceListener mInputDeviceListener;
     private final DisplayMetrics mMetrics = new DisplayMetrics();
     private final float[] mappedPoint = new float[2];
@@ -180,7 +181,7 @@ public class TouchInputHandler {
         return ((currentBS & mask) != 0);
     }
 
-    private TouchInputHandler(MainActivity activity, RenderData renderData,
+    private TouchInputHandler(XHost activity, RenderData renderData,
                               final InputEventSender injector, boolean isTouchpad) {
         if (injector == null)
             throw new NullPointerException();
@@ -197,7 +198,7 @@ public class TouchInputHandler {
         GestureListener listener = new GestureListener();
         if (!isTouchpad)
             activity.getLorieView().setSyncListener(listener::onCursorMoveSynced);
-        mScroller = new GestureDetector(/*desktop*/ activity, listener, null, false);
+        mScroller = new GestureDetector(/*desktop*/ activity.context(), listener, null, false);
 
         // If long-press is enabled, the gesture-detector will not emit any further onScroll
         // notifications after the onLongPress notification. Since onScroll is being used for
@@ -205,23 +206,23 @@ public class TouchInputHandler {
         // down too long.
         mScroller.setIsLongpressEnabled(false);
 
-        mZoomer = new ScaleGestureDetector(/*desktop*/ activity, listener);
+        mZoomer = new ScaleGestureDetector(/*desktop*/ activity.context(), listener);
         // Quick-scale (double-tap-drag) would otherwise fight with our own double-tap-drag handling.
         mZoomer.setQuickScaleEnabled(false);
 
-        mTapDetector = new TapGestureDetector(/*desktop*/ activity, listener);
+        mTapDetector = new TapGestureDetector(/*desktop*/ activity.context(), listener);
         mSwipePinchDetector = new SwipeDetector(/*desktop*/ activity);
 
         // The threshold needs to be bigger than the ScaledTouchSlop used by the gesture-detectors,
         // so that a gesture cannot be both a tap and a swipe. It also needs to be small enough so
         // that intentional swipes are usually detected.
-        float density = /*desktop*/ activity.getResources().getDisplayMetrics().density;
+        float density = /*desktop*/ activity.context().getResources().getDisplayMetrics().density;
         mSwipeThreshold = 40 * density;
 
 //        mEdgeSlopInPx = ViewConfiguration.get(/*desktop*/ ctx).getScaledEdgeSlop();
 
         setInputMode(InputMode.TRACKPAD);
-        mDexListener = new DexListener(activity);
+        mDexListener = new DexListener(activity.context());
         mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(activity, mRenderData, injector, true);
 
         refreshInputDevices();
@@ -251,7 +252,7 @@ public class TouchInputHandler {
         ((InputManager) mActivity.getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(mInputDeviceListener, null);
     }
 
-    public TouchInputHandler(MainActivity activity, final InputEventSender injector) {
+    public TouchInputHandler(XHost activity, final InputEventSender injector) {
         this(activity, null, injector, false);
     }
 
@@ -517,10 +518,10 @@ public class TouchInputHandler {
         switch(pref.asList().get()) {
             case "toggle soft keyboard": return (key, down) -> { if (down) mActivity.toggleKeyboardVisibility(); };
             case "toggle additional key bar": return (key, down) -> { if (down) mActivity.toggleExtraKeys(); };
-            case "open preferences": return (key, down) -> { if (down) mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
+            case "open preferences": return (key, down) -> { if (down) mActivity.startActivityHost(new Intent(mActivity.context(), LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
             case "release pointer and keyboard capture": return (key, down) -> { if (down) setCapturingEnabled(false); };
-            case "toggle fullscreen": return (key, down) -> { if (down) mActivity.prefs.fullscreen.put(!mActivity.prefs.fullscreen.get()); };
-            case "exit": return (key, down) -> { if (down) mActivity.finish(); };
+            case "toggle fullscreen": return (key, down) -> { if (down) mActivity.getPrefs().fullscreen.put(!mActivity.getPrefs().fullscreen.get()); };
+            case "exit": return (key, down) -> { if (down) mActivity.finishHost(); };
             case "send volume up": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
             case "send volume down": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
             case "send media action": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, key, down);
@@ -942,7 +943,7 @@ public class TouchInputHandler {
 
         if (!mActivity.getLorieView().connected()) {
             if (e.getKeyCode() == KEYCODE_BACK)
-                mActivity.finish();
+                mActivity.finishHost();
 
             return false;
         }
