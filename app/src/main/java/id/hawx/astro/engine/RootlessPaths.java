@@ -30,18 +30,6 @@ public final class RootlessPaths {
     public static File termSock(Context c)  { return new File(base(c), "term.sock"); }
     public static File bootLog(Context c)   { return new File(base(c), "boot.log"); }
 
-    public static final int GUEST_EXEC_PORT = 1050;
-    public static final int HOST_EXEC_PORT  = 1050;
-    public static final String HOST_LOOPBACK = "127.0.0.1";
-
-    public static final int GUEST_TERM_PORT = 1051;
-    public static final int HOST_TERM_PORT  = 1051;
-
-    public static final int GUEST_PTY_PORT = 1052;
-    public static final int HOST_PTY_PORT  = 1052;
-
-    public static final int GUEST_SSH_PORT = 22;
-    public static final int HOST_SSH_PORT  = 2222;
 
     public static File activeFlag(Context c) {
         return new File(base(c), ".active");

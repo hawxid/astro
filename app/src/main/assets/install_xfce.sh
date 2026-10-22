@@ -149,7 +149,7 @@ dbus-run-session -- xfce4-session >/tmp/xfce.log 2>&1 &
 sleep 5
 
 x11vnc -xkb -noxrecord -noxfixes -noxdamage -display \$DISPLAY -forever -bg \
-    -rfbauth /root/.vnc/passwd -users root -rfbport \$PORT -noshm 2>/tmp/x11vnc.log
+    -localhost -rfbauth /root/.vnc/passwd -users root -rfbport \$PORT -noshm 2>/tmp/x11vnc.log
 echo \"[!] VNC server started at: localhost:\$PORT\"
 echo \"[!] If you see a dark screen with an X cursor: cat /tmp/xfce.log\"" > /usr/local/bin/vncserver-start || scripts_writing_error
 
