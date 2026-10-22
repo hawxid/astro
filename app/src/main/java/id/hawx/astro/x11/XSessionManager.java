@@ -566,6 +566,13 @@ public class XSessionManager {
 
     /** Launch app GUI ke display :d (varian launch() dengan DISPLAY bebas). */
     public void launchOnDisplay(LauncherEntry entry, int d, Callback cb) {
+        launchOnDisplay(entry, d, cb, true);
+    }
+
+    /** openViewer=false: jangan buka viewer fullscreen (dipakai jendela
+     *  floating — viewer fullscreen yang ikut kebuka merebut frame dan
+     *  mengotori pengujian host tertanam). */
+    public void launchOnDisplay(LauncherEntry entry, int d, Callback cb, boolean openViewer) {
         exec.execute(() -> {
             if (!core.isMounted()) {
                 post(cb, false, "Chroot belum jalan — start dulu dari Dashboard Astro");
@@ -573,7 +580,7 @@ public class XSessionManager {
             }
             X11DebugLog.log("LAUNCH", "GUI d" + d + " " + entry.id + " :: " + entry.command);
             if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
-                main.post(() -> openViewerForDisplay(d));
+                if (openViewer) main.post(() -> openViewerForDisplay(d));
                 post(cb, true, entry.name + " sudah jalan — display :" + d + " dibuka");
                 return;
             }
@@ -595,7 +602,7 @@ public class XSessionManager {
                 return;
             }
             touchActivity();
-            main.post(() -> openViewerForDisplay(d));
+            if (openViewer) main.post(() -> openViewerForDisplay(d));
             post(cb, true, entry.name + " diluncurkan di :" + d);
         });
     }

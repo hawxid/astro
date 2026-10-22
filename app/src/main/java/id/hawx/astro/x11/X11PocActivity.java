@@ -278,7 +278,7 @@ public class X11PocActivity extends AppCompatActivity {
                     | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
             it.putExtra("astro_x_window_display", 1);
             startActivity(it);
-        });
+        }, false);
     }
 
     private void doPocProbe() {
