@@ -66,6 +66,16 @@ public class LorieView extends SurfaceView implements InputStub {
     private boolean clipboardSyncEnabled = false;
     private boolean hardwareKbdScancodesWorkaround = false;
     private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+    // KONTRAK JNI — JANGAN GANTI NAMA/TIPE, JANGAN HAPUS: kode native
+    // (cpp/lorie/activity.cpp, LorieViewResources) nyari field bernama
+    // persis "activity" bertipe MainActivity via GetFieldID buat callback
+    // clientConnectedStateChanged. Field ini kehapus sesaat di refactor
+    // PoC 1 -> GetFieldID null -> GetObjectField segfault di nativeInit ->
+    // SEMUA LorieView mati pas konstruksi (viewer blank + loop recreate).
+    // Buat host tertanam field ini null (findActivity tidak ketemu) dan
+    // native melewatkan callback-nya — aman. Kode Java TIDAK pakai field
+    // ini lagi; semua lewat host().
+    private final MainActivity activity = MainActivity.findActivity(getContext());
     // ASTRO VENDOR PATCH: host diputus dari MainActivity konkret — bisa
     // activity upstream (ditemukan via findActivity) atau host tertanam
     // yang dipasang lewat setHost() sebelum view dipakai.
