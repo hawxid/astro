@@ -56,6 +56,69 @@
                     app:tint="@color/night_contrast" />
             </LinearLayout>
 
+
+            <!-- Panel XFCE diangkat ke activity (UI pass jendela 2026-10-22):
+                 panel harus tetap hidup saat tools kebuka sebagai jendela;
+                 isi dibangun MainActivity.buildPanel(). Mulai GONE, tampil
+                 sejak Dashboard pertama mendarat (desktopWorld). -->
+            <LinearLayout
+                android:id="@+id/xfce_panel"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="#F20A0E18"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="8dp"
+                android:paddingEnd="10dp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/win_frame"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/win_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:background="#0D1424"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/win_icon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp" />
+
+                    <TextView
+                        android:id="@+id/win_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="9dp"
+                        android:textColor="@color/night_contrast"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <TextView
+                        android:id="@+id/win_close"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:gravity="center"
+                        android:text="✕"
+                        android:textColor="@color/night_contrast"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
             <androidx.fragment.app.FragmentContainerView
                 android:id="@+id/flContent"
                 android:layout_width="match_parent"
@@ -63,6 +126,7 @@
                 android:layout_weight="1"
                 android:background="@color/light_contrast"
                 app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+            </LinearLayout>
         </LinearLayout>
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

@@ -62,8 +62,6 @@ public class Dashboard extends Fragment {
     private XSessionManager xMgr;
     private LauncherStore launcherStore;
     private final java.util.Set<String> xRunning = new java.util.HashSet<>();
-    private TextView xfceTaskBtn;
-    private TextView xfceClock;
 
     private Activity activity;
     private Context context;
@@ -204,7 +202,7 @@ public class Dashboard extends Fragment {
         return core.contains(key) ? core.getBoolean(key) : t.on;
     }
 
-    private void showCustomize() {
+    public void showCustomize() {
         if (context == null) return;
         final com.google.android.material.bottomsheet.BottomSheetDialog sheet =
                 new com.google.android.material.bottomsheet.BottomSheetDialog(context);
@@ -396,16 +394,6 @@ public class Dashboard extends Fragment {
 
     // ================= panel + dock =================
 
-    private TextView panelText(String text) {
-        TextView tv = new TextView(context);
-        tv.setText(text);
-        tv.setTextSize(12.5f);
-        tv.setTextColor(0xFFE8E6F0);
-        tv.setGravity(android.view.Gravity.CENTER);
-        tv.setPadding(dp(10), dp(6), dp(10), dp(6));
-        return tv;
-    }
-
     private View dockBtn(String glyph, View.OnClickListener cb) {
         TextView b = new TextView(context);
         b.setText(glyph);
@@ -422,289 +410,10 @@ public class Dashboard extends Fragment {
         return b;
     }
 
-    // ================= Menu Applications (popup accordion) =================
-    // Kategori + keanggotaan meniru seksi drawer_content.xml persis;
-    // judul/ikon/aksi tiap baris diambil dari MainActivity.drawerSpecs()
-    // dan dijalankan lewat receiver.changeFragment(rowId) — aksi yang
-    // sama persis dengan klik baris drawer.
-
-    private static final Object[][] APPS_CATS = {
-            {"\u2B50", "Essentials", 0xFFA088F0, new int[]{R.id.dasboard_item, R.id.terminal_item, R.id.logs_item}},
-            {"\uD83D\uDCF6", "Wireless", 0xFF5B8DEF, new int[]{R.id.wifi_item, R.id.hs_item, R.id.wpair_item, R.id.bt_item, R.id.osint_item}},
-            {"\uD83C\uDF10", "Network", 0xFFE06BC0, new int[]{R.id.lan_item, R.id.nmap_item}},
-            {"\uD83C\uDFAF", "Offensive", 0xFFFF6B6B, new int[]{R.id.nuclei_item, R.id.arsenal_item, R.id.metasploit_item}},
-            {"\uD83E\uDDF0", "Tools", 0xFFA088F0, new int[]{R.id.wordlists_item, R.id.geomac_item, R.id.vnc_item, R.id.manager_item, R.id.about_item}},
-            {"\uD83D\uDEE1\uFE0F", "Root", 0xFF8B93A7, new int[]{R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item}},
-    };
-
-    private android.graphics.drawable.GradientDrawable roundBg(int color, float radiusDp) {
-        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
-        g.setColor(color);
-        g.setCornerRadius(dp((int) radiusDp));
-        return g;
-    }
-
-    private void showAppsMenu(View anchor) {
-        if (context == null) return;
-        java.util.Map<Integer, MainActivity.DrawerSpec> specs = MainActivity.drawerSpecs();
-
-        LinearLayout root = new LinearLayout(context);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(6), dp(6), dp(6), dp(6));
-        android.graphics.drawable.GradientDrawable bg = roundBg(0xFF0B1120, 16);
-        bg.setStroke(dp(1), 0xFF2A3A63);
-        root.setBackground(bg);
-
-        // Kepala menu: elang + nama + versi
-        LinearLayout head = new LinearLayout(context);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        head.setPadding(dp(6), dp(6), dp(6), dp(4));
-        ImageView logo = new ImageView(context);
-        logo.setImageResource(R.drawable.ic_astro_foreground);
-        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        logo.setLayoutParams(new LinearLayout.LayoutParams(dp(40), dp(40)));
-        head.addView(logo);
-        LinearLayout nameCol = new LinearLayout(context);
-        nameCol.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams ncLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        ncLp.setMargins(dp(10), 0, 0, 0);
-        nameCol.setLayoutParams(ncLp);
-        TextView nm = new TextView(context);
-        nm.setText("Astro");
-        nm.setTextSize(15);
-        nm.setTypeface(null, android.graphics.Typeface.BOLD);
-        nm.setTextColor(0xFFE8E6F0);
-        nameCol.addView(nm);
-        TextView ver = new TextView(context);
-        ver.setText("v" + BuildConfig.VERSION_NAME);
-        ver.setTextSize(10.5f);
-        ver.setTextColor(0xFF8B93A7);
-        nameCol.addView(ver);
-        head.addView(nameCol);
-        root.addView(head);
-
-        // Baris status chroot
-        LinearLayout stat = new LinearLayout(context);
-        stat.setOrientation(LinearLayout.HORIZONTAL);
-        stat.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        stat.setBackground(roundBg(0xFF0D1424, 10));
-        stat.setPadding(dp(10), dp(7), dp(10), dp(7));
-        LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        stLp.setMargins(dp(4), dp(6), dp(4), dp(4));
-        stat.setLayoutParams(stLp);
-        View dot = new View(context);
-        android.graphics.drawable.GradientDrawable dg = new android.graphics.drawable.GradientDrawable();
-        dg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        boolean mounted = core != null && Boolean.TRUE.equals(core.isMounted());
-        dg.setColor(mounted ? 0xFF3DDC84 : 0xFF5B6475);
-        dot.setBackground(dg);
-        dot.setLayoutParams(new LinearLayout.LayoutParams(dp(8), dp(8)));
-        stat.addView(dot);
-        TextView stTxt = new TextView(context);
-        stTxt.setText(mounted ? "Chroot mounted" : "Chroot not mounted");
-        stTxt.setTextSize(11.5f);
-        stTxt.setTextColor(0xFFE8E6F0);
-        LinearLayout.LayoutParams sttLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        sttLp.setMargins(dp(7), 0, 0, 0);
-        stTxt.setLayoutParams(sttLp);
-        stat.addView(stTxt);
-        View stSp = new View(context);
-        stSp.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
-        stat.addView(stSp);
-        TextView chip = new TextView(context);
-        chip.setText("arm64");
-        chip.setTextSize(10);
-        chip.setTextColor(0xFF8B93A7);
-        chip.setBackground(roundBg(0xFF182238, 6));
-        chip.setPadding(dp(7), dp(2), dp(7), dp(2));
-        stat.addView(chip);
-        root.addView(stat);
-
-        // Kategori accordion
-        final java.util.List<LinearLayout> boxes = new java.util.ArrayList<>();
-        final java.util.List<TextView> arrows = new java.util.ArrayList<>();
-        for (Object[] cat : APPS_CATS) {
-            String emoji = (String) cat[0];
-            String label = (String) cat[1];
-            int color = (int) cat[2];
-            int[] ids = (int[]) cat[3];
-
-            LinearLayout box = new LinearLayout(context);
-            box.setOrientation(LinearLayout.VERTICAL);
-            box.setBackgroundColor(0xFF0A0F1E);
-            box.setVisibility(label.equals("Essentials") ? View.VISIBLE : View.GONE);
-
-            for (int itemId : ids) {
-                MainActivity.DrawerSpec spec = specs.get(itemId);
-                if (spec == null) continue;
-                LinearLayout row = new LinearLayout(context);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                row.setPadding(dp(26), dp(7), dp(14), dp(7));
-                // lingkaran + ikon vektor di tengahnya
-                android.widget.FrameLayout fr = new android.widget.FrameLayout(context);
-                fr.setLayoutParams(new LinearLayout.LayoutParams(dp(32), dp(32)));
-                View circ = new View(context);
-                circ.setBackground(roundBg(0xFF131D33, 16));
-                fr.addView(circ, new android.widget.FrameLayout.LayoutParams(dp(32), dp(32)));
-                ImageView ic = new ImageView(context);
-                ic.setImageResource(spec.iconRes);
-                ic.setColorFilter(0xFF9AA0AE);
-                android.widget.FrameLayout.LayoutParams icLp = new android.widget.FrameLayout.LayoutParams(dp(18), dp(18));
-                icLp.gravity = android.view.Gravity.CENTER;
-                fr.addView(ic, icLp);
-                row.addView(fr);
-                TextView tt = new TextView(context);
-                tt.setText(spec.title);
-                tt.setTextSize(13.5f);
-                tt.setTextColor(0xFFE8E6F0);
-                LinearLayout.LayoutParams ttLp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                ttLp.setMargins(dp(11), 0, 0, 0);
-                tt.setLayoutParams(ttLp);
-                row.addView(tt);
-                final int fid = itemId;
-                row.setOnClickListener(v -> {
-                    if (appsPopup != null) appsPopup.dismiss();
-                    receiver.changeFragment(fid);
-                });
-                box.addView(row);
-            }
-            boxes.add(box);
-
-            LinearLayout hdr = new LinearLayout(context);
-            hdr.setOrientation(LinearLayout.HORIZONTAL);
-            hdr.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            hdr.setPadding(dp(14), dp(10), dp(14), dp(10));
-            TextView em = new TextView(context);
-            em.setText(emoji);
-            em.setTextSize(16);
-            em.setGravity(android.view.Gravity.CENTER);
-            em.setBackground(roundBg(0xFF131D33, 17));
-            em.setLayoutParams(new LinearLayout.LayoutParams(dp(34), dp(34)));
-            hdr.addView(em);
-            TextView lb = new TextView(context);
-            lb.setText(label);
-            lb.setTextSize(14);
-            lb.setTypeface(null, android.graphics.Typeface.BOLD);
-            lb.setTextColor(color);
-            LinearLayout.LayoutParams lbLp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            lbLp.setMargins(dp(11), 0, 0, 0);
-            lb.setLayoutParams(lbLp);
-            hdr.addView(lb);
-            View hSp = new View(context);
-            hSp.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
-            hdr.addView(hSp);
-            TextView cnt = new TextView(context);
-            cnt.setText(String.valueOf(ids.length));
-            cnt.setTextSize(10.5f);
-            cnt.setTextColor(0xFF5B6475);
-            hdr.addView(cnt);
-            TextView arr = new TextView(context);
-            arr.setText(label.equals("Essentials") ? "\u2304" : "\u203A");
-            arr.setTextSize(15);
-            arr.setTextColor(0xFF5B6475);
-            LinearLayout.LayoutParams arrLp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            arrLp.setMargins(dp(6), 0, 0, 0);
-            arr.setLayoutParams(arrLp);
-            hdr.addView(arr);
-            arrows.add(arr);
-            final LinearLayout fBox = box;
-            final TextView fArr = arr;
-            hdr.setOnClickListener(v -> {
-                boolean willOpen = fBox.getVisibility() != View.VISIBLE;
-                for (LinearLayout b : boxes) b.setVisibility(View.GONE);
-                for (TextView a : arrows) a.setText("\u203A");
-                if (willOpen) {
-                    fBox.setVisibility(View.VISIBLE);
-                    fArr.setText("\u2304");
-                }
-            });
-            root.addView(hdr);
-            root.addView(box);
-        }
-
-        TextView foot = new TextView(context);
-        foot.setText("Open-source \u00B7 authorized testing only");
-        foot.setTextSize(10);
-        foot.setTextColor(0xFF5B6475);
-        foot.setPadding(dp(14), dp(10), dp(14), dp(6));
-        root.addView(foot);
-
-        ScrollView scroll = new ScrollView(context);
-        scroll.addView(root);
-
-        int w = (int) (context.getResources().getDisplayMetrics().widthPixels * 0.74);
-        int cap = (int) (context.getResources().getDisplayMetrics().heightPixels * 0.74);
-        appsPopup = new PopupWindow(scroll, w, LinearLayout.LayoutParams.WRAP_CONTENT, true);
-        appsPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0x00000000));
-        appsPopup.setOutsideTouchable(true);
-        appsPopup.setElevation(dp(12));
-        scroll.post(() -> {
-            if (scroll.getHeight() > cap) {
-                ViewGroup.LayoutParams lp = scroll.getLayoutParams();
-                lp.height = cap;
-                scroll.setLayoutParams(lp);
-            }
-        });
-        appsPopup.showAsDropDown(anchor, 0, dp(6));
-    }
-
-    private PopupWindow appsPopup;
-
     private void buildDesktopChrome(View view) {
-        LinearLayout panel = view.findViewById(R.id.xfce_panel);
+        // Panel XFCE sekarang milik activity (MainActivity.buildPanel)
+        // supaya tetap hidup saat tools kebuka sebagai jendela.
         LinearLayout dock = view.findViewById(R.id.xfce_dock);
-        if (panel != null) {
-            TextView apps = panelText("\uD83E\uDD85 Applications");
-            apps.setTypeface(null, android.graphics.Typeface.BOLD);
-            // UI pass 2026-10-22: Applications sekarang membuka MENU
-            // POPUP accordion nempel panel (mockup v10 yang dikunci
-            // Hawx), bukan drawer layar-penuh. Drawer tetap ada buat
-            // layar lain (tombol \u2630 app bar).
-            apps.setOnClickListener(v -> showAppsMenu(apps));
-            panel.addView(apps);
-            xfceTaskBtn = panelText("\uD83D\uDDA5 Layar X");
-            xfceTaskBtn.setVisibility(View.GONE);
-            xfceTaskBtn.setOnClickListener(v -> { if (xMgr != null) xMgr.openViewer(); });
-            panel.addView(xfceTaskBtn);
-            View spacer = new View(context);
-            spacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
-            panel.addView(spacer);
-            TextView cust = panelText("\u270E");
-            cust.setTextSize(17f);
-            cust.setOnClickListener(v -> showCustomize());
-            panel.addView(cust);
-            TextView gear = panelText("\u2699");
-            gear.setTextSize(20f);
-            // Settings beneran (bukan Customize): picu klik ikon settings
-            // di bar app MainActivity — listener-nya yang mengurus
-            // buka/tutup SettingsNew, persis kayak bar app masih tampil.
-            gear.setOnClickListener(v -> {
-                if (getActivity() != null) {
-                    View si = getActivity().findViewById(R.id.settings_icon);
-                    if (si != null) si.performClick();
-                }
-            });
-            panel.addView(gear);
-            xfceClock = panelText("");
-            panel.addView(xfceClock);
-            // Ikon power VEKTOR (bukan glyph ⏻ — ke-render kotak di font HP).
-            android.widget.ImageView power = new android.widget.ImageView(context);
-            power.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(48)));
-            power.setPadding(dp(10), dp(12), dp(10), dp(12));
-            power.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            power.setImageResource(R.drawable.ic_power);
-            power.setColorFilter(0xFFE8E6F0);
-            power.setOnClickListener(v -> confirmUnmountDesktop());
-            panel.addView(power);
-        }
         if (dock != null) {
             dock.addView(dockBtn("\u2328", v -> openTerminal()));
             dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
@@ -716,16 +425,9 @@ public class Dashboard extends Fragment {
 
     private void refreshXState() {
         if (xMgr == null) return;
-        if (xfceClock != null) {
-            xfceClock.setText(new java.text.SimpleDateFormat(
-                    "EEE d MMM \u2022 HH:mm", Locale.US).format(new java.util.Date()));
-        }
-        xMgr.probe((state, detail) -> {
-            boolean run = state == XSessionManager.State.RUNNING;
-            if (xfceTaskBtn != null) {
-                xfceTaskBtn.setVisibility(run ? View.VISIBLE : View.GONE);
-            }
-        });
+        // Jam + tombol Layar X di panel sekarang diurus MainActivity
+        // (panel milik activity); di sini cuma status jalan launcher
+        // buat titik indikator di grid desktop.
         if (launcherStore != null) {
             new Thread(() -> {
                 java.util.Set<String> now = new java.util.HashSet<>();
