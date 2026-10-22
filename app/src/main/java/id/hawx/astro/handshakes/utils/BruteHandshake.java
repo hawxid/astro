@@ -18,7 +18,6 @@ import androidx.core.app.NotificationCompat;
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.custom.WiFINetwork;
-import id.hawx.astro.engine.GuestExec;
 import id.hawx.astro.logger.Logger;
 import id.hawx.astro.utils.Core;
 import id.hawx.astro.utils.Utils;
@@ -43,7 +42,6 @@ public class BruteHandshake extends AsyncTask<Void, String, WiFINetwork> {
     public Context context;
     public int id;
     public Process process;
-    public GuestExec.Session guestSession;
     public Logger logger;
 
     public BruteHandshake(String p, String w, Core c, Activity a, Context con, TextView pr, TextView t, int i) {
@@ -76,28 +74,6 @@ public class BruteHandshake extends AsyncTask<Void, String, WiFINetwork> {
         WiFINetwork result = new WiFINetwork();
         logger.writeLine("Starting brute handshake",1);
         try {
-            if (core.isRootless()) {
-                String guestCmd = "aircrack-ng -w " + wordlist + " " + guestCapture() + " ";
-                guestSession = core.guest().openStream(guestCmd);
-                BufferedReader gbr = guestSession.reader;
-                while ((line = gbr.readLine()) != null) {
-                    if (line.startsWith(GuestExec.Session.SENTINEL)) break;
-                    logger.writeLine(line,2);
-                    onProgressUpdate(line);
-                    if (line.contains("KEY FOUND! [ ")) {
-                        Pattern pattern = Pattern.compile("\\[ (.*?)\\]");
-                        Matcher matcher = pattern.matcher(line);
-                        if (matcher.find()) {
-                            result.setPsk(matcher.group(1));
-                        }
-                        result.setOK(true);
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            CreateNotification("Success", "Password found: " + result.getPsk(), 100, 100);
-                        }
-                    }
-                }
-                guestSession.close();
-            } else {
             process = Runtime.getRuntime().exec("su");
             OutputStream stdin = process.getOutputStream();
             InputStream stderr = process.getErrorStream();
@@ -132,7 +108,6 @@ public class BruteHandshake extends AsyncTask<Void, String, WiFINetwork> {
             br.close();
             process.waitFor();
             process.destroy();
-            }
 
         } catch (IOException | InterruptedException e) {
         }
@@ -154,9 +129,6 @@ public class BruteHandshake extends AsyncTask<Void, String, WiFINetwork> {
     public void kill() {
         if (process != null) {
             process.destroy();
-        }
-        if (guestSession != null) {
-            guestSession.close();
         }
     }
 

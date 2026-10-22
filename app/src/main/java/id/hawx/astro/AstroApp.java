@@ -40,7 +40,6 @@ public class AstroApp extends com.termux.x11.LorieApp {
         NotificationCenter.ensureChannel(this);
         UpdateScheduler.schedule(this);
         applyEdgeToEdgeInsets();
-        id.hawx.astro.engine.GuestShellFactory.install();
         com.stryker.terminal.backend.TerminalSession.setShellChooser(() -> {
             try {
                 id.hawx.astro.utils.Core core = new id.hawx.astro.utils.Core(this);

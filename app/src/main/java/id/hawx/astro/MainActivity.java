@@ -89,7 +89,6 @@ public class MainActivity extends AppCompatActivity {
     private static final HashMap<Integer, View> drawerRows = new HashMap<>();
     private static volatile boolean rootlessEngine;
     private static volatile boolean vmReady;
-    private boolean engineWatchPending;
     private View engineStatusView;
     private DrawerLayout engineStatusDrawer;
     private static final java.util.LinkedHashMap<Integer, DrawerSpec> DRAWER_SPECS = buildDrawerSpecs();
@@ -269,10 +268,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         new Thread(() -> {
-            boolean rootless = core.isRootless();
-            boolean mounted = !rootless && core.isMounted();
+            boolean mounted = core.isMounted();
             id.hawx.astro.engine.EngineStatus es =
-                    id.hawx.astro.engine.EngineStatus.current(core, mounted, rootless);
+                    id.hawx.astro.engine.EngineStatus.current(core, mounted, false);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 if (chrootStatus != null) chrootStatus.setText(es.label);
@@ -286,13 +284,6 @@ public class MainActivity extends AppCompatActivity {
                 vmReady = es.ready;
                 if (changed && engineStatusDrawer != null) {
                     wireDrawerRows(navView, engineStatusDrawer);
-                }
-                if (rootless && !es.ready && !engineWatchPending) {
-                    engineWatchPending = true;
-                    navView.postDelayed(() -> {
-                        engineWatchPending = false;
-                        refreshEngineStatus();
-                    }, 3000);
                 }
             });
         }, "drawer-engine-status").start();
@@ -426,7 +417,6 @@ public class MainActivity extends AppCompatActivity {
         switch (fix) {
             case SETUP_GUEST:
                 if (usbDialog != null) usbDialog.dismiss();
-                id.hawx.astro.wifi.guest.WifiGuestSetupDialog.show(this, (armed, iface) -> {});
                 break;
 
             case SEARCH_DRIVER:
@@ -464,118 +454,6 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(this::usbDialog);
     }
 
-    private void startRootlessLaunch() {
-        id.hawx.astro.engine.GuestEngine engine =
-                id.hawx.astro.engine.Engines.active(core);
-        boolean forced = core.getBoolean(
-                id.hawx.astro.engine.EngineType.PREF_FORCED);
-        if (!core.getBoolean("first_open")) {
-            core.putString("username", "User");
-            launchRunning = false;
-            startActivity(new Intent(this, AppIntroActivity.class));
-            return;
-        }
-        id.hawx.astro.engine.EngineType chosen =
-                id.hawx.astro.engine.EngineType.active(core);
-        if (!forced && id.hawx.astro.engine.EnginePayload.outdated(core)) {
-            launchRunning = false;
-            startActivity(AppIntroActivity.replaceIntent(this, chosen));
-            return;
-        }
-        if (!engine.isInstalled()) {
-            launchRunning = false;
-            startActivity(AppIntroActivity.updateIntent(this, chosen));
-            return;
-        }
-        if (!isEngineVerified(engine) && !forced) {
-            core.putString("username", "User");
-            launchRunning = false;
-            startActivity(new Intent(this, AppIntroActivity.class));
-            return;
-        }
-        id.hawx.astro.engine.RootlessService.start(this);
-        landOn(new Dashboard());
-        checkForUsb();
-        if (!isConnected()) {
-            new Thread(() -> core.getInterfacesList()).start();
-        }
-        if (!forced) watchEngineBoot(engine);
-    }
-
-    private boolean isEngineVerified(id.hawx.astro.engine.GuestEngine engine) {
-        String key = id.hawx.astro.engine.EngineType.PREF_VERIFIED;
-        if (core.contains(key)) return core.getBoolean(key);
-        if (engine.isInstalled() && core.getBoolean("first_open")) {
-            core.putBoolean(key, true);
-            return true;
-        }
-        return false;
-    }
-
-    private static final long LAUNCH_BOOT_DEADLINE_MS = 210_000;
-
-    private void watchEngineBoot(id.hawx.astro.engine.GuestEngine engine) {
-        Thread watchdog = new Thread(() -> {
-            long deadline = System.currentTimeMillis() + LAUNCH_BOOT_DEADLINE_MS;
-            while (System.currentTimeMillis() < deadline) {
-                if (isFinishing() || isDestroyed()) return;
-                if (engine.isReady()) return;
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-            runOnUiThread(() -> showEngineGate(engine));
-        }, "engine-watchdog");
-        watchdog.setDaemon(true);
-        watchdog.start();
-    }
-
-    private void showEngineGate(id.hawx.astro.engine.GuestEngine dead) {
-        if (isFinishing() || isDestroyed()) return;
-        id.hawx.astro.engine.EngineType failed = dead.type();
-        id.hawx.astro.engine.EngineType next =
-                failed == id.hawx.astro.engine.EngineType.UML
-                        ? id.hawx.astro.engine.EngineType.ROOTLESS
-                        : id.hawx.astro.engine.EngineType.UML;
-        boolean haveAlternative =
-                id.hawx.astro.engine.EngineType.rootlessSupported(this)
-                        && failed != id.hawx.astro.engine.EngineType.CHROOT;
-
-        androidx.appcompat.app.AlertDialog.Builder b =
-                new androidx.appcompat.app.AlertDialog.Builder(this)
-                        .setCancelable(false)
-                        .setTitle(R.string.setup_gate_title);
-
-        if (haveAlternative) {
-            String nextName = id.hawx.astro.engine.Engines.active(this, next).displayName();
-            b.setMessage(getString(R.string.setup_gate_body, dead.displayName(), nextName))
-                    .setPositiveButton(R.string.setup_gate_action,
-                            (d, w) -> reinstallOn(next));
-        } else {
-            b.setMessage(R.string.setup_gate_dead_body)
-                    .setPositiveButton(R.string.setup_gate_retry, (d, w) -> reinstallOn(failed))
-                    .setNegativeButton(R.string.setup_gate_quit, (d, w) -> finishAffinity());
-        }
-        b.show();
-    }
-
-    private void reinstallOn(id.hawx.astro.engine.EngineType next) {
-        Context appContext = getApplicationContext();
-        Thread stop = new Thread(() -> id.hawx.astro.engine.Engines.stopAll(appContext));
-        stop.setDaemon(true);
-        stop.start();
-        id.hawx.astro.engine.EngineType.persist(core, next);
-        core.putBoolean(id.hawx.astro.engine.EngineType.PREF_VERIFIED, false);
-        Intent intent = new Intent(this, AppIntroActivity.class);
-        intent.putExtra(AppIntroActivity.EXTRA_REPAIR_ENGINE, next.name());
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(intent);
-        finish();
-    }
-
     private static boolean emptyPref(String value) {
         return value == null || value.isEmpty();
     }
@@ -583,10 +461,6 @@ public class MainActivity extends AppCompatActivity {
     private void runLaunchFlow() {
         if (core == null || landed || launchRunning) return;
         launchRunning = true;
-        if (core.isRootless()) {
-            startRootlessLaunch();
-            return;
-        }
         new Thread(() -> {
             if (!core.getBoolean("first_open")) {
                 // Adoption: a current chroot already lives at the shared

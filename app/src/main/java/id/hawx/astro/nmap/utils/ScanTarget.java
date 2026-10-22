@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.AsyncTask;
 
-import id.hawx.astro.engine.GuestExec;
 import id.hawx.astro.utils.Core;
 
 import java.io.BufferedReader;
@@ -28,7 +27,6 @@ public class ScanTarget extends AsyncTask<Void, String, Boolean> {
     private final Core core;
 
     private Process process;
-    private volatile GuestExec.Session guestSession;
     private volatile boolean killed;
 
     public ScanTarget(String command, Context context, Activity activity, Callback callback) {
@@ -46,20 +44,11 @@ public class ScanTarget extends AsyncTask<Void, String, Boolean> {
             } catch (Exception ignored) {
             }
         }
-        if (guestSession != null) {
-            try {
-                guestSession.close();
-            } catch (Exception ignored) {
-            }
-        }
     }
 
     @SuppressLint("WrongThread")
     @Override
     protected Boolean doInBackground(Void... voids) {
-        if (core.isRootless()) {
-            return runRootless();
-        }
         boolean ok = false;
         try {
             process = Runtime.getRuntime().exec("su");
@@ -93,54 +82,6 @@ public class ScanTarget extends AsyncTask<Void, String, Boolean> {
             StrykerLog.d("NmapScan", "exception: " + e.getMessage());
         }
         return ok && !killed;
-    }
-
-    private Boolean runRootless() {
-        if (needsRawOrL2(command)) {
-            publishProgress("[astro] Raw-socket/L2 scan needs an adapter on the LAN (root engine)");
-            return false;
-        }
-        boolean ok = false;
-        try {
-            guestSession = core.guest().openStream(command);
-            BufferedReader br = guestSession.reader;
-            String line;
-            while (!killed && (line = br.readLine()) != null) {
-                if (line.startsWith(GuestExec.Session.SENTINEL)) {
-                    try {
-                        ok = Integer.parseInt(
-                                line.substring(GuestExec.Session.SENTINEL.length()).trim()) == 0;
-                    } catch (NumberFormatException ignored) {
-                    }
-                    break;
-                }
-                publishProgress(line);
-            }
-        } catch (IOException e) {
-            StrykerLog.d("NmapScan", "rootless exception: " + e.getMessage());
-        } finally {
-            if (guestSession != null) {
-                try {
-                    guestSession.close();
-                } catch (Exception ignored) {
-                }
-            }
-        }
-        return ok && !killed;
-    }
-
-    private static boolean needsRawOrL2(String cmd) {
-        String c = " " + cmd.toLowerCase() + " ";
-        return c.contains(" -su ")
-                || c.contains(" -o ")
-                || c.contains(" -sn ")
-                || c.contains(" -pe ")
-                || c.contains(" -pp ")
-                || c.contains(" -pm ")
-                || c.contains(" -so ")
-                || c.contains(" -ss ")
-                || c.contains(" -sa ")
-                || c.contains(" arp-scan ");
     }
 
     @Override

@@ -165,14 +165,6 @@
             android:foregroundServiceType="dataSync" />
 
         <service
-            android:name=".engine.RootlessService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse|dataSync">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps the Linux virtual machine the app runs its tools inside alive while the user is working with it." />
-        </service>
-        <service
             android:name=".localnetwork.utils.NmapReportGenerator"
             android:exported="false" />
 

@@ -1,8 +1,6 @@
 package id.hawx.astro.metasploit.utils;
 
 
-import id.hawx.astro.engine.GuestExec;
-import id.hawx.astro.engine.RootlessPaths;
 import id.hawx.astro.utils.Core;
 
 import java.io.BufferedReader;
@@ -38,18 +36,11 @@ public class MsfRpcConsole {
     }
 
     private static final String CHROOT_LAUNCH = Core.EXECUTE + "'msfconsole'\n";
-    private static final String GUEST_ENV =
-            "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin${PATH:+:$PATH}; "
-            + "export HOME=/root LANG=C.UTF-8\n";
-    private static final String GUEST_LAUNCH = "cd /root 2>/dev/null || cd /tmp; exec msfconsole\n";
-    private static final int GUEST_CONNECT_TIMEOUT_MS = 5000;
-    private static final int GUEST_READ_SLICE_MS = 2000;
 
     private final Core core;
     private final String label;
 
     private volatile Process process;
-    private volatile com.jcraft.jsch.ChannelShell channel;
     private volatile OutputStream stdin;
     private volatile BufferedReader stdout;
     private volatile boolean eof;
@@ -84,7 +75,7 @@ public class MsfRpcConsole {
         if (state == State.READY && isProcessAlive()) return true;
         teardown("respawn");
         publishState(State.BOOTING, "starting msfconsole");
-        String failure = core.isRootless() ? openGuestChannel() : openSuChannel();
+        String failure = openSuChannel();
         if (failure != null) {
             publishState(State.DEAD, failure);
             return false;
@@ -164,10 +155,8 @@ public class MsfRpcConsole {
                 }
                 sb.append((char) c);
             } catch (java.net.SocketTimeoutException idle) {
-                if (channel == null || !channel.isConnected()) {
-                    eof = true;
-                    return null;
-                }
+                eof = true;
+                return null;
             }
         }
         return null;
@@ -192,31 +181,6 @@ public class MsfRpcConsole {
         } catch (IOException e) {
             StrykerLog.e(TAG, label + " su channel failed", e);
             return e.getMessage() == null ? "io error" : e.getMessage();
-        }
-    }
-
-    private String openGuestChannel() {
-        if (!GuestExec.ping(GUEST_CONNECT_TIMEOUT_MS)) {
-            try {
-                if (!core.guest().startBlocking(null)) return "VM is not running";
-            } catch (Throwable t) {
-                return "VM is not running";
-            }
-        }
-        try {
-            com.jcraft.jsch.ChannelShell c = id.hawx.astro.engine.GuestSsh.interactiveShell();
-            stdin = c.getOutputStream();
-            stdout = new BufferedReader(new InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8));
-            c.connect(GUEST_CONNECT_TIMEOUT_MS);
-            channel = c;
-            stdin.write(GUEST_ENV.getBytes(StandardCharsets.UTF_8));
-            stdin.flush();
-            stdin.write(GUEST_LAUNCH.getBytes(StandardCharsets.UTF_8));
-            stdin.flush();
-            return null;
-        } catch (Exception e) {
-            StrykerLog.e(TAG, label + " guest channel failed", e);
-            return "guest unreachable over ssh on :" + RootlessPaths.HOST_SSH_PORT;
         }
     }
 
@@ -280,7 +244,6 @@ public class MsfRpcConsole {
 
     public boolean isProcessAlive() {
         if (eof) return false;
-        if (channel != null) return channel.isConnected();
         if (process == null) return false;
         try {
             process.exitValue();
@@ -293,14 +256,10 @@ public class MsfRpcConsole {
     private void teardown(String why) {
         try { if (stdin != null) stdin.close(); } catch (IOException ignored) {}
         try { if (stdout != null) stdout.close(); } catch (IOException ignored) {}
-        if (channel != null) {
-            try { channel.disconnect(); } catch (Exception ignored) {}
-        }
         if (process != null) {
             try { process.destroy(); } catch (Exception ignored) {}
         }
         process = null;
-        channel = null;
         stdin = null;
         stdout = null;
         eof = false;

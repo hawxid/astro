@@ -258,9 +258,7 @@ public class VNCFragment extends Fragment {
     private void wireInstall() {
         install.setOnClickListener(v -> new MaterialAlertDialogBuilder(context)
                 .setTitle("VNC installer")
-                .setMessage(core.isRootless()
-                        ? "This will install XFCE + x11vnc inside the VM. ~600 MB download."
-                        : "This will install XFCE + x11vnc into the chroot. ~600 MB download.")
+                .setMessage("This will install XFCE + x11vnc into the chroot. ~600 MB download.")
                 .setPositiveButton(android.R.string.ok, (di, i) -> new Thread(() -> {
                     if (!stageVncScripts()) {
                         if (isSafe()) activity.runOnUiThread(() -> showDialog("Install failed",
@@ -274,24 +272,7 @@ public class VNCFragment extends Fragment {
     }
 
     private boolean stageVncScripts() {
-        return core.isRootless() ? stageForGuest() : stageForChroot();
-    }
-
-    private boolean stageForGuest() {
-        id.hawx.astro.engine.GuestEngine guest = core.guest();
-        java.io.File share = guest.shareDir();
-        if (share == null) share = new java.io.File(core.getShareRoot());
-        java.io.File staging = new java.io.File(share, ".stryker-vnc");
-        staging.mkdirs();
-        if (!stageAsset("install_xfce.sh", new java.io.File(staging, "install.sh"))) return false;
-        if (!stageAsset("uninstall_xfce.sh", new java.io.File(staging, "uninstall.sh"))) return false;
-        String from = guest.guestSharePath() + "/.stryker-vnc";
-        core.customChrootCommand("mkdir -p " + VNC_DIR + "; "
-                + "cp -f " + from + "/install.sh " + VNC_DIR + "/install.sh; "
-                + "cp -f " + from + "/uninstall.sh " + VNC_DIR + "/uninstall.sh; "
-                + "sed -i 's/\r$//' " + VNC_DIR + "/install.sh " + VNC_DIR + "/uninstall.sh; "
-                + "chmod 0755 " + VNC_DIR + "/install.sh " + VNC_DIR + "/uninstall.sh", true);
-        return core.guestFileExists(VNC_DIR + "/install.sh");
+        return stageForChroot();
     }
 
     private boolean stageForChroot() {

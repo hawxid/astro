@@ -22,13 +22,11 @@ public final class GuestCore {
 
     public static boolean ensure(Core core) {
         if (core == null) return false;
-        if (core.isRootless()) return core.rootless().ensureGuestCore();
         return ensureChroot(core);
     }
 
     public static boolean deploy(Core core) {
         if (core == null) return false;
-        if (core.isRootless()) return core.rootless().deployGuestCore();
         return deployChroot(core);
     }
 

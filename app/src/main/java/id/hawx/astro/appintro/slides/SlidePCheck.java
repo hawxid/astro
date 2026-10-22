@@ -59,7 +59,6 @@ public class SlidePCheck extends Fragment implements IntroPage {
     private TextView spaceSub, spaceBadge;
 
     private boolean checked = false;
-    private boolean switchToRootless = false;
 
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -135,8 +134,7 @@ public class SlidePCheck extends Fragment implements IntroPage {
     }
 
     private void applyGate(boolean rootOk) {
-        switchToRootless = !rootOk && EngineType.rootlessSupported(context);
-        gateReady = rootOk || switchToRootless;
+        gateReady = rootOk;
         refreshChrome();
     }
 
@@ -257,7 +255,6 @@ public class SlidePCheck extends Fragment implements IntroPage {
     public CharSequence primaryLabel(Context context) {
         if (running) return context.getString(R.string.pcheck_running);
         if (!checked) return context.getString(R.string.pcheck_run);
-        if (switchToRootless) return context.getString(R.string.pcheck_switch_rootless);
         return context.getString(gateReady
                 ? R.string.intro_action_next : R.string.pcheck_no_root);
     }
@@ -271,11 +268,6 @@ public class SlidePCheck extends Fragment implements IntroPage {
 
     @Override
     public void onPrimary() {
-        if (switchToRootless) {
-            EngineType.persist(core, EngineType.ROOTLESS);
-            ((AppIntroActivity) activity).applyEngineFlow(EngineType.ROOTLESS);
-            return;
-        }
         if (checked) {
             core.moveNext(mPager);
             return;

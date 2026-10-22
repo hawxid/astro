@@ -21,7 +21,6 @@ import androidx.core.app.NotificationCompat;
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.engine.Apt;
-import id.hawx.astro.engine.GuestExec;
 import id.hawx.astro.utils.Core;
 
 import java.io.BufferedReader;
@@ -83,7 +82,6 @@ public class InstallService extends Service {
 
     private final AtomicReference<String> activeTool = new AtomicReference<>(null);
     private volatile Process current;
-    private volatile GuestExec.Session currentGuest;
 
     public static void start(Context ctx, String tool) {
         Intent i = new Intent(ctx, InstallService.class)
@@ -229,45 +227,41 @@ public class InstallService extends Service {
 
         Process process = null;
         boolean shellOk = false;
-        if (core.isRootless()) {
-            shellOk = runInstallRootless(tool);
-        } else {
-            try {
-                process = core.generateSuProcess();
-                current = process;
-                OutputStream stdin = process.getOutputStream();
-                InputStream stdout = process.getInputStream();
+        try {
+            process = core.generateSuProcess();
+            current = process;
+            OutputStream stdin = process.getOutputStream();
+            InputStream stdout = process.getInputStream();
 
-                final Process fp = process;
-                Thread errReader = new Thread(() -> drain(fp.getErrorStream(), tool), "install-stderr-" + tool);
-                errReader.start();
+            final Process fp = process;
+            Thread errReader = new Thread(() -> drain(fp.getErrorStream(), tool), "install-stderr-" + tool);
+            errReader.start();
 
-                stdin.write((Core.EXECUTE + "'" + Core.SHELL + "'\n").getBytes());
-                for (String line : commandsFor(tool)) {
-                    stdin.write((line + "\n").getBytes());
-                }
-                stdin.write("exit\nexit\n".getBytes());
-                stdin.flush();
-                stdin.close();
-
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(stdout))) {
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        handleLine(tool, line.trim());
-                    }
-                }
-                try { errReader.join(2000); } catch (InterruptedException ignored) {}
-                process.waitFor();
-                shellOk = true;
-            } catch (Exception e) {
-                StrykerLog.e("InstallService", "install shell crashed", e);
-                tee(tool, "[E] install shell crashed: " + e.getMessage());
-            } finally {
-                if (process != null) {
-                    try { process.destroy(); } catch (Throwable ignored) {}
-                }
-                current = null;
+            stdin.write((Core.EXECUTE + "'" + Core.SHELL + "'\n").getBytes());
+            for (String line : commandsFor(tool)) {
+                stdin.write((line + "\n").getBytes());
             }
+            stdin.write("exit\nexit\n".getBytes());
+            stdin.flush();
+            stdin.close();
+
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(stdout))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    handleLine(tool, line.trim());
+                }
+            }
+            try { errReader.join(2000); } catch (InterruptedException ignored) {}
+            process.waitFor();
+            shellOk = true;
+        } catch (Exception e) {
+            StrykerLog.e("InstallService", "install shell crashed", e);
+            tee(tool, "[E] install shell crashed: " + e.getMessage());
+        } finally {
+            if (process != null) {
+                try { process.destroy(); } catch (Throwable ignored) {}
+            }
+            current = null;
         }
 
         boolean ok = shellOk && verify(tool);
@@ -280,29 +274,6 @@ public class InstallService extends Service {
             setStatus(tool, STATUS_FAILED);
             tee(tool, "[E] " + label(tool) + " install did not verify");
             updateNotification(tool, getString(R.string.install_notif_failed, label(tool)));
-        }
-    }
-
-    private boolean runInstallRootless(String tool) {
-        GuestExec.Session s = null;
-        try {
-            StringBuilder script = new StringBuilder();
-            for (String line : commandsFor(tool)) script.append(line).append('\n');
-            s = core.guest().openStream(script.toString());
-            currentGuest = s;
-            String line;
-            while ((line = s.reader.readLine()) != null) {
-                if (line.startsWith(GuestExec.Session.SENTINEL)) break;
-                handleLine(tool, line.trim());
-            }
-            return true;
-        } catch (Exception e) {
-            StrykerLog.e("InstallService", "rootless install crashed", e);
-            tee(tool, "[E] install shell crashed: " + e.getMessage());
-            return false;
-        } finally {
-            if (s != null) s.close();
-            currentGuest = null;
         }
     }
 
@@ -609,10 +580,6 @@ public class InstallService extends Service {
         if (p != null) {
             try { p.destroy(); } catch (Throwable ignored) {}
         }
-        GuestExec.Session gs = currentGuest;
-        if (gs != null) {
-            try { gs.close(); } catch (Throwable ignored) {}
-        }
         if (tool != null) {
             setStatus(tool, STATUS_FAILED);
             tee(tool, "[E] install cancelled");
@@ -682,10 +649,6 @@ public class InstallService extends Service {
         Process p = current;
         if (p != null) {
             try { p.destroy(); } catch (Throwable ignored) {}
-        }
-        GuestExec.Session gs = currentGuest;
-        if (gs != null) {
-            try { gs.close(); } catch (Throwable ignored) {}
         }
         String tool = activeTool.get();
         if (tool != null && STATUS_RUNNING.equals(statusOf(core, tool))) {

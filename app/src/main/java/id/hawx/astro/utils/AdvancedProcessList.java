@@ -3,7 +3,6 @@ package id.hawx.astro.utils;
 import android.app.Activity;
 import android.content.Context;
 
-import id.hawx.astro.engine.GuestExec;
 import id.hawx.astro.logger.LogEntry;
 import id.hawx.astro.logger.LogStore;
 import id.hawx.astro.logger.LogTool;
@@ -33,9 +32,6 @@ public abstract class AdvancedProcessList {
 
     public boolean running = true;
 
-    private final boolean rootless;
-    private GuestExec.Session guestSession;
-
     public AdvancedProcessList(Activity activity, Context context, ArrayList<String> commands, boolean chroot) {
         AdvancedProcessList.activity = activity;
         AdvancedProcessList.context = context;
@@ -43,48 +39,11 @@ public abstract class AdvancedProcessList {
         this.cmd = commands;
         this.tool = classifyBatch(commands);
         this.chroot = chroot;
-        this.rootless = core.isRootless();
-        if (!rootless) {
-            process = core.generateSuProcess();
-            output = process.getInputStream();
-            error = process.getErrorStream();
-            input = process.getOutputStream();
-        }
+        process = core.generateSuProcess();
+        output = process.getInputStream();
+        error = process.getErrorStream();
+        input = process.getOutputStream();
         execute();
-    }
-
-    private void startRootlessBatch() {
-        final LogStore store = context != null ? LogStore.from(context) : null;
-        new Thread(() -> {
-            StringBuilder script = new StringBuilder();
-            for (String command : cmd) {
-                if (store != null) store.add(LogEntry.CMD, tool, command);
-                script.append(command).append('\n');
-            }
-            try {
-                guestSession = core.guest().openStream(script.toString());
-                String line;
-                while ((line = guestSession.reader.readLine()) != null) {
-                    if (line.startsWith(GuestExec.Session.SENTINEL)) break;
-                    line = line.trim();
-                    outputList.add(line);
-                    Pattern p = Pattern.compile("((\\w{2}:){5}\\w{2})");
-                    Matcher m = p.matcher(line);
-                    if (m.find()) {
-                        line = line.replace(m.group(), Core.HIDDEN_MAC);
-                    }
-                    if (store != null) store.add(LogEntry.OUT, tool, line);
-                    String finalLine = line;
-                    activity.runOnUiThread(() -> onNewLine(finalLine));
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                if (guestSession != null) guestSession.close();
-            }
-            activity.runOnUiThread(() -> onFinished(outputList));
-            running = false;
-        }).start();
     }
 
     private void startBackground() {
@@ -151,8 +110,7 @@ public abstract class AdvancedProcessList {
     }
 
     public void execute() {
-        if (rootless) startRootlessBatch();
-        else startBackground();
+        startBackground();
     }
 
     private static String classifyBatch(ArrayList<String> commands) {
@@ -180,11 +138,7 @@ public abstract class AdvancedProcessList {
 
     public void kill() {
         try {
-            if (rootless) {
-                if (guestSession != null) guestSession.close();
-            } else {
-                process.destroy();
-            }
+            process.destroy();
         } catch (Exception e) {
             e.printStackTrace();
         }

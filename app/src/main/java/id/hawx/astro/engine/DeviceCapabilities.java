@@ -37,10 +37,10 @@ public final class DeviceCapabilities {
 
     private static final long ROOT_TIMEOUT_MS = 30_000;
 
-    private static final long MIN_FREE_BYTES = 2L * VmSpecs.GB;
-    private static final long COMFORTABLE_FREE_BYTES = 6L * VmSpecs.GB;
+    private static final long MIN_FREE_BYTES = 2L * (1024L * 1024L * 1024L);
+    private static final long COMFORTABLE_FREE_BYTES = 6L * (1024L * 1024L * 1024L);
     private static final long MIN_RAM_BYTES = 1536L * 1024L * 1024L;
-    private static final long COMFORTABLE_RAM_BYTES = 3L * VmSpecs.GB;
+    private static final long COMFORTABLE_RAM_BYTES = 3L * (1024L * 1024L * 1024L);
 
     private DeviceCapabilities() {}
 
@@ -120,38 +120,13 @@ public final class DeviceCapabilities {
         Finding network = step(listener, findings, Check.NETWORK, () -> probeNetwork(app));
 
         boolean rootGranted = root.outcome == Outcome.OK;
-        boolean arm64 = arch.outcome != Outcome.FAIL;
 
-        if (rootGranted) {
-            String why = "not needed · root is available";
-            skip(listener, findings, Check.UML, why);
-            skip(listener, findings, Check.QEMU, why);
-            List<EngineType> plan = new ArrayList<>();
-            plan.add(EngineType.CHROOT);
-            return new Report(plan, findings, true,
-                    summarise(app, plan, true, memory, storage, network), null);
-        }
-
-        UmlProbe.Result[] umlProbe = new UmlProbe.Result[1];
-        Finding uml = step(listener, findings, Check.UML, () -> {
-            if (!arm64) return new Finding(Check.UML, Outcome.FAIL, "needs 64-bit ARM");
-            umlProbe[0] = UmlProbe.run(app);
-            return readUml(umlProbe[0]);
-        });
-        step(listener, findings, Check.QEMU, () -> probeQemu(arm64, storage.outcome));
-
-        List<EngineType> plan = planFor(arm64, uml.outcome, storage.outcome);
-        return new Report(plan, findings, false,
-                summarise(app, plan, false, memory, storage, network),
-                umlProbe[0] == null ? null : umlProbe[0].notes);
-    }
-
-    private static List<EngineType> planFor(boolean arm64, Outcome uml, Outcome storage) {
+        skip(listener, findings, Check.UML, "not needed · chroot only");
+        skip(listener, findings, Check.QEMU, "not needed · chroot only");
         List<EngineType> plan = new ArrayList<>();
-        if (!arm64) return plan;
-        if (uml != Outcome.FAIL) plan.add(EngineType.UML);
-        if (storage != Outcome.FAIL) plan.add(EngineType.ROOTLESS);
-        return plan;
+        plan.add(EngineType.CHROOT);
+        return new Report(plan, findings, rootGranted,
+                summarise(app, plan, rootGranted, memory, storage, network), null);
     }
 
     public static void persist(Core core, Report report) {
@@ -164,11 +139,6 @@ public final class DeviceCapabilities {
         core.putString(K_PLAN, join(report.plan));
         core.putString(K_SUMMARY, report.summary);
         core.putString(K_UML_NOTES, android.text.TextUtils.join("\n", report.umlNotes));
-    }
-
-    public static void rememberUmlNotes(Core core, UmlProbe.Result probe) {
-        if (core == null || probe == null) return;
-        core.putString(K_UML_NOTES, android.text.TextUtils.join("\n", probe.notes));
     }
 
     public static EngineType recommended(Core core) {
@@ -284,9 +254,6 @@ public final class DeviceCapabilities {
     }
 
     private static Finding probeNetwork(Context app) {
-        if (QemuInstaller.assetsPresent(app)) {
-            return new Finding(Check.NETWORK, Outcome.OK, "not needed · bundled in the app");
-        }
         try {
             ConnectivityManager cm =
                     (ConnectivityManager) app.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -326,33 +293,6 @@ public final class DeviceCapabilities {
             return new Finding(Check.ROOT, Outcome.WARN, "not rooted");
         }
         return new Finding(Check.ROOT, Outcome.WARN, "denied");
-    }
-
-    private static Finding readUml(UmlProbe.Result probe) {
-        if (probe == null) {
-            return new Finding(Check.UML, Outcome.WARN, "could not be tested");
-        }
-        switch (probe.verdict) {
-            case KERNEL_STARTS:
-                return new Finding(Check.UML, Outcome.OK,
-                        probe.detail + " · confirmed by SSH at install");
-            case BLOCKED:
-                return new Finding(Check.UML, Outcome.FAIL, probe.detail);
-            case UNPROVEN:
-            default:
-                return new Finding(Check.UML, Outcome.WARN,
-                        probe.detail + " · confirmed at install");
-        }
-    }
-
-    private static Finding probeQemu(boolean arm64, Outcome storage) {
-        if (!arm64) {
-            return new Finding(Check.QEMU, Outcome.FAIL, "needs 64-bit ARM");
-        }
-        if (storage == Outcome.FAIL) {
-            return new Finding(Check.QEMU, Outcome.FAIL, "not enough free storage");
-        }
-        return new Finding(Check.QEMU, Outcome.OK, "available · downloads on demand");
     }
 
     private interface Probe {

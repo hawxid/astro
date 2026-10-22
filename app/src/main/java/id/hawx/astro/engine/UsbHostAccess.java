@@ -24,6 +24,8 @@ import com.stryker.terminal.bridge.StrykerLog;
 
 final class UsbHostAccess {
 
+    static final Object PERMISSION_LOCK = new Object();
+
     private static final String TAG = "UsbHostAccess";
 
     private static final String ACTION_PERMISSION = "id.hawx.astro.USB_PERMISSION";
@@ -103,7 +105,7 @@ final class UsbHostAccess {
 
     boolean requestPermissionBlocking(UsbDevice device, long waitMs) {
         if (manager == null || device == null) return false;
-        synchronized (UsbPassthroughManager.PERMISSION_LOCK) {
+        synchronized (PERMISSION_LOCK) {
             return askLocked(device, waitMs);
         }
     }

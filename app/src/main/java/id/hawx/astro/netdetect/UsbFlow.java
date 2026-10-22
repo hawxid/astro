@@ -4,12 +4,6 @@ import android.content.Context;
 import android.hardware.usb.UsbDevice;
 
 import id.hawx.astro.R;
-import id.hawx.astro.engine.EngineType;
-import id.hawx.astro.engine.Engines;
-import id.hawx.astro.engine.GuestEngine;
-import id.hawx.astro.engine.GuestUsb;
-import id.hawx.astro.engine.RootlessService;
-import id.hawx.astro.engine.WifiEngine;
 import id.hawx.astro.utils.Core;
 
 import java.util.List;
@@ -80,22 +74,14 @@ public final class UsbFlow {
     }
 
     private void run() {
-        Core core = new Core(app);
-        boolean wifiGuest = WifiEngine.armed(core);
-        boolean guestMode = core.isRootless() || wifiGuest;
-
         chain = new UsbChain.Builder()
                 .add(app.getString(R.string.usb_stage_port), UsbChain.portIcon())
                 .add(app.getString(R.string.usb_stage_android), UsbChain.androidIcon());
         iPort = 0;
         iHost = 1;
         iVm = -1;
-        if (guestMode) {
-            chain.add(app.getString(R.string.usb_stage_vm), UsbChain.vmIcon());
-            iVm = 2;
-        }
         chain.add(app.getString(R.string.usb_stage_wlan), UsbChain.wlanIcon());
-        iWlan = guestMode ? 3 : 2;
+        iWlan = 2;
 
         chain.running(iPort);
         progress(R.string.usb_step_scanning);
@@ -108,8 +94,7 @@ public final class UsbFlow {
         }
         if (stopped()) return;
 
-        if (guestMode) runGuest(core, wifiGuest);
-        else runRoot();
+        runRoot();
     }
 
     private void runRoot() {
@@ -139,101 +124,6 @@ public final class UsbFlow {
         succeed(iface);
     }
 
-    private void runGuest(Core core, boolean wifiGuest) {
-        EngineType type = wifiGuest ? WifiEngine.configured(core) : EngineType.active(core);
-        GuestEngine engine = Engines.active(app, type);
-        GuestUsb usb = engine.usb();
-        String guestName = engine.displayName();
-
-        UsbDevice dev = usb == null ? null : usb.findByVidPid(report.vidPid);
-        if (dev == null) {
-            chain.set(iPort, UsbChain.State.FAIL);
-            fail(R.string.usb_note_gone_title, R.string.usb_empty_body, UsbChain.Fix.RETRY);
-            return;
-        }
-
-        chain.running(iHost);
-        if (!usb.hasPermission(dev)) {
-            progress(R.string.usb_step_asking);
-            usb.requestPermission(dev, PERMISSION_WAIT_MS);
-            if (stopped()) return;
-        }
-        if (!usb.hasPermission(dev)) {
-            chain.set(iHost, UsbChain.State.FAIL);
-            fail(R.string.usb_note_noperm_title, R.string.usb_note_noperm_body,
-                    R.string.usb_note_ask_again, UsbChain.Fix.RETRY);
-            return;
-        }
-
-        boolean phoneHolds = report.driverState() == DriverState.BOUND_WITH_NETDEV
-                || report.driverState() == DriverState.BOUND_NO_NETDEV;
-        chain.set(iHost, phoneHolds ? UsbChain.State.WARN : UsbChain.State.DONE);
-
-        chain.running(iVm);
-        if (!engine.isRunning() || !engine.isReady()) {
-            progress(R.string.usb_step_starting_guest);
-            RootlessService.start(app);
-            if (!awaitGuest(engine)) {
-                chain.set(iVm, UsbChain.State.FAIL);
-                fail(R.string.usb_note_guestdown_title,
-                        app.getString(R.string.usb_note_guestdown_body, guestName),
-                        app.getString(R.string.usb_note_retry), UsbChain.Fix.RETRY);
-                return;
-            }
-        }
-        if (stopped()) return;
-
-        if (!usb.isAttached(dev)) {
-            progress(R.string.usb_step_handing);
-            boolean ok;
-            try {
-                ok = usb.attach(dev);
-            } catch (Throwable t) {
-                ok = false;
-            }
-            if (!ok || !usb.isAttached(dev)) {
-                chain.set(iVm, UsbChain.State.FAIL);
-                if (phoneHolds) {
-                    fail(R.string.usb_note_phoneholds_title,
-                            app.getString(R.string.usb_note_phoneholds_body,
-                                    driverName(), guestName),
-                            app.getString(R.string.usb_note_retry), UsbChain.Fix.RETRY);
-                } else {
-                    fail(R.string.usb_note_handover_failed_title,
-                            app.getString(R.string.usb_note_handover_failed_body, guestName),
-                            app.getString(R.string.usb_note_retry), UsbChain.Fix.RETRY);
-                }
-                return;
-            }
-        }
-        chain.set(iVm, UsbChain.State.DONE);
-        if (stopped()) return;
-
-        chain.running(iWlan);
-        progress(R.string.usb_step_waiting_driver);
-        String iface = awaitGuestInterface(type);
-        if (iface == null) {
-            chain.set(iWlan, UsbChain.State.FAIL);
-            fail(R.string.usb_note_noguestdriver_title,
-                    app.getString(R.string.usb_note_noguestdriver_body, guestName),
-                    app.getString(R.string.usb_note_search), UsbChain.Fix.SEARCH_DRIVER);
-            return;
-        }
-        succeed(iface);
-    }
-
-    private boolean awaitGuest(GuestEngine engine) {
-        long deadline = System.currentTimeMillis() + GUEST_WAIT_MS;
-        while (System.currentTimeMillis() < deadline && !cancelled.get()) {
-            try {
-                if (engine.isReady()) return true;
-            } catch (Throwable ignored) {
-            }
-            sleep(1000);
-        }
-        return false;
-    }
-
     private String awaitHostInterface() {
         long deadline = System.currentTimeMillis() + DRIVER_WAIT_MS;
         while (true) {
@@ -242,24 +132,6 @@ public final class UsbFlow {
                 if (!r.vidPid.equals(report.vidPid)) continue;
                 report = r;
                 if (!r.netInterfaces.isEmpty()) return r.netInterfaces.get(0);
-            }
-            if (System.currentTimeMillis() >= deadline || cancelled.get()) return null;
-            sleep(700);
-        }
-    }
-
-    private String awaitGuestInterface(EngineType type) {
-        Core guestCore = new Core(app).overrideEngine(type);
-        long deadline = System.currentTimeMillis() + DRIVER_WAIT_MS;
-        while (true) {
-            try {
-                for (String[] pair : guestCore.monitorManager.listInterfaces()) {
-                    String name = pair[0];
-                    if (name != null && (name.startsWith("wlan") || name.startsWith("wlx"))) {
-                        return name;
-                    }
-                }
-            } catch (Throwable ignored) {
             }
             if (System.currentTimeMillis() >= deadline || cancelled.get()) return null;
             sleep(700);

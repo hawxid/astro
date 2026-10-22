@@ -28,7 +28,6 @@ import id.hawx.astro.BuildConfig;
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.arsenal.ArsenalFragment;
-import id.hawx.astro.engine.GuestEngine;
 import id.hawx.astro.utils.Core;
 
 import java.util.ArrayList;
@@ -472,23 +471,7 @@ public class Dashboard extends Fragment {
     // ================= pembuka layar lain =================
 
     private void openTerminal() {
-        if (!core.isRootless()) {
-            launchTerminal();
-            return;
-        }
-        if (core.guest().status() == GuestEngine.State.READY) {
-            launchTerminal();
-            return;
-        }
-        new Thread(() -> {
-            boolean ready = core.guest().statusBlocking() == GuestEngine.State.READY;
-            if (activity == null) return;
-            activity.runOnUiThread(() -> {
-                if (!isAdded()) return;
-                if (ready) launchTerminal();
-                else core.toaster(getString(R.string.vm_required_terminal));
-            });
-        }, "terminal-vm-check").start();
+        launchTerminal();
     }
 
     private void launchTerminal() {

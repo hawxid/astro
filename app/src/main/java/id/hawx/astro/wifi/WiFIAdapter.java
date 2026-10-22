@@ -208,7 +208,6 @@ public class WiFIAdapter extends RecyclerView.Adapter<WiFIAdapter.ViewHolder> {
         try {wifi.sort(new WiFINetwork.WiFIComporator());}
         catch (Exception ignored){}
         core = new Core(context2);
-        id.hawx.astro.engine.WifiEngine.bindFor(core, core.getString("wlan_wifi"));
 
     }
 

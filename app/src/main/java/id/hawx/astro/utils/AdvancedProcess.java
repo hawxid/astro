@@ -3,7 +3,6 @@ package id.hawx.astro.utils;
 import android.app.Activity;
 import android.content.Context;
 
-import id.hawx.astro.engine.GuestExec;
 import id.hawx.astro.logger.LogTool;
 import id.hawx.astro.logger.Logger;
 
@@ -95,8 +94,6 @@ public abstract class AdvancedProcess {
     public boolean running = true;
     public boolean noLog = false;
 
-    private final boolean rootless;
-    private volatile GuestExec.Session guestSession;
     private volatile boolean killed;
 
     public AdvancedProcess(Activity activity, Context context, String command, boolean chroot) {
@@ -106,7 +103,6 @@ public abstract class AdvancedProcess {
         this.tool = LogTool.classify(command);
         this.cmd = lineBuffered(command);
         this.chroot = chroot;
-        this.rootless = chroot && core.isRootless();
         this.logger = new Logger();
         execute();
     }
@@ -118,7 +114,6 @@ public abstract class AdvancedProcess {
         this.tool = LogTool.classify(command);
         this.cmd = lineBuffered(command);
         this.chroot = chroot;
-        this.rootless = chroot && core.isRootless();
         this.logger = new Logger();
         if (inMainThread)
             executeInMainThread();
@@ -147,10 +142,6 @@ public abstract class AdvancedProcess {
     private void start() {
         if (killed) {
             running = false;
-            return;
-        }
-        if (rootless) {
-            startRootless();
             return;
         }
         process = core.generateSuProcess();
@@ -218,40 +209,6 @@ public abstract class AdvancedProcess {
         running = false;
     }
 
-    private void startRootless() {
-        activity.runOnUiThread(this::onPrepare);
-        logger.writeLine("Rootless command: " + cmd, 1, tool);
-        try {
-            if (!killed) {
-                guestSession = core.guest().openStream(cmd);
-                String line;
-                while (!killed && (line = guestSession.reader.readLine()) != null) {
-                    if (line.startsWith(GuestExec.Session.SENTINEL)) {
-                        break;
-                    }
-                    line = line.trim();
-                    String finalLine = line;
-                    if (!finalLine.startsWith(MACHINE_PREFIX)) {
-                        deliver(finalLine);
-                    }
-                    if (!noLog && worthLogging(line)) {
-                        logger.writeLine(line, 2, tool);
-                    }
-                    if (line.contains("JOBFINISHED")) {
-                        break;
-                    }
-                    record(line);
-                }
-            }
-        } catch (Exception e) {
-            logger.writeLine("Rootless exec failed (VM not reachable?): " + e.getMessage(), 3, tool);
-        } finally {
-            if (guestSession != null) guestSession.close();
-        }
-        activity.runOnUiThread(() -> onFinished(outputList));
-        running = false;
-    }
-
     public void execute() {
         new Thread(this::start).start();
     }
@@ -265,9 +222,6 @@ public abstract class AdvancedProcess {
     public abstract void onNewLine(String line);
 
     public AdvancedProcess sendCommand(String command) {
-        if (rootless) {
-            return this;
-        }
         try {
             if (chroot) {
                 input.write((Core.EXECUTE + "'" + Core.SHELL + "'" + "\n").getBytes());
@@ -288,9 +242,7 @@ public abstract class AdvancedProcess {
     public void kill() {
         killed = true;
         try {
-            if (rootless) {
-                if (guestSession != null) guestSession.close();
-            } else if (process != null) {
+            if (process != null) {
                 process.destroy();
             }
         } catch (Exception e) {

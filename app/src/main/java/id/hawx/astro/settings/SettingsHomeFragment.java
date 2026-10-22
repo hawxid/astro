@@ -128,24 +128,8 @@ public class SettingsHomeFragment extends Fragment {
         changeCommands.setOnClickListener(v -> openSub(new CustomCommandsWifi(), "cmd"));
         debug.setOnClickListener(v -> openSub(new LoggerFragment(), "logs"));
 
-        LinearLayout engineSection = view.findViewById(R.id.engine_section);
-        LinearLayout vmSettingsRow = view.findViewById(R.id.vm_settings_row);
-        boolean wifiGuest = id.hawx.astro.engine.WifiEngine.armed(core);
-        if (core.isRootless() || wifiGuest) {
-            engineSection.setVisibility(View.VISIBLE);
-            vmSettingsRow.setOnClickListener(v -> openSub(new VmSettingsFragment(), "vm"));
-        } else {
-            engineSection.setVisibility(View.GONE);
-        }
-        bindWifiEngineRow(view, wifiGuest);
-
-        if (core.isRootless()) {
-            unmountLayout.setVisibility(View.GONE);
-            deleteLayout.setVisibility(View.GONE);
-        } else {
-            unmountLayout.setOnClickListener(v -> confirmUnmount());
-            deleteLayout.setOnClickListener(v -> confirmDelete());
-        }
+        unmountLayout.setOnClickListener(v -> confirmUnmount());
+        deleteLayout.setOnClickListener(v -> confirmDelete());
 
         wireSettingsRail(view);
     }
@@ -189,39 +173,6 @@ public class SettingsHomeFragment extends Fragment {
         g.setColor(0xFF1B2A52);
         g.setCornerRadius(10 * getResources().getDisplayMetrics().density);
         return g;
-    }
-
-    private void bindWifiEngineRow(View view, boolean armed) {
-        View card = view.findViewById(R.id.wifi_engine_card);
-        View row = view.findViewById(R.id.wifi_engine_row);
-        android.widget.TextView state = view.findViewById(R.id.wifi_engine_state);
-        if (card == null || row == null || state == null) return;
-        if (!armed) {
-            card.setVisibility(View.GONE);
-            return;
-        }
-        card.setVisibility(View.VISIBLE);
-        id.hawx.astro.engine.EngineType type =
-                id.hawx.astro.engine.WifiEngine.configured(core);
-        String name = getString(type == id.hawx.astro.engine.EngineType.UML
-                ? R.string.engine_uml_name : R.string.engine_vm_name);
-        state.setText(getString(R.string.wifi_guest_settings_on, name));
-        row.setOnClickListener(v -> confirmWifiEngineOff());
-    }
-
-    private void confirmWifiEngineOff() {
-        if (getContext() == null) return;
-        new com.google.android.material.dialog.MaterialAlertDialogBuilder(getContext())
-                .setTitle(R.string.wifi_guest_settings_title)
-                .setMessage(R.string.wifi_guest_turn_off_body)
-                .setPositiveButton(R.string.wifi_guest_turn_off, (d, w) -> {
-                    id.hawx.astro.engine.WifiEngine.disarm(core);
-                    id.hawx.astro.engine.RootlessService.stop(requireContext());
-                    View root = getView();
-                    if (root != null) bindWifiEngineRow(root, false);
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
     }
 
     private void openSub(Fragment f, String tag) {

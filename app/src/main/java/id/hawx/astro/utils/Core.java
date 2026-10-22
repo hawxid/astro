@@ -57,9 +57,7 @@ import id.hawx.astro.custom.Exploit;
 import id.hawx.astro.custom.Module;
 import id.hawx.astro.custom.Site;
 import id.hawx.astro.engine.Apt;
-import id.hawx.astro.engine.EngineType;
 import id.hawx.astro.engine.GuestCore;
-import id.hawx.astro.engine.RootlessEngine;
 import id.hawx.astro.logger.LogTool;
 import id.hawx.astro.logger.Logger;
 
@@ -113,17 +111,6 @@ public class Core {
     public SQLiteDatabase db;
     public SQLiteDatabase dbCodename;
     public SQLiteDatabase dbAdapters;
-
-    private id.hawx.astro.engine.EngineType engineOverride;
-
-    public Core overrideEngine(id.hawx.astro.engine.EngineType type) {
-        this.engineOverride = type;
-        return this;
-    }
-
-    public id.hawx.astro.engine.EngineType engineOverride() {
-        return engineOverride;
-    }
 
     public Core(Context context) {
 
@@ -325,7 +312,6 @@ public class Core {
     }
 
     public String guestShare() {
-        if (isRootless()) return guest().guestSharePath();
         return "/sdcard/Astro";
     }
 
@@ -493,12 +479,6 @@ public class Core {
     }
 
     public String getShareRoot() {
-        if (isRootless()) {
-            File d = guest().shareDir();
-            if (d != null) return d.getAbsolutePath();
-            File ext = context.getExternalFilesDir(null);
-            if (ext != null) return new File(ext, "Astro").getAbsolutePath();
-        }
         return getStorage() + "Astro";
     }
 
@@ -690,10 +670,6 @@ public class Core {
 
     public void guestRemove(String spaceSeparatedPaths){
         if (spaceSeparatedPaths == null || spaceSeparatedPaths.trim().isEmpty()) return;
-        if (isRootless()) {
-            customChrootCommand("rm -rf " + spaceSeparatedPaths, true);
-            return;
-        }
         StringBuilder cmd = new StringBuilder("rm -rf");
         for (String p : spaceSeparatedPaths.trim().split("\\s+")) {
             if (!p.isEmpty()) cmd.append(' ').append(Apt.shellQuote(chrootPath(p)));
@@ -707,12 +683,12 @@ public class Core {
         for (String p : guestPaths) {
             if (p == null || p.isEmpty()) continue;
             if (test.length() > 0) test.append(" || ");
-            test.append("[ -e ").append(Apt.shellQuote(isRootless() ? p : chrootPath(p))).append(" ]");
+            test.append("[ -e ").append(Apt.shellQuote(chrootPath(p))).append(" ]");
         }
         if (test.length() == 0) return false;
         String cmd = "{ " + test + "; } && echo " + Apt.INSTALLED_MARK
                 + " || echo " + Apt.MISSING_MARK;
-        return marked(isRootless() ? customChrootCommand(cmd, true) : customCommand(cmd, true));
+        return marked(customCommand(cmd, true));
     }
 
     public boolean hasBinary(String bin){
@@ -744,7 +720,6 @@ public class Core {
         return mounted;
     }
     public boolean hasLegacyChroot(){
-        if (isRootless()) return false;
         if (checkFile(CHROOT_MARKER)) return false;
         for (String m : LEGACY_CHROOT_MARKERS) {
             if (checkFile(CHROOT_ROOT + "/" + m)) return true;
@@ -928,11 +903,6 @@ public class Core {
 
     private Presence probe(String test, String path) {
         logger.writeLine("Checking " + ("-d".equals(test) ? "folder " : "file ") + path, 1);
-        if (isRootless()) {
-            File f = new File(path);
-            boolean there = "-d".equals(test) ? f.isDirectory() : f.isFile();
-            return there ? Presence.YES : Presence.NO;
-        }
         String cmd = "printf '" + PROBE_MARK + "%s\\n' \"$([ " + test + " " + path
                 + " ] && echo 1 || echo 0)\"";
         for (int attempt = 0; attempt < PROBE_ATTEMPTS; attempt++) {
@@ -1138,26 +1108,12 @@ public class Core {
         logger.writeLine("Executing command: " + command,1, tool);
         return pumpProcess(process, terminated(command), true, tool, false);
     }
+    // Amputasi VM/QEMU fase 2: mode dikunci chroot — selalu false.
     public boolean isRootless() {
-        return EngineType.isRootless(this);
-    }
-
-    public RootlessEngine rootless() {
-        return RootlessEngine.get(context);
-    }
-
-    public id.hawx.astro.engine.GuestEngine guest() {
-        return id.hawx.astro.engine.Engines.active(this);
+        return false;
     }
 
     public ArrayList<String> customChrootCommand(String command)  {
-        if (isRootless()) {
-            String tool = LogTool.classify(command);
-            logger.writeLine("Executing rootless command: " + command, 1, tool);
-            ArrayList<String> out = guest().exec(command);
-            for (String l : out) logger.writeLine(l, 2, tool);
-            return out;
-        }
         String tool = LogTool.classify(command);
         logger.writeLine("Executing chroot command: " + command,1, tool);
         return pumpProcess(generateSuProcess(),
@@ -1165,9 +1121,6 @@ public class Core {
     }
 
     public ArrayList<String> customChrootCommand(String command, boolean nolog)  {
-        if (isRootless()) {
-            return guest().exec(command);
-        }
         return pumpProcess(generateSuProcess(),
                 EXECUTE + "'" + SHELL + "'\n" + terminated(command) + "exit\n", false, null, false);
     }
@@ -1247,24 +1200,6 @@ public class Core {
     }
 
     public void moveFile(@NonNull String source, @NonNull String destination){
-        if (isRootless()) {
-            try {
-                File src = new File(source);
-                File dst = new File(destination);
-                if (dst.getParentFile() != null) dst.getParentFile().mkdirs();
-                if (!src.renameTo(dst)) {
-                    try (InputStream in = new java.io.FileInputStream(src);
-                         OutputStream out = new FileOutputStream(dst)) {
-                        byte[] buf = new byte[8192]; int r;
-                        while ((r = in.read(buf)) != -1) out.write(buf, 0, r);
-                    }
-                    src.delete();
-                }
-            } catch (Exception e) {
-                logger.writeLine("Rootless move failed: " + e.getMessage(), 3);
-            }
-            return;
-        }
         customCommand("mv " + source + " " + destination);
     }
     public void copyFile(@NonNull String source, @NonNull String destination){
@@ -1272,32 +1207,14 @@ public class Core {
 
     }
     public void deleteFile(@NonNull String file){
-        if (isRootless()) {
-            deleteRecursively(new File(file));
-            return;
-        }
         customCommand("rm -rf " + file);
     }
 
-    private static void deleteRecursively(File target) {
-        if (target == null || !target.exists()) return;
-        File[] children = target.listFiles();
-        if (children != null) {
-            for (File c : children) deleteRecursively(c);
-        }
-        target.delete();
-    }
-
     public void createFolder(@NonNull String folder){
-        if (isRootless()) {
-            new File(folder).mkdirs();
-            return;
-        }
         customCommand("mkdir " + folder);
 
     }
     public void chmodFolder(@NonNull String folder){
-        if (isRootless()) return;
         customCommand("chmod 777 -R " + folder);
 
     }
@@ -1456,7 +1373,6 @@ public class Core {
     }
 
     public void wpsDisableWifiIfEnabled(){
-        if (isRootless()) return;
         if (isPixieIfaceDown()) customCommand("svc wifi disable");
     }
 
@@ -1603,17 +1519,6 @@ public class Core {
         }
         putListString("interfaces",latest);
         return result;
-    }
-
-    public ArrayList<String> rootlessPrepWifi(String iface) {
-        String cmd =
-            "rfkill unblock all 2>/dev/null || for f in /sys/class/rfkill/*/state; do echo 1 > \"$f\" 2>/dev/null; done; "
-          + "pkill wpa_supplicant 2>/dev/null; "
-          + "for i in $(iw dev 2>/dev/null | awk '/Interface/{print $2}'); do case \"$i\" in *mon) [ \"$i\" = \"" + iface + "\" ] || iw dev \"$i\" del 2>/dev/null;; esac; done; "
-          + "ip link set " + iface + " down 2>/dev/null; "
-          + "iw dev " + iface + " set type managed 2>/dev/null; "
-          + "ip link set " + iface + " up 2>&1";
-        return customChrootCommand(cmd);
     }
 
     public String getHSInterface(){

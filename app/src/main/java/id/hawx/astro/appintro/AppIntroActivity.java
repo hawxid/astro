@@ -29,9 +29,7 @@ import id.hawx.astro.appintro.slides.Slide2;
 import id.hawx.astro.appintro.slides.Slide3;
 import id.hawx.astro.appintro.slides.Slide6Final;
 import id.hawx.astro.appintro.slides.SlideCapabilities;
-import id.hawx.astro.appintro.slides.SlideEngineSelect;
 import id.hawx.astro.appintro.slides.SlidePCheck;
-import id.hawx.astro.appintro.slides.SlideQemuInstall;
 import id.hawx.astro.appintro.slides.SlideWelcome;
 import id.hawx.astro.engine.EngineType;
 
@@ -43,23 +41,13 @@ public class AppIntroActivity extends FragmentActivity {
 
     public static final String EXTRA_MIGRATE = "migrate_legacy_chroot";
 
-    public static final String EXTRA_REPAIR_ENGINE = "repair_engine";
-
     public static final String EXTRA_UPDATE_ENGINE = "update_engine";
 
-    public static final String EXTRA_REPLACE_PAYLOAD = "replace_payload";
-
-    public enum Page { WELCOME, CONSENT, CAPS, ENGINE, PERMS, PCHECK, INSTALL_CHROOT, INSTALL_QEMU, FINAL }
+    public enum Page { WELCOME, CONSENT, CAPS, PERMS, PCHECK, INSTALL_CHROOT, FINAL }
 
     public static Intent updateIntent(Context context, EngineType engine) {
         Intent intent = new Intent(context, AppIntroActivity.class);
         intent.putExtra(EXTRA_UPDATE_ENGINE, engine.name());
-        return intent;
-    }
-
-    public static Intent replaceIntent(Context context, EngineType engine) {
-        Intent intent = updateIntent(context, engine);
-        intent.putExtra(EXTRA_REPLACE_PAYLOAD, true);
         return intent;
     }
 
@@ -71,13 +59,8 @@ public class AppIntroActivity extends FragmentActivity {
         return updateTarget() != null;
     }
 
-    public boolean replacesPayload() {
-        return getIntent() != null
-                && getIntent().getBooleanExtra(EXTRA_REPLACE_PAYLOAD, false);
-    }
-
     private final List<Page> pages = new ArrayList<>(Arrays.asList(
-            Page.WELCOME, Page.CONSENT, Page.CAPS, Page.ENGINE, Page.PERMS, Page.PCHECK,
+            Page.WELCOME, Page.CONSENT, Page.CAPS, Page.PERMS, Page.PCHECK,
             Page.INSTALL_CHROOT, Page.FINAL));
 
     private ViewPager2 mPager;
@@ -108,7 +91,6 @@ public class AppIntroActivity extends FragmentActivity {
         setUpSwipes();
 
         if (isMigration()) pages.remove(Page.WELCOME);
-        applyRepairFlow();
         applyUpdateFlow();
 
         mPager.setUserInputEnabled(false);
@@ -249,16 +231,6 @@ public class AppIntroActivity extends FragmentActivity {
         return super.dispatchTouchEvent(ev);
     }
 
-    private void applyRepairFlow() {
-        EngineType target = engineExtra(EXTRA_REPAIR_ENGINE);
-        if (target == null || target == EngineType.CHROOT) return;
-
-        EngineType.persist(new id.hawx.astro.utils.Core(this), target);
-        pages.clear();
-        pages.add(Page.INSTALL_QEMU);
-        pages.add(Page.FINAL);
-    }
-
     private EngineType updateTarget() {
         return engineExtra(EXTRA_UPDATE_ENGINE);
     }
@@ -266,13 +238,10 @@ public class AppIntroActivity extends FragmentActivity {
     private void applyUpdateFlow() {
         EngineType target = updateTarget();
         if (target == null) return;
+        if (target != EngineType.CHROOT) return;
         pages.clear();
-        if (target == EngineType.CHROOT) {
-            pages.add(Page.PCHECK);
-            pages.add(Page.INSTALL_CHROOT);
-        } else {
-            pages.add(Page.INSTALL_QEMU);
-        }
+        pages.add(Page.PCHECK);
+        pages.add(Page.INSTALL_CHROOT);
         pages.add(Page.FINAL);
     }
 
@@ -295,12 +264,8 @@ public class AppIntroActivity extends FragmentActivity {
 
         while (pages.size() > decidedAt + 1) pages.remove(pages.size() - 1);
         if (!permsDone) pages.add(Page.PERMS);
-        if (type == EngineType.ROOTLESS || type == EngineType.UML) {
-            pages.add(Page.INSTALL_QEMU);
-        } else {
-            if (!pcheckDone) pages.add(Page.PCHECK);
-            pages.add(Page.INSTALL_CHROOT);
-        }
+        if (!pcheckDone) pages.add(Page.PCHECK);
+        pages.add(Page.INSTALL_CHROOT);
         pages.add(Page.FINAL);
 
         pagerAdapter.notifyDataSetChanged();
@@ -394,11 +359,9 @@ public class AppIntroActivity extends FragmentActivity {
                 case WELCOME: return new SlideWelcome();
                 case CONSENT: return new Slide1();
                 case CAPS: return new SlideCapabilities();
-                case ENGINE: return new SlideEngineSelect();
                 case PERMS: return new Slide2();
                 case PCHECK: return new SlidePCheck();
                 case INSTALL_CHROOT: return new Slide3();
-                case INSTALL_QEMU: return new SlideQemuInstall();
                 case FINAL:
                 default: return new Slide6Final();
             }

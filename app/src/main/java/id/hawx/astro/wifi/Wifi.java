@@ -133,7 +133,6 @@ public class Wifi extends Fragment {
         emptyCard = view.findViewById(R.id.wifi_empty_card);
         listCard = view.findViewById(R.id.wifi_list_card);
         core = new Core(context);
-        bindCoreToInterface();
         tryagain.setOnClickListener(view1 -> scan());
         fab = view.findViewById(R.id.fab);
         fab.hide();
@@ -212,62 +211,8 @@ public class Wifi extends Fragment {
 
         scanThread = new Thread(() -> {
             try {
-                if (core.isRootless()) {
-                    id.hawx.astro.engine.WifiEngine.ensureStarting(context);
-                    id.hawx.astro.logger.Logger log = new id.hawx.astro.logger.Logger();
-                    id.hawx.astro.engine.GuestEngine guest = core.guest();
-                    log.writeLine("Rootless WiFi: passing USB adapter into "
-                            + guest.displayName() + "…", 1, "wifi");
-                    boolean attached = guest.ensureUsbWifiAttached();
-                    log.writeLine(attached ? "USB adapter attached — driver OK"
-                            : "USB adapter not usable", attached ? 2 : 3, "wifi");
-                    if (!attached) {
-                        if (!guest.isRunning()) {
-                            safeUi(this::showGuestDownState);
-                            return;
-                        }
-                        boolean noDriver = guest.usb() != null && guest.usb().hasAttached();
-                        if (noDriver) reportNoDriver(); else safeUi(this::showNoAdapterState);
-                        return;
-                    }
-                    boolean up = false;
-                    String target = core.getString("wlan_wifi");
-                    ArrayList<String> ifs = new ArrayList<>();
-                    for (int i = 0; i < IFACE_WAIT_TRIES && alive.get(); i++) {
-                        ifs = core.getInterfacesList();
-                        if (ifs.contains(target)) { up = true; break; }
-                        if (ifs.contains(target + "mon")) { target = target + "mon"; up = true; break; }
-                        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
-                    }
-                    if (!alive.get()) return;
-                    if (!up && !ifs.isEmpty()) {
-                        target = ifs.get(0);
-                        core.setWifiInterface(target);
-                        wlan = target;
-                        up = true;
-                        final String adopted = target;
-                        log.writeLine("Adopted guest interface '" + adopted + "'", 2, "wifi");
-                        safeUi(() -> {
-                            ifaceValue.setText(adopted);
-                            ifaceMeta.setText(adopted);
-                        });
-                    }
-                    log.writeLine("Guest interfaces: " + ifs, up ? 2 : 3, "wifi");
-                    if (!up) {
-                        log.writeLine("Interface '" + target + "' never appeared — guest USB/driver diagnostics:", 3, "wifi");
-                        core.customChrootCommand("echo '### lsusb'; lsusb 2>&1; "
-                                + "echo '### ip link'; ip -br link 2>&1; "
-                                + "echo '### iw dev'; iw dev 2>&1; "
-                                + "echo '### dmesg'; dmesg 2>&1 | grep -iE 'usb|wlan|firmware|cfg80211|ieee80211|rtl|ath|mt7|88x' | tail -40");
-                        reportNoDriver();
-                        return;
-                    }
-                    core.rootlessPrepWifi(target);
-                    try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
-                    log.writeLine("Adapter ready — scanning…", 2, "wifi");
-                }
                 ArrayList<String> wlans = core.getInterfacesList();
-                if (!core.isRootless() && !wlans.contains(wlan) && !wlans.contains(wlan + "mon")) {
+                if (!wlans.contains(wlan) && !wlans.contains(wlan + "mon")) {
                     id.hawx.astro.engine.WifiDriverProbe.Result probe =
                             id.hawx.astro.engine.WifiDriverProbe.probe(context, core);
                     if (probe.needsGuest()) {
@@ -384,23 +329,6 @@ public class Wifi extends Fragment {
         listCard.setVisibility(hasNetworks ? View.VISIBLE : View.GONE);
     }
 
-    private void showNoAdapterState() {
-        if (img != null) { img.setAnimation(R.raw.nothing); img.playAnimation(); }
-        renderListState(false);
-        text1.setText("No Wi-Fi adapter");
-        textSub.setText("Rootless Wi-Fi runs through a USB adapter passed into the VM. Plug one in and attach it.");
-        tryagain.setVisibility(View.VISIBLE);
-        tryagain.setText("Attach adapter");
-        tryagain.setOnClickListener(v -> { if (mainActivity != null) mainActivity.openUsbSheet(); });
-        scanProgress.setVisibility(View.GONE);
-        statusValue.setText(R.string.wifi_status_failed);
-        subtitle.setText("No adapter attached");
-        countChip.setText("0");
-        refresh.setEnabled(true);
-        refresh.setRefreshing(false);
-        fab.hide();
-    }
-
     private void showKernelNoDriverState(
             id.hawx.astro.engine.WifiDriverProbe.Result probe) {
         if (img != null) { img.setAnimation(R.raw.nothing); img.playAnimation(); }
@@ -409,98 +337,10 @@ public class Wifi extends Fragment {
         textSub.setText(getString(R.string.wifi_nodriver_state_body, probe.label));
         tryagain.setVisibility(View.VISIBLE);
         tryagain.setText(R.string.wifi_nodriver_state_action);
-        tryagain.setOnClickListener(v -> offerWifiGuest(probe));
+        tryagain.setOnClickListener(v -> scan());
         scanProgress.setVisibility(View.GONE);
         statusValue.setText(R.string.wifi_nodriver_state_status);
         subtitle.setText(getString(R.string.wifi_nodriver_state_body, probe.label));
-        countChip.setText("0");
-        refresh.setEnabled(true);
-        refresh.setRefreshing(false);
-        fab.hide();
-    }
-
-    private void offerWifiGuest(id.hawx.astro.engine.WifiDriverProbe.Result probe) {
-        if (context == null || activity == null) return;
-        new MaterialAlertDialogBuilder(context)
-                .setTitle(R.string.wifi_nodriver_title)
-                .setMessage(getString(R.string.wifi_nodriver_body, probe.label))
-                .setPositiveButton(R.string.wifi_nodriver_setup,
-                        (d, w) -> startWifiGuestSetup())
-                .setNegativeButton(R.string.wifi_nodriver_later, null)
-                .show();
-    }
-
-    private void startWifiGuestSetup() {
-        if (activity == null) return;
-        id.hawx.astro.wifi.guest.WifiGuestSetupDialog.show(activity, (armed, iface) -> {
-            if (!armed) return;
-            wlan = iface;
-            bindCoreToInterface();
-            scan();
-        });
-    }
-
-    private void showGuestDownState() {
-        if (img != null) { img.setAnimation(R.raw.nothing); img.playAnimation(); }
-        renderListState(false);
-        text1.setText(R.string.wifi_guest_down_title);
-        textSub.setText(R.string.wifi_guest_down_body);
-        tryagain.setVisibility(View.VISIBLE);
-        tryagain.setText(R.string.try_again);
-        tryagain.setOnClickListener(v -> {
-            id.hawx.astro.engine.WifiEngine.ensureStarting(context);
-            scan();
-        });
-        scanProgress.setVisibility(View.GONE);
-        statusValue.setText(R.string.wifi_status_failed);
-        subtitle.setText(R.string.wifi_guest_down_title);
-        countChip.setText("0");
-        refresh.setEnabled(true);
-        refresh.setRefreshing(false);
-        fab.hide();
-    }
-
-    private void reportNoDriver() {
-        String setUpFor = id.hawx.astro.engine.WifiEngine.adapter(core);
-        id.hawx.astro.engine.WifiDriverProbe.Result now = setUpFor.isEmpty() ? null
-                : id.hawx.astro.engine.WifiDriverProbe.probe(context, new Core(context));
-        final boolean swapped = now != null && !now.vidPid.isEmpty()
-                && !setUpFor.equals(now.vidPid);
-        final String nowLabel = now == null ? "" : now.label;
-        safeUi(() -> {
-            if (swapped) showAdapterChangedState(setUpFor, nowLabel);
-            else showNoDriverState();
-        });
-    }
-
-    private void showAdapterChangedState(String setUpFor, String nowLabel) {
-        if (img != null) { img.setAnimation(R.raw.nothing); img.playAnimation(); }
-        renderListState(false);
-        text1.setText(R.string.wifi_guest_adapter_changed_title);
-        textSub.setText(getString(R.string.wifi_guest_adapter_changed_body, setUpFor, nowLabel));
-        tryagain.setVisibility(View.VISIBLE);
-        tryagain.setText(R.string.wifi_guest_adapter_changed_action);
-        tryagain.setOnClickListener(v -> startWifiGuestSetup());
-        scanProgress.setVisibility(View.GONE);
-        statusValue.setText(R.string.wifi_status_failed);
-        subtitle.setText(R.string.wifi_guest_adapter_changed_title);
-        countChip.setText("0");
-        refresh.setEnabled(true);
-        refresh.setRefreshing(false);
-        fab.hide();
-    }
-
-    private void showNoDriverState() {
-        if (img != null) { img.setAnimation(R.raw.nothing); img.playAnimation(); }
-        renderListState(false);
-        text1.setText(R.string.wifi_no_driver_title);
-        textSub.setText(R.string.wifi_no_driver_body);
-        tryagain.setVisibility(View.VISIBLE);
-        tryagain.setText(R.string.try_again);
-        tryagain.setOnClickListener(v -> scan());
-        scanProgress.setVisibility(View.GONE);
-        statusValue.setText(R.string.wifi_status_failed);
-        subtitle.setText(R.string.wifi_no_driver_subtitle);
         countChip.setText("0");
         refresh.setEnabled(true);
         refresh.setRefreshing(false);
@@ -553,18 +393,6 @@ public class Wifi extends Fragment {
             Core phone = new Core(context);
             for (String s : phone.getInterfacesList()) if (!ifaces.contains(s)) ifaces.add(s);
 
-            id.hawx.astro.engine.EngineType guestType =
-                    id.hawx.astro.engine.WifiEngine.armed(phone)
-                            ? id.hawx.astro.engine.WifiEngine.configured(phone) : null;
-            if (guestType != null) {
-                try {
-                    Core guestCore = new Core(context).overrideEngine(guestType);
-                    for (String s : guestCore.getInterfacesList()) {
-                        if (!ifaces.contains(s)) ifaces.add(s);
-                    }
-                } catch (Throwable ignored) {
-                }
-            }
             final ArrayList<String> merged = ifaces;
             safeUi(() -> showWifiInterfacePicker(merged));
         }).start();
@@ -575,8 +403,7 @@ public class Wifi extends Fragment {
         String[] items = new String[interfaces.size() + 1];
         for (int i = 0; i < interfaces.size(); i++) {
             String name = interfaces.get(i);
-            items[i] = id.hawx.astro.engine.WifiEngine.isGuestInterface(core, name)
-                    ? getString(R.string.wifi_guest_active_meta, name) : name;
+            items[i] = name;
         }
         items[items.length - 1] = context.getString(R.string.customvalue);
         new MaterialAlertDialogBuilder(context)
@@ -622,14 +449,7 @@ public class Wifi extends Fragment {
         wlan = iface;
         ifaceValue.setText(iface);
         ifaceMeta.setText(iface);
-        bindCoreToInterface();
         scan();
-    }
-
-    private void bindCoreToInterface() {
-        if (core == null) return;
-        String selected = core.getString("wlan_wifi");
-        id.hawx.astro.engine.WifiEngine.bindFor(core.overrideEngine(null), selected);
     }
 
     public boolean wifienabled() {

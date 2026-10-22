@@ -69,7 +69,6 @@ public class VNCService extends Service {
                 final String param2 = intent.getStringExtra(EXTRA_PORT);
                 new Thread(() -> {
                     if (!isVNCStarted()) startVNC(param1, param2);
-                    else openPortForward(param2);
                 }).start();
                 try {
                     Thread.sleep(5);
@@ -129,24 +128,6 @@ public class VNCService extends Service {
 
         core.customChrootCommand("mkdir -p /tmp; setsid nohup vncserver-start -p " + port
                 + " -r " + resolution + " > /tmp/vncserver-start.log 2>&1 < /dev/null &");
-        openPortForward(port);
-    }
-
-    private void openPortForward(String value) {
-        if (!core.isRootless()) return;
-        int p = parsePort(value);
-        if (p <= 0) return;
-        id.hawx.astro.engine.GuestEngine guest = core.guest();
-        boolean ok = guest.forwardPort(p, p);
-        core.logger.writeLine(ok
-                ? "VNC port " + p + " forwarded out of " + guest.displayName()
-                : "VNC port " + p + " could not be forwarded", ok ? 2 : 3);
-    }
-
-    private void closePortForward(String value) {
-        if (!core.isRootless()) return;
-        int p = parsePort(value);
-        if (p > 0) core.guest().unforwardPort(p);
     }
 
     private static int parsePort(String value) {
@@ -171,7 +152,6 @@ public class VNCService extends Service {
 
         vnc = null;
         core.customChrootCommand("vncserver-stop");
-        closePortForward(port);
 
         timer.cancel();
         stopForeground(false);

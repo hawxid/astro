@@ -68,9 +68,6 @@ public class MonitorManager {
     }
 
     public boolean disableMonitorMode(String interfaceName){
-        if (core.isRootless()) {
-            return disableMonitorModeRootless(interfaceName);
-        }
         logger.writeLine("Disabling monitor mode on interface: " + interfaceName,1);
         String mon = monitorInterfaceFor(interfaceName);
         core.customChrootCommand(getDisableCommand(mon != null ? mon : interfaceName));
@@ -87,9 +84,6 @@ public class MonitorManager {
     }
     public boolean enableMonitorMode(String interfaceName){
         logger.writeLine("Enabling monitor mode on interface: " + interfaceName,1);
-        if (core.isRootless()) {
-            return enableMonitorModeRootless(interfaceName, null);
-        }
         return enableMonitorModeRoot(interfaceName, null);
     }
 
@@ -116,25 +110,6 @@ public class MonitorManager {
                 : getMonitorCommand(ifc, channel);
     }
 
-    private boolean enableMonitorModeRootless(String ifc, String channel){
-        id.hawx.astro.engine.GuestEngine guest = core.guest();
-        if (!guest.ensureUsbWifiAttached()) {
-            logger.writeLine("No USB Wi-Fi adapter in " + guest.displayName()
-                    + " — cannot enable monitor mode", 3);
-            return false;
-        }
-        if (!isMonitorModeEnabled(ifc)) {
-            StringBuilder cmd = new StringBuilder();
-            cmd.append("rfkill unblock all 2>/dev/null || for f in /sys/class/rfkill/*/state; do echo 1 > \"$f\" 2>/dev/null; done; ");
-            cmd.append("airmon-ng check kill >/dev/null 2>&1; ");
-            cmd.append("ip link set ").append(ifc).append(" down 2>/dev/null; ");
-            cmd.append("iw dev ").append(ifc).append(" set type monitor 2>/dev/null || airmon-ng start ").append(ifc).append("; ");
-            cmd.append("ip link set ").append(ifc).append(" up 2>/dev/null");
-            core.customChrootCommand(cmd.toString());
-        }
-        return lockChannel(ifc, channel);
-    }
-
     private boolean lockChannel(String ifc, String channel){
         String monIfc = null;
         if (isMonitorModeEnabled(ifc)) monIfc = ifc;
@@ -146,24 +121,6 @@ public class MonitorManager {
         return true;
     }
 
-    private boolean disableMonitorModeRootless(String ifc){
-        logger.writeLine("Disabling monitor mode (rootless) on interface: " + ifc, 1);
-        String base = baseOf(ifc);
-        String mon = monitorInterfaceFor(ifc);
-        String target = mon != null ? mon : ifc;
-        core.customChrootCommand("airmon-ng stop " + target + " 2>/dev/null; "
-                + "ip link set " + target + " down 2>/dev/null; "
-                + "iw dev " + target + " set type managed 2>/dev/null; "
-                + "ip link set " + target + " up 2>/dev/null; "
-                + "ip link set " + base + " up 2>/dev/null");
-        String left = monitorInterfaceFor(ifc);
-        boolean stillMon = left != null && !forceManaged(left);
-        if (stillMon) {
-            logger.writeLine("Interface " + ifc + " is still in monitor mode", 3);
-        }
-        return !stillMon;
-    }
-
     public boolean isMonitorModeEnabled(String interfaceName){
         if (interfaceName == null || interfaceName.isEmpty()) return false;
         for (String[] p : listInterfaces()){
@@ -173,9 +130,6 @@ public class MonitorManager {
     }
     public boolean enableMonitorMode(String interfaceName,String channel){
         logger.writeLine("Enabling monitor mode on interface: " + interfaceName+ " on channel "+channel,1);
-        if (core.isRootless()) {
-            return enableMonitorModeRootless(interfaceName, channel);
-        }
         return enableMonitorModeRoot(interfaceName, channel);
     }
 

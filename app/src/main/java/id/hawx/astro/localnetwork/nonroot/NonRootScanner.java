@@ -303,7 +303,6 @@ public final class NonRootScanner {
         deepScan();
         report(98);
         grabBanners();
-        guestAssist();
         waitForNames(stageBudget(NAMES_CAP_MS, 0L));
         merge();
         report(100);
@@ -464,22 +463,6 @@ public final class NonRootScanner {
             });
         }
         awaitPool(pool, latch, budget);
-    }
-
-    private void guestAssist() {
-        if (core == null || cancelled.get()) return;
-        long budget = stageBudget(GUEST_CAP_MS, GUEST_RESERVE_MS);
-        if (budget <= 0L || !GuestAssist.available(core)) return;
-        long deadline = System.currentTimeMillis() + budget;
-        log("Guest tooling available, enriching hosts with nmap -sV");
-        for (Node n : snapshot()) {
-            if (cancelled.get() || System.currentTimeMillis() >= deadline) break;
-            if (n.ports.isEmpty()) continue;
-            try {
-                GuestAssist.enrich(core, n);
-            } catch (Throwable ignored) {
-            }
-        }
     }
 
     private static ExecutorService newPool(int size, final String name) {

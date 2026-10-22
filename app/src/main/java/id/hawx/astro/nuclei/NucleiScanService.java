@@ -18,11 +18,9 @@ import androidx.core.app.NotificationCompat;
 
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
-import android.text.TextUtils;
 
 import id.hawx.astro.custom.NucleiItem;
 import id.hawx.astro.custom.Site;
-import id.hawx.astro.engine.GuestExec;
 import id.hawx.astro.utils.Core;
 
 import org.json.JSONException;
@@ -73,7 +71,6 @@ public class NucleiScanService extends Service {
     }
 
     private final Map<Integer, Process> running = new ConcurrentHashMap<>();
-    private final Map<Integer, GuestExec.Session> guestSessions = new ConcurrentHashMap<>();
     private final Set<Integer> queued = ConcurrentHashMap.newKeySet();
     private final Map<Integer, String> severities = new ConcurrentHashMap<>();
     private final Map<Integer, PrintWriter> logWriters = new ConcurrentHashMap<>();
@@ -151,52 +148,7 @@ public class NucleiScanService extends Service {
         broadcast(siteId);
 
         Process process = null;
-        GuestExec.Session guestSession = null;
         try {
-            if (core.isRootless()) {
-                String script = TextUtils.join("\n",
-                        buildNucleiScript(site.getUrl(), severities.get(siteId)));
-                guestSession = core.guest().openStream(script);
-                guestSessions.put(siteId, guestSession);
-                site.pid = "guest";
-                persist(site, siteId);
-
-                int exit = -1;
-                String line;
-                while ((line = guestSession.reader.readLine()) != null) {
-                    if (line.startsWith(GuestExec.Session.SENTINEL)) {
-                        try {
-                            exit = Integer.parseInt(
-                                    line.substring(GuestExec.Session.SENTINEL.length()).trim());
-                        } catch (NumberFormatException ignored) {}
-                        break;
-                    }
-                    if (line.contains(TEMPLATES_MARKER)) {
-                        onTemplatesDownloading(siteId);
-                    } else if (line.contains("\"percent\"")) {
-                        teeLog(siteId, "ERR", line);
-                        parseStatsLine(line, siteId);
-                    } else {
-                        teeLog(siteId, "OUT", line);
-                        parseStdoutLine(line, siteId);
-                    }
-                }
-
-                Site final_ = loadSite(siteId);
-                if (final_ == null) return;
-                if (exit == 0 || final_.getNucleis().size() > 0) {
-                    final_.status = "Finished";
-                    final_.progress = "100";
-                    persist(final_, siteId);
-                    postResultNotification(final_, siteId, true);
-                } else {
-                    final_.status = "Failed";
-                    final_.progress = "100";
-                    persist(final_, siteId);
-                    postResultNotification(final_, siteId, false);
-                }
-                broadcast(siteId);
-            } else {
             process = Runtime.getRuntime().exec("su");
             running.put(siteId, process);
             site.pid = String.valueOf(getPidOfProcess(process));
@@ -246,7 +198,6 @@ public class NucleiScanService extends Service {
                 postResultNotification(final_, siteId, false);
             }
             broadcast(siteId);
-            }
         } catch (IOException | InterruptedException e) {
             StrykerLog.e("NucleiScanService", "Scan crashed", e);
             Site failed = loadSite(siteId);
@@ -261,8 +212,6 @@ public class NucleiScanService extends Service {
             if (process != null) {
                 try { process.destroy(); } catch (Throwable ignored) {}
             }
-            GuestExec.Session gs = guestSessions.remove(siteId);
-            if (gs != null) gs.close();
             closeLog(siteId);
             running.remove(siteId);
             severities.remove(siteId);
@@ -388,8 +337,6 @@ public class NucleiScanService extends Service {
         if (p != null) {
             try { p.destroy(); } catch (Throwable ignored) {}
         }
-        GuestExec.Session gs = guestSessions.remove(siteId);
-        if (gs != null) gs.close();
         Site site = loadSite(siteId);
         if (site != null && !"Finished".equals(site.status)) {
             site.status = "Failed";
@@ -542,10 +489,6 @@ public class NucleiScanService extends Service {
             }
         }
         running.clear();
-        for (GuestExec.Session gs : new java.util.ArrayList<>(guestSessions.values())) {
-            try { gs.close(); } catch (Throwable ignored) {}
-        }
-        guestSessions.clear();
         queued.clear();
         for (Integer id : new java.util.ArrayList<>(logWriters.keySet())) closeLog(id);
         if (executor != null) executor.shutdownNow();
