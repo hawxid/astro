@@ -189,6 +189,18 @@ public class XWindowHost implements XHost {
                 view.triggerCallback();
                 view.reloadPreferences(prefs);
                 if (listener != null) listener.onConnectionChanged(this, true);
+                // DIAGNOSTIK render: dump status view/surface 1,5 dtk pasca-koneksi.
+                handler.postDelayed(() -> {
+                    android.view.Surface sfc = view.getHolder().getSurface();
+                    id.hawx.astro.x11.X11DebugLog.log("FLOAT",
+                            "dump render d=" + display
+                            + " view=" + view.getWidth() + "x" + view.getHeight()
+                            + " attached=" + view.isAttachedToWindow()
+                            + " visible=" + view.getVisibility()
+                            + " shown=" + view.isShown()
+                            + " surfaceValid=" + (sfc != null && sfc.isValid())
+                            + " connected=" + view.connected());
+                }, 1500);
             } else {
                 scheduleConnect();
             }
