@@ -287,6 +287,7 @@ public class XSessionManager {
         String fontDirHost = root() + "/usr/share/fonts/X11/misc";
         return "export DISPLAY=:" + d + "; "
                 + "{ echo \"== astro x11 bare setup d" + d + " ==\"; "
+                + "[ -f /usr/share/fonts/X11/misc/fonts.dir ] || { command -v mkfontdir >/dev/null 2>&1 && mkfontdir /usr/share/fonts/X11/misc && echo 'fonts.dir dibuat via mkfontdir'; }; "
                 + "if command -v xset >/dev/null 2>&1; then "
                 + "xset fp+ " + fontDirHost + "; xset fp rehash; echo 'font path didaftarkan'; fi; "
                 + "if command -v xrdb >/dev/null 2>&1; then "
@@ -299,6 +300,7 @@ public class XSessionManager {
         String fontDirHost = root() + "/usr/share/fonts/X11/misc";
         return "export DISPLAY=:0; "
                 + "{ echo \"== astro x11 session setup ==\"; "
+                + "[ -f /usr/share/fonts/X11/misc/fonts.dir ] || { command -v mkfontdir >/dev/null 2>&1 && mkfontdir /usr/share/fonts/X11/misc && echo 'fonts.dir dibuat via mkfontdir'; }; "
                 + "if command -v xset >/dev/null 2>&1; then "
                 + "xset fp+ " + fontDirHost + "; xset fp rehash; echo 'font path didaftarkan'; "
                 + "else echo 'xset tidak ada (apt install -y x11-xserver-utils)'; fi; "
