@@ -3,6 +3,7 @@ package id.hawx.astro.x11;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -84,6 +85,15 @@ public class XSessionManager {
     private String entryPidPath(String entryId) { return tmp() + "/astro-launch-" + entryId + ".pid"; }
     private String entryLogPath(String entryId) { return "/tmp/astro-launch-" + entryId + ".log"; } // sisi chroot
 
+    // ---- varian per-display (PoC multi-display 2026-10-22) ----
+    // Display 0 mempertahankan path persis seperti sebelumnya; display
+    // N>0 memakai sufiks -dN. Nomor display dialokasikan pemanggil
+    // (nomor bebas terkecil — nomor dipakai ulang setelah server mati).
+    private String sockPath(int d) { return tmp() + "/.X11-unix/X" + d; }
+    private String pidPath(int d) { return d == 0 ? pidPath() : tmp() + "/astro-x11-server-d" + d + ".pid"; }
+    private String serverLog(int d) { return d == 0 ? serverLog() : tmp() + "/x11-server-d" + d + ".log"; }
+    private static String tagFor(int d) { return d == 0 ? "" : "d" + d; }
+
     public State cachedState() { return state; }
 
     public SharedPreferences prefs() {
@@ -161,9 +171,11 @@ public class XSessionManager {
      * File PID berisi "PID STARTTIME" (starttime = field 22 /proc/stat,
      * anti daur ulang PID).
      */
-    private String probeScript() {
-        String sock = sockPath();
-        return "SOCK=" + sock + "; PIDF=" + pidPath() + "; "
+    private String probeScript() { return probeScript(0); }
+
+    private String probeScript(int d) {
+        String sock = sockPath(d);
+        return "SOCK=" + sock + "; PIDF=" + pidPath(d) + "; "
                 + "INO=$(awk -v s=\"$SOCK\" -v a=\"@$SOCK\" '$8==s || $8==a {print $7; exit}' /proc/net/unix 2>/dev/null); "
                 + "if [ -n \"$INO\" ]; then OWNER=''; "
                 // JALUR CEPAT (fix lemot 2026-10-22): scan /proc/*/fd untuk
@@ -202,9 +214,11 @@ public class XSessionManager {
         String detail = "";
     }
 
-    private Probe probeSync() {
+    private Probe probeSync() { return probeSync(0); }
+
+    private Probe probeSync(int disp) {
         Probe p = new Probe();
-        String out = run(probeScript());
+        String out = run(probeScript(disp));
         StringBuilder d = new StringBuilder();
         for (String line : out.split("\n")) {
             line = line.trim();
@@ -221,10 +235,10 @@ public class XSessionManager {
             }
         }
         p.detail = d.toString().trim();
-        state = p.state;
+        if (disp == 0) state = p.state;
         // Log debug: catat hanya saat ringkasan probe BERUBAH (probe dipanggil
         // tiap 200ms saat poll socket — mencatat semuanya membanjiri log).
-        String summary = p.state + "/sock=" + p.sock + "/zombie=" + p.zombie + " " + p.detail;
+        String summary = "d" + disp + " " + p.state + "/sock=" + p.sock + "/zombie=" + p.zombie + " " + p.detail;
         if (!summary.equals(lastProbeSummary)) {
             lastProbeSummary = summary;
             X11DebugLog.log("PROBE", summary);
@@ -244,7 +258,9 @@ public class XSessionManager {
 
     // ------------------------------------------------------------ start
 
-    private String startScript() {
+    private String startScript() { return startScript(0); }
+
+    private String startScript(int d) {
         // Identitas spawn = $! (setsid mengeksekusi app_process di tempat
         // pada shell non-interaktif) + starttime-nya, ditulis ke file PID
         // SEGERA — tanpa cek nama apa pun (nama proses di jalur ini terbukti
@@ -253,16 +269,29 @@ public class XSessionManager {
         // Socket TIDAK dihapus di sini (bisa milik server yatim yang hidup);
         // jalur zombie di ensure yang membersihkan sebelum spawn.
         return "mkdir -p " + tmp() + "; "
-                + "rm -f " + pidPath() + "; "
+                + "rm -f " + pidPath(d) + "; "
                 + "TMPDIR=" + tmp() + " "
                 + "XKB_CONFIG_ROOT=" + root() + "/usr/share/X11/xkb "
                 + "CLASSPATH=$(pm path id.hawx.astro | cut -d: -f2) "
-                + "setsid /system/bin/app_process / --nice-name=astro-x11 "
-                + "com.termux.x11.CmdEntryPoint :0 >" + serverLog() + " 2>&1 </dev/null & "
+                + "setsid /system/bin/app_process / --nice-name=astro-x11" + (d > 0 ? "-d" + d : "") + " "
+                + "com.termux.x11.CmdEntryPoint :" + d + (d > 0 ? " -tag " + tagFor(d) : "") + " >" + serverLog(d) + " 2>&1 </dev/null & "
                 + "SVPID=$!; "
                 + "ST=$(awk '{print $22}' /proc/$SVPID/stat 2>/dev/null); "
-                + "if [ -n \"$ST\" ]; then echo \"$SVPID $ST\" > " + pidPath() + "; echo PIDFILE_OK; "
+                + "if [ -n \"$ST\" ]; then echo \"$SVPID $ST\" > " + pidPath(d) + "; echo PIDFILE_OK; "
                 + "else echo PIDFILE_GAGAL; fi";
+    }
+
+    /** Setup bare untuk display >0 (PoC): font + DPI saja, TANPA window
+     *  manager — satu display = satu app yang memenuhi display-nya. */
+    private String sessionSetupBareCommand(int d) {
+        String fontDirHost = root() + "/usr/share/fonts/X11/misc";
+        return "export DISPLAY=:" + d + "; "
+                + "{ echo \"== astro x11 bare setup d" + d + " ==\"; "
+                + "if command -v xset >/dev/null 2>&1; then "
+                + "xset fp+ " + fontDirHost + "; xset fp rehash; echo 'font path didaftarkan'; fi; "
+                + "if command -v xrdb >/dev/null 2>&1; then "
+                + "printf 'Xft.dpi: " + getDpi() + "\\n' | xrdb -merge; echo 'Xft.dpi diterapkan'; fi; "
+                + "} >/tmp/astro-x11-session-d" + d + ".log 2>&1";
     }
 
     /** Setup satu-kali per sesi, dijalankan DI DALAM chroot setelah socket siap. */
@@ -285,8 +314,10 @@ public class XSessionManager {
      * Pastikan server hidup. Mengembalikan true bila RUNNING + socket siap.
      * Menangani server zombie (proses hidup, socket hilang) dengan restart.
      */
-    private boolean ensureRunningSync(StringBuilder report) {
-        Probe p = probeSync();
+    private boolean ensureRunningSync(StringBuilder report) { return ensureRunningSync(0, report); }
+
+    private boolean ensureRunningSync(int d, StringBuilder report) {
+        Probe p = probeSync(d);
         if (p.state == State.RUNNING && p.sock && !p.zombie) {
             report.append("server sudah jalan");
             return true;
@@ -294,72 +325,78 @@ public class XSessionManager {
         if (p.zombie) {
             report.append("server zombie/banci (listener/socket tak sehat) — dibunuh, start ulang. ");
             X11DebugLog.log("ZOMBIE", "probe=" + p.detail + " sock=" + p.sock + " — bunuh + start ulang");
-            killServerSync();
+            killServerSync(d);
             // tunggu listener lama benar-benar lepas dari /proc/net/unix
             long dl = System.currentTimeMillis() + 3_000L;
             while (System.currentTimeMillis() < dl) {
-                Probe q0 = probeSync();
+                Probe q0 = probeSync(d);
                 if (q0.state == State.STOPPED && !q0.zombie) break;
                 try { Thread.sleep(200); } catch (InterruptedException ignored) {}
             }
         }
-        state = State.STARTING;
-        String out = run(startScript());
+        if (d == 0) state = State.STARTING;
+        String out = run(startScript(d));
         X11DebugLog.log("SPAWN", "hasil startScript: " + out.trim().replace("\n", " | "));
         if (!out.contains("PIDFILE_OK")) {
-            report.append("spawn gagal menulis file PID. Log: ").append(tailServerLog());
-            state = State.STOPPED;
+            report.append("spawn gagal menulis file PID. Log: ").append(tailServerLog(d));
+            if (d == 0) state = State.STOPPED;
             return false;
         }
         // poll socket maks 10 detik, interval 200ms
         long deadline = System.currentTimeMillis() + 10_000L;
         while (System.currentTimeMillis() < deadline) {
-            Probe q = probeSync();
+            Probe q = probeSync(d);
             if (q.state == State.RUNNING && q.sock && !q.zombie) {
-                // setup sesi di chroot (font, dpi, openbox) bila chroot ter-mount
+                // setup sesi di chroot bila ter-mount (d0: font/dpi/openbox;
+                // d>0: bare font/dpi saja — PoC tanpa WM)
                 try {
                     if (core.isMounted()) {
-                        core.threadChrootCommand(sessionSetupCommand());
+                        core.threadChrootCommand(d == 0 ? sessionSetupCommand() : sessionSetupBareCommand(d));
                         Thread.sleep(700);
-                        report.append("server jalan, sesi disiapkan (font/DPI/openbox)");
+                        report.append(d == 0 ? "server jalan, sesi disiapkan (font/DPI/openbox)"
+                                : "server :" + d + " jalan, setup bare (font/DPI, tanpa WM)");
                     } else {
-                        report.append("server jalan (chroot belum ter-mount — font/openbox dilewati)");
+                        report.append("server jalan (chroot belum ter-mount — setup dilewati)");
                     }
                 } catch (Exception e) {
                     report.append("server jalan (setup sesi: ").append(e).append(')');
                 }
                 touchActivity();
-                state = State.RUNNING;
+                if (d == 0) state = State.RUNNING;
                 X11DebugLog.log("SESI", "server JALAN + socket siap — " + report);
                 return true;
             }
             try { Thread.sleep(200); } catch (InterruptedException ignored) {}
         }
-        report.append("timeout 10 detik menunggu socket. Log: ").append(tailServerLog());
-        X11DebugLog.log("SPAWN", "TIMEOUT 10s menunggu socket. Log server: " + tailServerLog());
-        state = State.STOPPED;
+        report.append("timeout 10 detik menunggu socket. Log: ").append(tailServerLog(d));
+        X11DebugLog.log("SPAWN", "TIMEOUT 10s menunggu socket d" + d + ". Log server: " + tailServerLog(d));
+        if (d == 0) state = State.STOPPED;
         return false;
     }
 
-    private String tailServerLog() {
-        String out = run("tail -6 " + serverLog() + " 2>/dev/null");
+    private String tailServerLog() { return tailServerLog(0); }
+
+    private String tailServerLog(int d) {
+        String out = run("tail -6 " + serverLog(d) + " 2>/dev/null");
         out = out.trim();
         return out.isEmpty() ? "(log kosong)" : out.replace("\n", " | ");
     }
 
-    private void killServerSync() {
+    private void killServerSync() { killServerSync(0); }
+
+    private void killServerSync(int d) {
         // Penjaga STARTTIME sebelum membunuh: bunuh hanya bila proses di
         // PID file PID masih proses yang sama dengan yang dicatat (starttime
         // /proc/stat field 22 identik) — anti PID daur ulang, tanpa nama.
-        run("set -- $(cat " + pidPath() + " 2>/dev/null); P=$1; S=$2; "
+        run("set -- $(cat " + pidPath(d) + " 2>/dev/null); P=$1; S=$2; "
                 + "if [ -n \"$P\" ] && [ -n \"$S\" ] && [ -d /proc/$P ] && "
                 + "[ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
                 + "kill -TERM $P 2>/dev/null; sleep 1; "
                 + "if [ -d /proc/$P ] && [ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
                 + "kill -KILL $P 2>/dev/null; fi; fi; "
-                + "rm -f " + sockPath() + " " + pidPath() + " " + tmp() + "/.X0-lock");
-        X11DebugLog.log("KILL", "server dimatikan (penjaga starttime), socket + file PID dibersihkan");
-        state = State.STOPPED;
+                + "rm -f " + sockPath(d) + " " + pidPath(d) + " " + tmp() + "/.X" + d + "-lock");
+        X11DebugLog.log("KILL", "server d" + d + " dimatikan (penjaga starttime), socket + file PID dibersihkan");
+        if (d == 0) state = State.STOPPED;
     }
 
     public void start(Callback cb) {
@@ -479,6 +516,87 @@ public class XSessionManager {
             String out = run(script);
             X11DebugLog.log("STOP-ENTRY", entry.id + " -> " + out.trim());
             post(cb, true, out.contains("DISTOP") ? entry.name + " dihentikan" : entry.name + " sudah tidak jalan");
+        });
+    }
+
+    // ------------------------------------------------------------ PoC multi-display
+
+    /** Start server display :d (d>0: bare, tanpa WM). Bukti PoC 2026-10-22:
+     *  banyak server independen dalam satu perangkat. */
+    public void startDisplay(int d, Callback cb) {
+        exec.execute(() -> {
+            StringBuilder rep = new StringBuilder();
+            boolean ok = ensureRunningSync(d, rep);
+            post(cb, ok, rep.toString());
+        });
+    }
+
+    /** Matikan server display :d saja (penjaga starttime); display lain utuh. */
+    public void stopDisplay(int d, Callback cb) {
+        exec.execute(() -> {
+            killServerSync(d);
+            post(cb, true, "Display :" + d + " dimatikan");
+        });
+    }
+
+    /** Probe satu display (state + RSS server) — untuk perbandingan RAM antar server. */
+    public void probeDisplay(int d, ProbeCallback cb) {
+        exec.execute(() -> {
+            Probe p = probeSync(d);
+            String detail = p.detail + (p.sock ? " socket:ada" : " socket:tidak-ada");
+            if (cb != null) main.post(() -> cb.onProbe(p.state, detail.trim()));
+        });
+    }
+
+    /** Intent penampil untuk display :d — d>0 lewat jendela bertag
+     *  (MainActivityTagged, data URI termux-x11-window://d<d>). */
+    public Intent viewerIntentForDisplay(int d) {
+        if (d == 0) return viewerIntent();
+        Intent i = new Intent();
+        i.setClassName(appCtx.getPackageName(), "com.termux.x11.MainActivity");
+        i.setData(Uri.parse("termux-x11-window://" + tagFor(d)));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return i;
+    }
+
+    public void openViewerForDisplay(int d) {
+        touchActivity();
+        appCtx.startActivity(viewerIntentForDisplay(d));
+    }
+
+    /** Launch app GUI ke display :d (varian launch() dengan DISPLAY bebas). */
+    public void launchOnDisplay(LauncherEntry entry, int d, Callback cb) {
+        exec.execute(() -> {
+            if (!core.isMounted()) {
+                post(cb, false, "Chroot belum jalan — start dulu dari Dashboard Astro");
+                return;
+            }
+            X11DebugLog.log("LAUNCH", "GUI d" + d + " " + entry.id + " :: " + entry.command);
+            if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
+                main.post(() -> openViewerForDisplay(d));
+                post(cb, true, entry.name + " sudah jalan — display :" + d + " dibuka");
+                return;
+            }
+            StringBuilder rep = new StringBuilder();
+            if (!ensureRunningSync(d, rep)) {
+                post(cb, false, rep.toString());
+                return;
+            }
+            String launchCmd = "export DISPLAY=:" + d + "; export TMPDIR=/tmp; "
+                    + "cd " + shq(entry.workdirOrDefault()) + " 2>/dev/null || cd /root; "
+                    + envExports(entry.env)
+                    + "(setsid " + entry.command + " >" + entryLogPath(entry.id) + " 2>&1 & "
+                    + "echo $! > /tmp/astro-launch-" + entry.id + ".pid)";
+            try {
+                core.threadChrootCommand(launchCmd);
+                Thread.sleep(500);
+            } catch (Exception e) {
+                post(cb, false, "Gagal meluncurkan: " + e);
+                return;
+            }
+            touchActivity();
+            main.post(() -> openViewerForDisplay(d));
+            post(cb, true, entry.name + " diluncurkan di :" + d);
         });
     }
 

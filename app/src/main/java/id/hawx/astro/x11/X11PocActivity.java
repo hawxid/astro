@@ -88,6 +88,25 @@ public class X11PocActivity extends AppCompatActivity {
         sessRow.addView(actionButton("Buka Layar X", v -> mgr.openViewer()));
         root.addView(sessRow);
 
+        // ---- PoC multi-display (2026-10-22): display :1 = server terpisah ----
+        TextView pocTitle = new TextView(this);
+        pocTitle.setText("PoC Multi-Display — display :1 (server terpisah, tanpa WM)");
+        pocTitle.setTextSize(13);
+        pocTitle.setTypeface(null, Typeface.BOLD);
+        pocTitle.setPadding(0, dp(14), 0, dp(2));
+        root.addView(pocTitle);
+        TextView pocHint = new TextView(this);
+        pocHint.setText("Spawn :1 + XTerm membuktikan dua server X independen jalan bareng. "
+                + "Hasil Probe menampilkan RSS tiap server — dasar plafon jumlah jendela.");
+        pocHint.setTextSize(11);
+        root.addView(pocHint);
+        LinearLayout pocRow = new LinearLayout(this);
+        pocRow.setOrientation(LinearLayout.HORIZONTAL);
+        pocRow.addView(actionButton("Spawn :1 + XTerm", v -> doPocSpawn()));
+        pocRow.addView(actionButton("Probe :0 + :1", v -> doPocProbe()));
+        pocRow.addView(actionButton("Matikan :1", v -> doPocStop()));
+        root.addView(pocRow);
+
         // ---- chip watchdog idle (bundle: cek malas saat onResume, tanpa polling) ----
         idleChip = new LinearLayout(this);
         idleChip.setOrientation(LinearLayout.HORIZONTAL);
@@ -224,6 +243,44 @@ public class X11PocActivity extends AppCompatActivity {
 
     private void toast(String msg) {
         runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
+    }
+
+    private LauncherEntry pocEntry() {
+        LauncherEntry e = new LauncherEntry();
+        e.id = "poc-d1";
+        e.name = "XTerm (PoC :1)";
+        e.command = "xterm";
+        e.type = "gui";
+        return e;
+    }
+
+    private void doPocSpawn() {
+        if (busy) return;
+        busy = true;
+        sessionStatus.setText("⏳ PoC: spawn display :1 + xterm…");
+        mgr.launchOnDisplay(pocEntry(), 1, (ok, msg) -> {
+            busy = false;
+            toast(msg);
+            refreshAll();
+        });
+    }
+
+    private void doPocProbe() {
+        mgr.probe((st0, det0) -> mgr.probeDisplay(1, (st1, det1) ->
+                sessionStatus.setText("Probe :0 → " + st0 + " (" + det0 + ")\n"
+                        + "Probe :1 → " + st1 + " (" + det1 + ")")));
+    }
+
+    private void doPocStop() {
+        if (busy) return;
+        busy = true;
+        sessionStatus.setText("⏳ PoC: mematikan display :1…");
+        mgr.stopEntry(pocEntry(), (ok, msg) ->
+                mgr.stopDisplay(1, (ok2, msg2) -> {
+                    busy = false;
+                    toast(msg2);
+                    refreshAll();
+                }));
     }
 
     private void doStart() {
