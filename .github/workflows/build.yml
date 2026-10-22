@@ -8,7 +8,7 @@ on:
       - '.github/workflows/build.yml'
       - 'app/**'
       - 'terminal/**'
-
+      - 'lorie/**'
 jobs:
   build:
     runs-on: ubuntu-latest
