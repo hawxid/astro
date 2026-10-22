@@ -16,27 +16,28 @@ public enum EngineType {
 
     public static final String PREF_FORCED = "engine_forced_unsupported";
 
+    // AMPUTASI VM/QEMU — FASE 1 (perintah Hawx 2026-10-22: "sisakan
+    // Astro sebagai front-end chroot-nya, VM itu bloated"). Mode
+    // dikunci CHROOT permanen di satu-satunya sumber kebenaran ini:
+    // semua cabang isRootless()/guest di seluruh app (yang memang
+    // bermuara ke kelas ini) mati tanpa disentuh satu per satu, dan
+    // biner libqemu/libuml dkk sudah dihapus dari repo. Enum + pref
+    // dipertahankan supaya data lama tidak korup; persist() memaksa
+    // CHROOT. Fase 2 (nanti): sapu kode engine yang mati.
     public static EngineType active(Core core) {
-        if (core == null) return CHROOT;
-        EngineType override = core.engineOverride();
-        if (override != null) return override;
-        String v = core.getString(PREF_KEY);
-        if (v != null && v.equals(ROOTLESS.name())) return ROOTLESS;
-        if (v != null && v.equals(UML.name())) return UML;
         return CHROOT;
     }
 
     public static boolean isRootless(Core core) {
-        EngineType t = active(core);
-        return t == ROOTLESS || t == UML;
+        return false;
     }
 
     public static boolean isVm(Core core) {
-        return active(core) == ROOTLESS;
+        return false;
     }
 
     public static boolean isUml(Core core) {
-        return active(core) == UML;
+        return false;
     }
 
     public static boolean isChosen(Core core) {
@@ -46,14 +47,11 @@ public enum EngineType {
     }
 
     public static EngineType configured(Core core) {
-        if (core == null) return CHROOT;
-        String v = core.getString(PREF_KEY);
-        if (v != null && v.equals(ROOTLESS.name())) return ROOTLESS;
-        if (v != null && v.equals(UML.name())) return UML;
         return CHROOT;
     }
 
     public static void persist(Core core, EngineType type) {
+        type = CHROOT; // amputasi fase 1: pilihan VM tidak lagi berlaku
         core.putString(PREF_KEY, type.name());
         try {
             java.io.File flag = RootlessPaths.activeFlag(core.context);

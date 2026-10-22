@@ -71,13 +71,6 @@ android {
         jniLibs.useLegacyPackaging = false // X11 PoC: libXlorie.so dimuat CmdEntryPoint langsung dari APK (butuh .so tersimpan tak-terkompres)
 
         jniLibs.keepDebugSymbols += [
-                "**/libqemu.so",
-                "**/libslirp.so",
-                "**/libuml.so",
-                "**/libstub.so",
-                "**/libumnet.so",
-                "**/libpasst.so",
-                "**/libumusb.so",
                 "**/libbash.so",
         ]
     }
