@@ -58,6 +58,13 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private int[] savedRect; // x, y, w, h sebelum maximize
     private PopupWindow ekPopup;
     private boolean ekRequested;
+    // Strip model B final: jendela OVERLAY WindowManager sendiri (koordinat
+    // layar absolut, tanpa jangkar ke jendela floating) — butuh izin
+    // SYSTEM_ALERT_WINDOW; tanpa izin, jatuh ke popup lama.
+    private android.view.WindowManager ekWm;
+    private android.view.WindowManager.LayoutParams ekLp;
+    private android.view.View ekOverlayView;
+    private static int learnedKbTopY = -1;
     private int imeBottomPx;
     private boolean imeWasVisible;
 
@@ -118,7 +125,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
         bar.addView(chromeButton("⌨", v -> {
-            if (ekPopup != null && ekPopup.isShowing()) hideKeyboardAndStrip();
+            if (stripShowing()) hideKeyboardAndStrip();
             else host.showKeyboardAndStrip();
         }));
         bar.addView(chromeButton("—", v -> finish()));
@@ -307,7 +314,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         X11DebugLog.log("KB", "stripReq visible=" + visible + " imeBottom=" + imeBottomPx);
         ekRequested = visible;
         if (visible) {
-            tryShowEkPopup();
+            tryShowStrip();
             // Polling pendek: IME naiknya asinkron; cek insets view 5x2 detik.
             for (int i = 1; i <= 5; i++) {
                 final int n = i;
@@ -315,17 +322,17 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                         .postDelayed(() -> {
                             if (!ekRequested) return;
                             X11DebugLog.log("KB", "poll#" + n);
-                            tryShowEkPopup();
-                            if (ekPopup != null && ekPopup.isShowing()) return;
+                            tryShowStrip();
+                            if (stripShowing()) return;
                         }, 400L * i);
             }
         }
-        else dismissEkPopup();
+        else dismissStrip();
     }
 
     private void hideKeyboardAndStrip() {
         ekRequested = false;
-        dismissEkPopup();
+        dismissStrip();
         InputMethodManager imm = (InputMethodManager)
                 getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
         if (imm != null && host != null)
@@ -334,6 +341,109 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
     // ---- lapisan EK terpisah: PopupWindow selebar layar di atas keyboard ----
     // (aturan Hawx: lapisan softkey dipisah dari lapisan render X)
+
+    private boolean stripShowing() {
+        return ekOverlayView != null
+                || (ekPopup != null && ekPopup.isShowing());
+    }
+
+    /** Pintu strip: overlay bila izin ada, popup lama bila belum. */
+    private void tryShowStrip() {
+        if (android.provider.Settings.canDrawOverlays(this)) tryShowEkOverlay();
+        else tryShowEkPopup();
+    }
+
+    /** Tepi atas keyboard di koordinat LAYAR. Dari jendela sendiri:
+     *  dasar jendela - intrusi IME (persis saat jendela menyusut/tertindih);
+     *  kasus celah (jendela parkir di atas keyboard): cache yang dipelajari
+     *  dari bacaan intrusi > 0. -1 bila IME tak terlihat. */
+    private int kbTopScreenY() {
+        if (host == null) return -1;
+        android.view.View decor = getWindow().getDecorView();
+        if (android.os.Build.VERSION.SDK_INT < 30) return -1;
+        android.view.WindowInsets in = decor.getRootWindowInsets();
+        if (in == null || !in.isVisible(android.view.WindowInsets.Type.ime()))
+            return -1;
+        int imeB = in.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+        int[] loc = new int[2];
+        decor.getLocationOnScreen(loc);
+        int winBottom = loc[1] + decor.getHeight();
+        int kbTop = winBottom - imeB;
+        if (imeB > 0 && kbTop > 0) learnedKbTopY = kbTop;
+        if (imeB == 0 && learnedKbTopY > 0 && winBottom < learnedKbTopY - 8)
+            kbTop = learnedKbTopY;
+        return kbTop;
+    }
+
+    private void tryShowEkOverlay() {
+        if (!ekRequested || host == null) return;
+        if (isFinishing() || isDestroyed()) return;
+        if (ekOverlayView != null) return;
+        android.view.View ekView = host.extraKeysView();
+        if (ekView == null) return;
+        int kbTop = kbTopScreenY();
+        if (kbTop < 0) {
+            new android.os.Handler(android.os.Looper.getMainLooper())
+                    .postDelayed(this::tryShowStrip, 150);
+            X11DebugLog.log("KB", "overlay TUNDA (kbTop belum kebaca)");
+            return;
+        }
+        if (ekView.getParent() != null)
+            ((ViewGroup) ekView.getParent()).removeView(ekView);
+        ekView.setBackgroundColor(0xF7232C4E);
+        int hPx = Math.round(37.5f * getResources().getDisplayMetrics().density);
+        stripHpx = hPx;
+        ekLp = new android.view.WindowManager.LayoutParams(
+                android.view.WindowManager.LayoutParams.MATCH_PARENT, hPx,
+                android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                android.graphics.PixelFormat.TRANSLUCENT);
+        ekLp.gravity = Gravity.TOP | Gravity.START;
+        ekLp.x = 0;
+        ekLp.y = kbTop - hPx;
+        ekWm = (android.view.WindowManager) getSystemService(
+                android.content.Context.WINDOW_SERVICE);
+        try {
+            ekWm.addView(ekView, ekLp);
+            ekOverlayView = ekView;
+            X11DebugLog.log("KB", "overlay SHOW y=" + ekLp.y + " kbTop=" + kbTop);
+            startEkOverlayWatchdog();
+        } catch (Exception e) {
+            X11DebugLog.log("KB", "overlay GAGAL (" + e.getMessage() + ") -> popup");
+            ekOverlayView = null;
+            tryShowEkPopup();
+        }
+    }
+
+    /** Watchdog overlay: reposisi HANYA dari kbTop (jendela floating bebas
+     *  gerak — overlay tak peduli), tutup saat IME hilang. */
+    private void startEkOverlayWatchdog() {
+        new android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed(new Runnable() {
+                    int hiddenStreak = 0;
+                    @Override public void run() {
+                        if (ekOverlayView == null) return;
+                        int kbTop = kbTopScreenY();
+                        if (kbTop >= 0) {
+                            hiddenStreak = 0;
+                            int y = kbTop - stripHpx;
+                            if (y != ekLp.y) {
+                                ekLp.y = y;
+                                try { ekWm.updateViewLayout(ekOverlayView, ekLp); }
+                                catch (Exception ignored) {}
+                                X11DebugLog.log("KB", "overlay reposisi y=" + y);
+                            }
+                        } else if (++hiddenStreak >= 3) {
+                            X11DebugLog.log("KB", "watchdog overlay: IME hilang -> tutup");
+                            hideKeyboardAndStrip();
+                            return;
+                        }
+                        new android.os.Handler(android.os.Looper.getMainLooper())
+                                .postDelayed(this, 400);
+                    }
+                }, 400);
+    }
 
     private void tryShowEkPopup() {
         if (!ekRequested || host == null) return;
@@ -440,9 +550,17 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         if (ekPopup != null && ekPopup.isShowing()) ekPopup.dismiss();
     }
 
+    private void dismissStrip() {
+        if (ekOverlayView != null && ekWm != null) {
+            try { ekWm.removeView(ekOverlayView); } catch (Exception ignored) {}
+            ekOverlayView = null;
+        }
+        dismissEkPopup();
+    }
+
     @Override protected void onDestroy() {
         OPEN.remove(display, this);
-        dismissEkPopup();
+        dismissStrip();
         if (host != null) host.detach();
         super.onDestroy();
     }
