@@ -57,6 +57,8 @@ public class XWindowHost implements XHost {
     private final int display;
     private final String tag;
     private final LorieView view;
+    private final com.termux.x11.utils.TermuxX11ExtraKeys extraKeys;
+    private final com.termux.x11.extrakeys.ExtraKeysView extraKeysView;
     private final Prefs prefs;
     private final TouchInputHandler inputHandler;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -86,7 +88,18 @@ public class XWindowHost implements XHost {
         view.setCallback((screenWidth, screenHeight, inputTransform) ->
                 inputHandler.handleInputTransformChanged(screenWidth, screenHeight, inputTransform));
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "handler jadi display=" + display);
-        view.setOnKeyListener((v, keyCode, e) -> inputHandler.sendKeyEvent(e));
+        android.view.View.OnKeyListener keyListener =
+                (v, keyCode, e) -> inputHandler.sendKeyEvent(e);
+        view.setOnKeyListener(keyListener);
+        // EK asli Lorie (bukan strip rakitan): modifier ditahan beneran di
+        // server, jadi combo CTRL+huruf dari keyboard soft berfungsi.
+        com.termux.x11.extrakeys.ExtraKeysView ekView =
+                (com.termux.x11.extrakeys.ExtraKeysView) android.view.LayoutInflater.from(activity)
+                        .inflate(com.termux.x11.R.layout.lorie_view_terminal_toolbar_extra_keys,
+                                null, false);
+        this.extraKeysView = ekView;
+        this.extraKeys = new com.termux.x11.utils.TermuxX11ExtraKeys(keyListener, this, ekView);
+        ekView.reload();
         // Urutan upstream: surface lahir DULU, koneksi X diambil SESUDAHNYA.
         // Host tertanam yang connect sebelum surface ada bikin renderer
         // native nggak pernah nampilin frame (layar hitam, koneksi sehat).
@@ -303,6 +316,10 @@ public class XWindowHost implements XHost {
         imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT);
     }
 
+    @Override public void toggleMouseAuxButtons() { /* tak ada di host tertanam */ }
+
+    @Override public void toggleStylusAuxButtons() { /* tak ada di host tertanam */ }
+
     @Override
     public void toggleExtraKeys(boolean visible, boolean saveState) {
         stripVisible = visible;
@@ -324,12 +341,16 @@ public class XWindowHost implements XHost {
 
     @Override
     public TermuxX11ExtraKeys extraKeys() {
-        return null; // strip softkey Astro menggantikan bar bawaan
+        return extraKeys;
+    }
+
+    public com.termux.x11.extrakeys.ExtraKeysView extraKeysView() {
+        return extraKeysView;
     }
 
     @Override
     public boolean useTermuxEKBarBehaviour() {
-        return false;
+        return true;
     }
 
     @Override

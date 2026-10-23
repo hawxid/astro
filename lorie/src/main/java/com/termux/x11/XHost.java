@@ -43,6 +43,10 @@ public interface XHost {
     /** Tampilkan/sembunyikan keyboard lunak untuk view X. */
     void toggleKeyboardVisibility();
 
+    void toggleMouseAuxButtons();
+
+    void toggleStylusAuxButtons();
+
     /** Tampilkan/sembunyikan bar tombol ekstra bawaan (versi tertanam: strip). */
     void toggleExtraKeys(boolean visible, boolean saveState);
 
