@@ -258,8 +258,9 @@ public class XWindowHost implements XHost {
 
     /** Tampilkan keyboard lunak + minta strip softkey naik (satu gerakan). */
     public void showKeyboardAndStrip() {
-        id.hawx.astro.x11.X11DebugLog.log("KB", "showKeyboardAndStrip d=" + display);
-        toggleKeyboardVisibility();
+        id.hawx.astro.x11.X11DebugLog.log("KB", "showKeyboardAndStrip d=" + display
+                + " focused=" + view.isFocused() + " winFocus=" + view.hasWindowFocus());
+        view.setKeyboardVisible(true);
         stripVisible = true;
         if (listener != null) listener.onStripVisibilityRequested(this, true);
     }
@@ -312,10 +313,9 @@ public class XWindowHost implements XHost {
 
     @Override
     public void toggleKeyboardVisibility() {
-        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm == null) return;
-        view.requestFocus();
-        imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT);
+        // Samakan upstream: LorieView yang mengatur IME (flag eksplisit),
+        // bukan showSoftInput SHOW_IMPLICIT dari host (bisa ditolak IME).
+        view.toggleKeyboardVisible();
     }
 
     @Override public void toggleMouseAuxButtons() { /* tak ada di host tertanam */ }
