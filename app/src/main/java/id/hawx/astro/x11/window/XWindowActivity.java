@@ -30,6 +30,18 @@ public class XWindowActivity extends Activity {
         LorieView view = host.view();
         root.addView(view, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // Wiring sentuh meniru MainActivity upstream: listener di PARENT,
+        // diteruskan ke TouchInputHandler host (tanpa ini kursor beku).
+        root.setOnTouchListener((v, e) -> {
+            if (e.getAction() == android.view.MotionEvent.ACTION_DOWN
+                    && android.os.Build.VERSION.SDK_INT >= 29)
+                v.requestUnbufferedDispatch(e);
+            return host.handleTouch(v, e);
+        });
+        root.setOnHoverListener((v, e) -> host.handleTouch(v, e));
+        root.setOnGenericMotionListener((v, e) -> host.handleTouch(v, e));
+        if (android.os.Build.VERSION.SDK_INT >= 26)
+            view.setOnCapturedPointerListener((v, e) -> host.handleTouch(view, e));
         host.attach();
     }
 
