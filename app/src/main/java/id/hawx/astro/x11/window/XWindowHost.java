@@ -81,6 +81,7 @@ public class XWindowHost implements XHost {
                     .notifyFloatingResized(display, fitW, fitH);
     }
     private int handoffTries;
+    private boolean recoveryTried;
 
     public XWindowHost(Activity activity, int display) {
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "host dibuat display=" + display);
@@ -210,6 +211,16 @@ public class XWindowHost implements XHost {
         if (++handoffTries > 24) {
             id.hawx.astro.x11.X11DebugLog.log("HANDOFF", "poll menyerah tag=" + tag);
             return;
+        }
+        // Binder tak datang-datang (±6 dtk), tak ada instance fullscreen:
+        // server macet ala log 21 — minta manager restart server display
+        // ini SEKALI, lalu jendela tunggu dibuka lagi untuk knock segar.
+        if (handoffTries == 12 && !recoveryTried && display > 0) {
+            recoveryTried = true;
+            handoffTries = 0;
+            id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
+                    "poll: binder macet tag=" + tag + " -> minta pemulihan server");
+            id.hawx.astro.x11.XSessionManager.get(activity).recoverStuckDisplay(display);
         }
         com.termux.x11.MainActivity inst = com.termux.x11.MainActivity.getInstance(tag);
         if (inst != null) {

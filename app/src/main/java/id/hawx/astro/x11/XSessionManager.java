@@ -578,6 +578,9 @@ public class XSessionManager {
     /** Display -> entri terakhir yang diluncurkan di situ (untuk auto-fit). */
     private final java.util.Map<Integer, String> lastEntryByDisplay =
             new java.util.concurrent.ConcurrentHashMap<>();
+    /** Display -> OBJEK entri terakhir (untuk pemulihan server macet). */
+    private final java.util.Map<Integer, LauncherEntry> lastEntryObjByDisplay =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Peta entri -> display floating terakhir (memori saja; untuk fokus ulang). */
     private final java.util.Map<String, Integer> floatingDisplays =
@@ -632,7 +635,10 @@ public class XSessionManager {
                 return;
             }
             X11DebugLog.log("LAUNCH", "GUI d" + d + " " + entry.id + " :: " + entry.command);
-            if (d > 0) lastEntryByDisplay.put(d, entry.id);
+            if (d > 0) {
+                lastEntryByDisplay.put(d, entry.id);
+                lastEntryObjByDisplay.put(d, entry);
+            }
             if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
                 if (openViewer) main.post(() -> openViewerForDisplay(d));
                 post(cb, true, entry.name + " sudah jalan — display :" + d + " dibuka");
@@ -690,6 +696,34 @@ public class XSessionManager {
      * Android -> RANDR): fit ulang konten display ini SEKALI ke ukuran
      * surface terakhir. Pengganti watcher polling — nol beban diam.
      */
+    /**
+     * Pemulihan jendela gelap (temuan log 21): server display jalan tapi
+     * binder tak pernah ditawarkan lagi (server ngira viewer lama masih
+     * nyambung — loop knock-ulangnya berhenti). Host yang nunggu ±6 dtk
+     * tanpa binder memanggil ini: server di-restart + entri diluncurkan
+     * ulang, knock segar jatuh ke pending, host yang masih nunggu connect.
+     * Sesi X display itu reset — harga yang wajar vs jendela hitam permanen.
+     */
+    public void recoverStuckDisplay(int d) {
+        LauncherEntry entry = lastEntryObjByDisplay.get(d);
+        if (entry == null) {
+            X11DebugLog.log("HANDOFF", "pemulihan d=" + d + " batal: entri tak dikenal");
+            return;
+        }
+        X11DebugLog.log("HANDOFF", "pemulihan d=" + d + ": restart server + relaunch "
+                + entry.id);
+        exec.execute(() -> {
+            try {
+                killServerSync(d);
+            } catch (Exception e) {
+                X11DebugLog.log("HANDOFF", "pemulihan d=" + d + " kill gagal: " + e);
+            }
+            launchOnDisplay(entry, d, (ok, msg) ->
+                    X11DebugLog.log("HANDOFF", "pemulihan d=" + d + " relaunch: " + msg),
+                    false);
+        });
+    }
+
     public void notifyFloatingResized(int d, int w, int h) {
         String entryId = lastEntryByDisplay.get(d);
         if (entryId == null || w <= 0 || h <= 0) return;
