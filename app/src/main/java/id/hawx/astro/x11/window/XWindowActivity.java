@@ -345,8 +345,11 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         // Tinggi TETAP 37.5dp seperti pager toolbar upstream: layout EK
         // match_parent — di popup WRAP_CONTENT dia kolaps ke 0 (gepeng).
         int hPx = Math.round(37.5f * getResources().getDisplayMetrics().density);
-        ekPopup = new PopupWindow(ekView,
-                ViewGroup.LayoutParams.MATCH_PARENT, hPx, false);
+        // Lebar NGIKUTIN jendela floating (bukan selebar layar): popup
+        // MATCH_PARENT = selebar display — strip harus se-span kartunya.
+        int wPx = getWindow().getDecorView().getWidth();
+        if (wPx <= 0) wPx = ViewGroup.LayoutParams.MATCH_PARENT;
+        ekPopup = new PopupWindow(ekView, wPx, hPx, false);
         ekPopup.setTouchable(true);
         ekPopup.setOutsideTouchable(false);
         ekPopup.setBackgroundDrawable(new ColorDrawable(0xF7232C4E));
@@ -396,6 +399,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                 .postDelayed(new Runnable() {
                     int hiddenStreak = 0;
                     int lastStripY = -1;
+                    int lastStripW = -1;
                     @Override public void run() {
                         if (ekPopup == null || !ekPopup.isShowing()) return;
                         boolean imeVis = false;
@@ -407,10 +411,12 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                         // (animasi keyboard, ganti keyboard, jendela pindah).
                         if (imeVis) {
                             int y = stripYLocal();
-                            if (y >= 0 && y != lastStripY) {
+                            int w = getWindow().getDecorView().getWidth();
+                            if (y >= 0 && (y != lastStripY || w != lastStripW)) {
                                 lastStripY = y;
-                                ekPopup.update(-1, y, -1, -1);
-                                X11DebugLog.log("KB", "popup reposisi y=" + y);
+                                lastStripW = w;
+                                ekPopup.update(0, y, w > 0 ? w : -1, -1);
+                                X11DebugLog.log("KB", "popup reposisi y=" + y + " w=" + w);
                             }
                         }
                         hiddenStreak = imeVis ? 0 : hiddenStreak + 1;
