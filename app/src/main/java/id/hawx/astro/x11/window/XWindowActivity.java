@@ -378,14 +378,16 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         super.onDestroy();
     }
 
-    public static void launch(Activity from, int display) {
+    public static void launch(android.content.Context from, int display) {
         launch(from, display, null);
     }
 
-    public static void launch(Activity from, int display, String title) {
+    public static void launch(android.content.Context from, int display, String title) {
         Intent i = new Intent(from, XWindowActivity.class);
         i.putExtra(EXTRA_DISPLAY, display);
         if (title != null) i.putExtra(EXTRA_TITLE, title);
+        if (!(from instanceof Activity))
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         from.startActivity(i);
     }
 }
