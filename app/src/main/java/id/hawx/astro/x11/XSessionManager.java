@@ -621,10 +621,11 @@ public class XSessionManager {
         exec.execute(() -> {
             java.util.List<DisplayInfo> out = new java.util.ArrayList<>();
             for (int d = 1; d <= 4; d++) {
+                final int dd = d;
                 if (probeSync(d).state != State.RUNNING) {
                     lastEntryByDisplay.remove(d);
                     lastEntryObjByDisplay.remove(d);
-                    floatingDisplays.values().removeIf(v -> v == d);
+                    floatingDisplays.values().removeIf(v -> v == dd);
                     continue;
                 }
                 LauncherEntry e = lastEntryObjByDisplay.get(d);
