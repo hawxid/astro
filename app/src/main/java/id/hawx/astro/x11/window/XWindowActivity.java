@@ -54,7 +54,10 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         host = new XWindowHost(this, display);
         host.setListener(this);
         LorieView view = host.view();
-        view.setBackgroundColor(Color.BLACK);
+        // JANGAN set background ke LorieView: SurfaceView kacanya di belakang
+        // canvas window — background opak menutup lubangnya (layar hitam
+        // sempurna walau koneksi sehat). Konstruktor LorieView sudah masang
+        // background transparan custom-nya sendiri.
 
         // ---- kerangka jendela ----
         LinearLayout root = new LinearLayout(this);

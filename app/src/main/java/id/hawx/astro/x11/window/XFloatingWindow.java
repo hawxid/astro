@@ -96,7 +96,7 @@ public class XFloatingWindow extends FrameLayout {
         addView(content, contentLp);
         content.addView(host.view(), new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        host.view().setBackgroundColor(Color.BLACK);
+        // (background view TIDAK diset: nutupin lubang SurfaceView)
 
         // Input sentuh dipasang di parent (content), meniru MainActivity
         // upstream: event diteruskan ke TouchInputHandler milik host.
