@@ -46,6 +46,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private PopupWindow ekPopup;
     private boolean ekRequested;
     private int imeBottomPx;
+    private boolean imeWasVisible;
 
     private int dp(int v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
@@ -137,8 +138,8 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             if (e.getAction() == MotionEvent.ACTION_DOWN) {
                 if (android.os.Build.VERSION.SDK_INT >= 29)
                     v.requestUnbufferedDispatch(e);
-                if (!ekRequested)
-                    host.showKeyboardAndStrip();
+                XDebug.log("KB", "tap konten d=" + display + " ekReq=" + ekRequested);
+                host.showKeyboardAndStrip();
             }
             return host.handleTouch(v, e);
         });
@@ -152,9 +153,16 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             root.setOnApplyWindowInsetsListener((v, insets) -> {
                 boolean imeVisible = insets.isVisible(android.view.WindowInsets.Type.ime());
-                imeBottomPx = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+                int newBottom = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+                if (imeVisible != imeWasVisible || newBottom != imeBottomPx)
+                    XDebug.log("KB", "insets ime=" + imeVisible + " bottom=" + newBottom
+                            + " ekReq=" + ekRequested);
+                boolean wasVisible = imeWasVisible;
+                imeWasVisible = imeVisible;
+                imeBottomPx = newBottom;
                 if (imeVisible) tryShowEkPopup();
-                else if (ekPopup != null && ekPopup.isShowing()) hideKeyboardAndStrip();
+                else if (wasVisible && ekPopup != null && ekPopup.isShowing())
+                    hideKeyboardAndStrip();
                 return insets;
             });
         }
@@ -282,6 +290,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     }
 
     @Override public void onStripVisibilityRequested(XWindowHost h, boolean visible) {
+        XDebug.log("KB", "stripReq visible=" + visible + " imeBottom=" + imeBottomPx);
         ekRequested = visible;
         if (visible) tryShowEkPopup();
         else dismissEkPopup();
@@ -306,7 +315,10 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                     ViewGroup.LayoutParams.WRAP_CONTENT, -1, imeBottomPx);
             return;
         }
-        if (imeBottomPx <= 0) return; // nunggu insets keyboard dulu
+        if (imeBottomPx <= 0) {
+            XDebug.log("KB", "popup TUNDA imeBottom=0");
+            return; // nunggu insets keyboard dulu
+        }
         android.view.View ekView = host.extraKeysView();
         if (ekView == null) return;
         if (ekView.getParent() != null)
@@ -320,6 +332,9 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         ekPopup.setAnimationStyle(0);
         ekPopup.showAtLocation(getWindow().getDecorView(),
                 Gravity.BOTTOM, 0, imeBottomPx);
+        XDebug.log("KB", "popup SHOW imeBottom=" + imeBottomPx
+                + " ekH=" + ekView.getHeight() + " ekChild="
+                + (ekView instanceof ViewGroup ? ((ViewGroup) ekView).getChildCount() : -1));
     }
 
     private void dismissEkPopup() {
