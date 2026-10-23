@@ -358,10 +358,11 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
     /** Pas MAXIMIZED, strip tak boleh nutupin layar X: area konten
      *  disusutkan setebal strip (surface ngecil -> RANDR ngikut -> konten
-     *  reflow ke atas strip). */
+     *  reflow ke atas strip). Setelan Hawx: cukup SETENGAH tebal strip —
+     *  layar turun dikit, strip naik dikit, ketemu di tengah. */
     private void updateStripInset() {
         if (contentFrame == null) return;
-        int pad = (maximized && stripShowing()) ? stripHpx : 0;
+        int pad = (maximized && stripShowing()) ? stripHpx / 2 : 0;
         if (contentFrame.getPaddingBottom() != pad)
             contentFrame.setPadding(0, 0, 0, pad);
     }
