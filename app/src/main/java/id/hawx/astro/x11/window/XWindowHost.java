@@ -258,7 +258,7 @@ public class XWindowHost implements XHost {
 
     /** Tampilkan keyboard lunak + minta strip softkey naik (satu gerakan). */
     public void showKeyboardAndStrip() {
-        id.hawx.astro.x11.XDebug.log("KB", "showKeyboardAndStrip d=" + display);
+        id.hawx.astro.x11.X11DebugLog.log("KB", "showKeyboardAndStrip d=" + display);
         toggleKeyboardVisibility();
         stripVisible = true;
         if (listener != null) listener.onStripVisibilityRequested(this, true);

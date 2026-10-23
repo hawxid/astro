@@ -138,7 +138,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             if (e.getAction() == MotionEvent.ACTION_DOWN) {
                 if (android.os.Build.VERSION.SDK_INT >= 29)
                     v.requestUnbufferedDispatch(e);
-                XDebug.log("KB", "tap konten d=" + display + " ekReq=" + ekRequested);
+                X11DebugLog.log("KB", "tap konten d=" + display + " ekReq=" + ekRequested);
                 host.showKeyboardAndStrip();
             }
             return host.handleTouch(v, e);
@@ -155,7 +155,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                 boolean imeVisible = insets.isVisible(android.view.WindowInsets.Type.ime());
                 int newBottom = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
                 if (imeVisible != imeWasVisible || newBottom != imeBottomPx)
-                    XDebug.log("KB", "insets ime=" + imeVisible + " bottom=" + newBottom
+                    X11DebugLog.log("KB", "insets ime=" + imeVisible + " bottom=" + newBottom
                             + " ekReq=" + ekRequested);
                 boolean wasVisible = imeWasVisible;
                 imeWasVisible = imeVisible;
@@ -290,7 +290,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     }
 
     @Override public void onStripVisibilityRequested(XWindowHost h, boolean visible) {
-        XDebug.log("KB", "stripReq visible=" + visible + " imeBottom=" + imeBottomPx);
+        X11DebugLog.log("KB", "stripReq visible=" + visible + " imeBottom=" + imeBottomPx);
         ekRequested = visible;
         if (visible) tryShowEkPopup();
         else dismissEkPopup();
@@ -316,7 +316,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             return;
         }
         if (imeBottomPx <= 0) {
-            XDebug.log("KB", "popup TUNDA imeBottom=0");
+            X11DebugLog.log("KB", "popup TUNDA imeBottom=0");
             return; // nunggu insets keyboard dulu
         }
         android.view.View ekView = host.extraKeysView();
@@ -332,7 +332,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         ekPopup.setAnimationStyle(0);
         ekPopup.showAtLocation(getWindow().getDecorView(),
                 Gravity.BOTTOM, 0, imeBottomPx);
-        XDebug.log("KB", "popup SHOW imeBottom=" + imeBottomPx
+        X11DebugLog.log("KB", "popup SHOW imeBottom=" + imeBottomPx
                 + " ekH=" + ekView.getHeight() + " ekChild="
                 + (ekView instanceof ViewGroup ? ((ViewGroup) ekView).getChildCount() : -1));
     }
