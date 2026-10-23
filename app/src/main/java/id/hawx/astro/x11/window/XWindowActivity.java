@@ -351,11 +351,43 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         ekPopup.setOutsideTouchable(false);
         ekPopup.setBackgroundDrawable(new ColorDrawable(0xF7232C4E));
         ekPopup.setAnimationStyle(0);
-        // Nempel di dasar JENDELA (bukan layar): jendela ke-resize IME,
-        // jadi bar parkir tepat di atas keyboard.
-        ekPopup.showAtLocation(getWindow().getDecorView(), Gravity.BOTTOM, 0, 0);
-        X11DebugLog.log("KB", "popup SHOW hPx=" + hPx);
+        // Posisi dari TEPI ATAS KEYBOARD (bukan dasar jendela — jangkar lama
+        // bikin strip kadang nangkring DI ATAS keyboard): insets IME jendela
+        // sendiri = jarak tepi keyboard dari dasar jendela; kbTop dihitung
+        // di koordinat layar lalu diubah ke koordinat frame popup.
+        stripHpx = hPx;
+        int yLocal = stripYLocal();
+        if (yLocal >= 0) {
+            ekPopup.showAtLocation(getWindow().getDecorView(),
+                    Gravity.TOP | Gravity.START, 0, yLocal);
+        } else {
+            // insets belum ngasih IME (keyboard belum naik) — jangkar lama
+            // sementara; watchdog reposisi begitu insets kebaca.
+            ekPopup.showAtLocation(getWindow().getDecorView(), Gravity.BOTTOM, 0, 0);
+        }
+        X11DebugLog.log("KB", "popup SHOW hPx=" + hPx + " yLocal=" + yLocal);
         startEkWatchdog();
+    }
+
+    private int stripHpx;
+
+    /**
+     * Y lokal (frame popup) agar strip duduk TEPAT di atas keyboard:
+     * kbTop(layar) = dasar jendela di layar - insets IME; strip di atasnya.
+     * -1 bila insets belum melaporkan IME.
+     */
+    private int stripYLocal() {
+        if (host == null || stripHpx <= 0) return -1;
+        android.view.View decor = getWindow().getDecorView();
+        android.view.WindowInsets in = decor.getRootWindowInsets();
+        if (in == null || android.os.Build.VERSION.SDK_INT < 30) return -1;
+        if (!in.isVisible(android.view.WindowInsets.Type.ime())) return -1;
+        int imeB = in.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+        int[] loc = new int[2];
+        decor.getLocationOnScreen(loc);
+        int winBottomScreen = loc[1] + decor.getHeight();
+        int kbTopScreen = winBottomScreen - imeB;
+        return kbTopScreen - stripHpx - loc[1];
     }
 
     /** Selama popup tampil: pantau IME dari insets view; keyboard turun -> tutup. */
@@ -363,6 +395,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         new android.os.Handler(android.os.Looper.getMainLooper())
                 .postDelayed(new Runnable() {
                     int hiddenStreak = 0;
+                    int lastStripY = -1;
                     @Override public void run() {
                         if (ekPopup == null || !ekPopup.isShowing()) return;
                         boolean imeVis = false;
@@ -370,6 +403,16 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                                 && host != null && host.view().getRootWindowInsets() != null)
                             imeVis = host.view().getRootWindowInsets()
                                     .isVisible(android.view.WindowInsets.Type.ime());
+                        // Fixed di atas keyboard: reposisi tiap insets berubah
+                        // (animasi keyboard, ganti keyboard, jendela pindah).
+                        if (imeVis) {
+                            int y = stripYLocal();
+                            if (y >= 0 && y != lastStripY) {
+                                lastStripY = y;
+                                ekPopup.update(-1, y, -1, -1);
+                                X11DebugLog.log("KB", "popup reposisi y=" + y);
+                            }
+                        }
                         hiddenStreak = imeVis ? 0 : hiddenStreak + 1;
                         if (hiddenStreak >= 3) {
                             X11DebugLog.log("KB", "watchdog: IME hilang -> tutup popup");
