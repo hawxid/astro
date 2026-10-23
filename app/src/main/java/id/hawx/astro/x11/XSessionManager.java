@@ -307,7 +307,7 @@ public class XSessionManager {
                 + "if command -v xrdb >/dev/null 2>&1; then "
                 + "printf 'Xft.dpi: " + getDpi() + "\\n' | xrdb -merge; echo 'Xft.dpi=" + getDpi() + " diterapkan'; fi; "
                 + "if command -v openbox >/dev/null 2>&1; then "
-                + "pgrep -x openbox >/dev/null 2>&1 || (openbox >/tmp/openbox.log 2>&1 &); echo 'openbox siap'; "
+                + "pgrep -x openbox >/dev/null 2>&1 || (setsid openbox >/tmp/openbox.log 2>&1 </dev/null &); echo 'openbox siap'; "
                 + "else echo 'openbox tidak ada (apt install -y openbox)'; fi; "
                 + "} >/tmp/astro-x11-session.log 2>&1";
     }
@@ -635,7 +635,17 @@ public class XSessionManager {
                 post(cb, false, rep.toString());
                 return;
             }
+            String wmGuard = "";
+            if (d == 0) {
+                // Aturan Hawx: fullscreen WAJIB ber-WM. openbox diawasi di
+                // jalur launch (bukan cuma setup sesi sekali jalan): kalo
+                // mati di tengah, launch berikutnya yang menghidupkan lagi.
+                wmGuard = "if command -v openbox >/dev/null 2>&1 && ! pgrep -x openbox >/dev/null 2>&1; then "
+                        + "setsid openbox >/tmp/openbox.log 2>&1 </dev/null & sleep 1; fi; ";
+                X11DebugLog.log("LAUNCH", "wmGuard openbox untuk :0");
+            }
             String launchCmd = "export DISPLAY=:" + d + "; export TMPDIR=/tmp; "
+                    + wmGuard
                     + "xset fp+ " + root() + "/usr/share/fonts/X11/misc 2>/dev/null; xset fp rehash 2>/dev/null; "
                     + "cd " + shq(entry.workdirOrDefault()) + " 2>/dev/null || cd /root; "
                     + envExports(entry.env)
