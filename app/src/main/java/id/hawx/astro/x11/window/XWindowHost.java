@@ -71,6 +71,8 @@ public class XWindowHost implements XHost {
     private boolean stripVisible;
 
     private final IBinder.DeathRecipient deathRecipient = () -> handler.post(this::disconnectService);
+    private final Runnable handoffPoll = this::pollHandoffStep;
+    private int handoffTries;
 
     public XWindowHost(Activity activity, int display) {
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "host dibuat display=" + display);
@@ -166,6 +168,11 @@ public class XWindowHost implements XHost {
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "attach tag=" + tag + " pending=" + (pending != null));
         if (pending != null) connectToService(pending);
         else tryConnect();
+        // SERAH-TERIMA: selama viewer fullscreen hidup, knock diabisin dia
+        // dan pending selalu kosong — poll untuk mengusirnya lalu menunggu
+        // knock berikutnya mampir ke pending.
+        handoffTries = 0;
+        handler.postDelayed(handoffPoll, 400);
     }
 
     /** Berhenti total: lepas receiver, input, dan koneksi. */
@@ -178,8 +185,32 @@ public class XWindowHost implements XHost {
             knockReceiver = null;
         }
         handler.removeCallbacks(connectRetry);
+        handler.removeCallbacks(handoffPoll);
         inputHandler.onDestroy();
         disconnectService();
+    }
+
+    private void pollHandoffStep() {
+        if (view.connected()) return;
+        if (++handoffTries > 24) {
+            id.hawx.astro.x11.X11DebugLog.log("HANDOFF", "poll menyerah tag=" + tag);
+            return;
+        }
+        com.termux.x11.MainActivity inst = com.termux.x11.MainActivity.getInstance(tag);
+        if (inst != null) {
+            id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
+                    "poll: tutup viewer fullscreen tag=" + tag + " try=" + handoffTries);
+            inst.finish();
+        } else {
+            LorieApp app = (LorieApp) activity.getApplicationContext();
+            IBinder pending = app.pendingConnections.get(tag);
+            if (pending != null) {
+                id.hawx.astro.x11.X11DebugLog.log("HANDOFF", "poll: pending ketemu tag=" + tag);
+                connectToService(pending);
+                if (view.connected()) return;
+            }
+        }
+        handler.postDelayed(handoffPoll, 500);
     }
 
     // ---- koneksi (cermin MainActivity upstream) ----
