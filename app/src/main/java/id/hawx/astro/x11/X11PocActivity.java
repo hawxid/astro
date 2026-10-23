@@ -323,7 +323,8 @@ public class X11PocActivity extends AppCompatActivity {
             mgr.launchFloating(e, (ok, d, msg) -> {
                 toast(msg);
                 if (ok && d > 0)
-                    id.hawx.astro.x11.window.XWindowActivity.launch(this, d);
+                    id.hawx.astro.MainActivity.openXWindowFrom(this, d,
+                            e.name + " · :" + d);
                 refreshAll();
             });
             return;

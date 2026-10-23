@@ -74,6 +74,32 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         killListener = l;
     }
 
+    // ---- akses statis buat serah-terima (Spawn membuka display ini) ----
+    private static XWindowLayer sActive;
+
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        sActive = this;
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        if (sActive == this) sActive = null;
+        super.onDetachedFromWindow();
+    }
+
+    /** Tutup jendela tertanam untuk display ini TANPA membunuh (viewer
+     *  fullscreen mengambil alih koneksinya). No-op bila tak ada. */
+    public static void closeForDisplay(int display) {
+        XWindowLayer l = sActive;
+        if (l == null) return;
+        XFloatingWindow w = l.windows.get(display);
+        if (w != null) {
+            id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
+                    "layer closeForDisplay d=" + display);
+            l.closeWindow(w, false);
+        }
+    }
+
     // ---- siklus jendela ----
 
     public void openWindow(Activity activity, int display, String title) {

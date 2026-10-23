@@ -567,6 +567,7 @@ public class XSessionManager {
         // SERAH-TERIMA: fullscreen mengambil alih display ini -> jendela
         // floating untuk display yang sama ditutup dulu (satu koneksi).
         if (d > 0) id.hawx.astro.x11.window.XWindowActivity.closeForDisplay(d);
+        if (d > 0) id.hawx.astro.x11.window.XWindowLayer.closeForDisplay(d);
         appCtx.startActivity(viewerIntentForDisplay(d));
     }
 

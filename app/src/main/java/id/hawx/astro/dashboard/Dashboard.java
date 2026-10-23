@@ -383,7 +383,8 @@ public class Dashboard extends Fragment {
                 xMgr.launchFloating(e, (ok, d, msg) -> {
                     core.toaster(msg);
                     if (ok && d > 0)
-                        id.hawx.astro.x11.window.XWindowActivity.launch(context, d);
+                        id.hawx.astro.MainActivity.openXWindowFrom(context, d,
+                                e.name + " · :" + d);
                     refreshXState();
                 });
                 return;

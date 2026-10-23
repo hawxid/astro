@@ -1319,8 +1319,26 @@ public class MainActivity extends AppCompatActivity {
         int d = intent.getIntExtra("astro_x_window_display", -1);
         if (d > 0) {
             intent.removeExtra("astro_x_window_display");
-            openXWindow(d, "XTerm · :" + d);
+            String t = intent.getStringExtra("astro_x_window_title");
+            intent.removeExtra("astro_x_window_title");
+            openXWindow(d, t != null ? t : "XTerm · :" + d);
         }
+    }
+
+    /** Pintu masuk jendela floating TERTANAM (layer di desktop): dipakai
+     *  jalur launch floating (Dashboard + panel X11) sejak badan jendela
+     *  pindah dari XWindowActivity ke XWindowLayer (keputusan Hawx
+     *  2026-10-24 — activity standalone region sentuhnya mati di ROM ini,
+     *  freeform app-driven ditolak; layer satu hierarki view = sentuhan
+     *  di luar jendela jatuh ke desktop secara struktur). */
+    public static void openXWindowFrom(android.content.Context from, int display, String title) {
+        android.content.Intent i = new android.content.Intent(from, MainActivity.class);
+        i.putExtra("astro_x_window_display", display);
+        if (title != null) i.putExtra("astro_x_window_title", title);
+        i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                | android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        from.startActivity(i);
     }
 
     @Override
