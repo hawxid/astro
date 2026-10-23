@@ -82,6 +82,9 @@ public class XWindowHost implements XHost {
     }
     private int handoffTries;
     private boolean recoveryTried;
+    private int knocksWhileConnected;
+    private boolean halfOpenStage1Tried;
+    private boolean serverRecoveryTried;
 
     public XWindowHost(Activity activity, int display) {
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "host dibuat display=" + display);
@@ -242,6 +245,35 @@ public class XWindowHost implements XHost {
     // ---- koneksi (cermin MainActivity upstream) ----
 
     private void connectToService(IBinder binder) {
+        // KONEKSI SETENGAH TERBUKA (temuan log 23): status connected=true
+        // tapi server terus nge-knock tiap detik = server tak menganggap
+        // ada client (slot client lama belum bersih pas koneksi baru masuk).
+        // Knock yang persisten saat "connected" adalah sinyalnya:
+        // tahap 1 (knock ke-3): putus paksa (view.connect(-1)) lalu sambung
+        // ulang pakai binder segar ini; tahap 2 (ke-6): restart server.
+        if (view.connected()) {
+            knocksWhileConnected++;
+            if (knocksWhileConnected == 3 && !halfOpenStage1Tried) {
+                halfOpenStage1Tried = true;
+                knocksWhileConnected = 0;
+                id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
+                        "koneksi setengah terbuka tag=" + tag + " -> putus + sambung ulang");
+                disconnectService();
+                // jatuh ke bawah: sambung ulang dengan binder segar ini
+            } else if (knocksWhileConnected >= 3 && halfOpenStage1Tried
+                    && !serverRecoveryTried) {
+                serverRecoveryTried = true;
+                id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
+                        "setengah terbuka bandel tag=" + tag + " -> restart server");
+                id.hawx.astro.x11.XSessionManager.get(activity)
+                        .recoverStuckDisplay(display);
+                return;
+            } else {
+                return; // knock sisa / menunggu efek tahap pemulihan
+            }
+        } else {
+            knocksWhileConnected = 0;
+        }
         // SERAH-TERIMA VIEWER: satu display = satu koneksi viewer. Bila
         // viewer fullscreen (MainActivity bertag) masih hidup untuk tag ini,
         // tutup dia dulu dan TUNGGU knock berikutnya — menabrak konek saat
