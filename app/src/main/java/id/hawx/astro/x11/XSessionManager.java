@@ -489,6 +489,7 @@ public class XSessionManager {
             }
             // file PID + log entri ditulis dari DALAM chroot -> path sisi chroot (/tmp/...)
             String launchCmd = "export DISPLAY=:0; export TMPDIR=/tmp; "
+                    + "xset fp+ " + root() + "/usr/share/fonts/X11/misc 2>/dev/null; xset fp rehash 2>/dev/null; "
                     + "cd " + shq(entry.workdirOrDefault()) + " 2>/dev/null || cd /root; "
                     + envExports(entry.env)
                     + "(setsid " + entry.command + " >" + entryLogPath(entry.id) + " 2>&1 & "
@@ -592,6 +593,7 @@ public class XSessionManager {
                 return;
             }
             String launchCmd = "export DISPLAY=:" + d + "; export TMPDIR=/tmp; "
+                    + "xset fp+ " + root() + "/usr/share/fonts/X11/misc 2>/dev/null; xset fp rehash 2>/dev/null; "
                     + "cd " + shq(entry.workdirOrDefault()) + " 2>/dev/null || cd /root; "
                     + envExports(entry.env)
                     + "(setsid " + entry.command + " >" + entryLogPath(entry.id) + " 2>&1 & "

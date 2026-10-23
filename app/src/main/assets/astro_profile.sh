@@ -37,7 +37,7 @@ export PS1 PS2
 [ -z "$TERM" ] && export TERM=xterm-256color
 
 # Quality-of-life aliases.
-alias ls='ls --color=auto 2>/dev/null || command ls'
+alias ls='ls --color=auto'
 alias ll='ls -lh'
 alias la='ls -lha'
 alias l='ls -CF'
