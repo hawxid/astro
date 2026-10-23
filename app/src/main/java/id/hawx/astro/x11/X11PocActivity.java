@@ -273,11 +273,7 @@ public class X11PocActivity extends AppCompatActivity {
         toast("Menyiapkan display :1 + jendela floating…");
         mgr.launchOnDisplay(pocEntry(), 1, (ok, msg) -> {
             busy = false;
-            android.content.Intent it = new android.content.Intent(this, id.hawx.astro.MainActivity.class);
-            it.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            it.putExtra("astro_x_window_display", 1);
-            startActivity(it);
+            id.hawx.astro.x11.window.XWindowActivity.launch(this, 1);
         }, false);
     }
 

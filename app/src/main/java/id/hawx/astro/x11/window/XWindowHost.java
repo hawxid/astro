@@ -83,6 +83,8 @@ public class XWindowHost implements XHost {
         view.setHost(this);
         InputEventSender sender = new InputEventSender(this, view);
         this.inputHandler = new TouchInputHandler(this, sender);
+        view.setCallback((screenWidth, screenHeight, inputTransform) ->
+                inputHandler.handleInputTransformChanged(screenWidth, screenHeight, inputTransform));
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "handler jadi display=" + display);
         view.setOnKeyListener((v, keyCode, e) -> inputHandler.sendKeyEvent(e));
         // Urutan upstream: surface lahir DULU, koneksi X diambil SESUDAHNYA.

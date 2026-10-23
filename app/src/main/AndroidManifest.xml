@@ -241,6 +241,12 @@
             android:name="com.termux.x11.MainActivity"
             android:exported="false"
             tools:replace="android:exported" />
+            <activity
+            android:name=".x11.window.XWindowActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>
