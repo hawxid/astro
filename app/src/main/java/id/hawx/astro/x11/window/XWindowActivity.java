@@ -633,12 +633,15 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         if (title != null) i.putExtra(EXTRA_TITLE, title);
         // TASK SENDIRI per jendela (temuan multi-window 2026-10-23): dua
         // activity di task yang sama -> yang bawah kehilangan window focus
-        // (winFocus=false, IME tak pernah naik, jendela "beku"). Data unik
-        // per display + intoExisting: relaunch display yang sama mengangkat
-        // task/jendela lamanya, bukan bikin duplikat.
+        // (winFocus=false, IME tak pernah naik, jendela "beku"). Pisah
+        // task dijamin singleInstancePerTask; pencocokan task pas relaunch
+        // lewat data URI unik per display (filterEquals intent).
+        // MULTIPLE_TASK + documentLaunchMode DICABUT (2026-10-24): flag itu
+        // memaksa task baru di setiap buka -> kartu Recents DOBEL tiap
+        // tutup-buka (temuan Hawx), dan task dokumen diduga bikin task
+        // tak layak freeform di ROM ini (bounds launch diabaikan total).
         i.setData(android.net.Uri.parse("astro-x-window://d" + display));
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         // BADAN JENDELA = FREEFORM BAWAAN ANDROID (keputusan Hawx
         // 2026-10-23 malam): pengelola luar jendela (gerak/ukuran/
         // fullscreen/region sentuh) diserahkan ke mode freeform sistem —
