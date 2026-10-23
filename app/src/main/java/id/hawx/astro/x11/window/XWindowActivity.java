@@ -657,7 +657,10 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             int x = Math.max(0, (dm.widthPixels - w) / 2 + cascade - Math.round(44 * dens));
             int y = Math.round(56 * dens) + cascade;
             android.app.ActivityOptions opts = android.app.ActivityOptions.makeBasic();
-            opts.setLaunchWindowingMode(5 /* WINDOWING_MODE_FREEFORM */);
+            // Jalur PUBLIK ke freeform = setLaunchBounds saja: di perangkat
+            // yang mendukung freeform, bounds memicu mode freeform itu
+            // sendiri. (setLaunchWindowingMode = API tersembunyi, tak ada
+            // di SDK publik — build CI pertama gagal di sini.)
             opts.setLaunchBounds(new android.graphics.Rect(x, y, x + w, y + h));
             X11DebugLog.log("FLOAT", "launch freeform d=" + display
                     + " bounds=" + x + "," + y + " " + w + "x" + h);
