@@ -65,6 +65,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private android.view.WindowManager.LayoutParams ekLp;
     private android.view.View ekOverlayView;
     private static int learnedKbTopY = -1;
+    private boolean overlayHintShown;
     private int imeBottomPx;
     private boolean imeWasVisible;
 
@@ -349,8 +350,18 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
     /** Pintu strip: overlay bila izin ada, popup lama bila belum. */
     private void tryShowStrip() {
-        if (android.provider.Settings.canDrawOverlays(this)) tryShowEkOverlay();
-        else tryShowEkPopup();
+        if (android.provider.Settings.canDrawOverlays(this)) {
+            tryShowEkOverlay();
+        } else {
+            if (!overlayHintShown) {
+                overlayHintShown = true;
+                android.widget.Toast.makeText(this,
+                        "Strip mode kompat: aktifkan 'Tampil di atas aplikasi lain' "
+                        + "untuk Astro agar strip diam di atas keyboard",
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+            tryShowEkPopup();
+        }
     }
 
     /** Tepi atas keyboard di koordinat LAYAR. Dari jendela sendiri:
