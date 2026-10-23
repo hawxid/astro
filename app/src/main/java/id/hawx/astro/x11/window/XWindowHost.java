@@ -73,11 +73,13 @@ public class XWindowHost implements XHost {
     private final IBinder.DeathRecipient deathRecipient = () -> handler.post(this::disconnectService);
     private final Runnable handoffPoll = this::pollHandoffStep;
     private int fitW, fitH;
-    private final Runnable fitNotify = () -> {
+    private final Runnable fitNotify = this::fireFitNotify;
+
+    private void fireFitNotify() {
         if (display > 0)
             id.hawx.astro.x11.XSessionManager.get(activity)
                     .notifyFloatingResized(display, fitW, fitH);
-    };
+    }
     private int handoffTries;
 
     public XWindowHost(Activity activity, int display) {

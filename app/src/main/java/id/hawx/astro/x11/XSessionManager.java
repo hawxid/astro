@@ -501,7 +501,6 @@ public class XSessionManager {
                 post(cb, false, "Gagal meluncurkan: " + e);
                 return;
             }
-            if (d > 0) queueAutoFit(entry, d);
             touchActivity();
             main.post(this::openViewer);
             post(cb, true, entry.name + " diluncurkan");
@@ -667,6 +666,7 @@ public class XSessionManager {
                 post(cb, false, "Gagal meluncurkan: " + e);
                 return;
             }
+            if (d > 0) queueAutoFit(entry, d);
             touchActivity();
             if (openViewer) main.post(() -> openViewerForDisplay(d));
             post(cb, true, entry.name + " diluncurkan di :" + d);
