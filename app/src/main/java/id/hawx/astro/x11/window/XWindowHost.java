@@ -97,6 +97,7 @@ public class XWindowHost implements XHost {
                 (com.termux.x11.extrakeys.ExtraKeysView) android.view.LayoutInflater.from(activity)
                         .inflate(com.termux.x11.R.layout.lorie_view_terminal_toolbar_extra_keys,
                                 null, false);
+        ekView.setHostOverride(this);
         this.extraKeysView = ekView;
         this.extraKeys = new com.termux.x11.utils.TermuxX11ExtraKeys(keyListener, this, ekView);
         ekView.reload();

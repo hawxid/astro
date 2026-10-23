@@ -219,6 +219,16 @@ public final class ExtraKeysView extends GridLayout {
     private final MainActivity activity;
     { activity = MainActivity.findActivity(getContext()); }
 
+    // Host tertanam (jendela floating Astro): tak ada MainActivity di rantai
+    // context. Posisi pager dianggap BOTTOM (bar di bawah layar).
+    private com.termux.x11.XHost hostOverride;
+    public void setHostOverride(com.termux.x11.XHost h) { hostOverride = h; }
+    private int pagerPosition() {
+        if (hostOverride != null) return PAGER_POSITION_BOTTOM;
+        MainActivity a = activity;
+        return a == null ? PAGER_POSITION_BOTTOM : a.getPagerPosition();
+    }
+
     public ExtraKeysView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
@@ -328,7 +338,7 @@ public final class ExtraKeysView extends GridLayout {
         setRowCount(buttons.length);
         setColumnCount(maximumLength(buttons));
 
-        boolean reverseRows = activity.getPagerPosition() == PAGER_POSITION_TOP;
+        boolean reverseRows = pagerPosition() == PAGER_POSITION_TOP;
 
         for (int row = 0; row < buttons.length; row++) {
             int actualRow = reverseRows ? buttons.length - 1 - row : row;
@@ -526,7 +536,7 @@ public final class ExtraKeysView extends GridLayout {
     }
 
     void showPopup(View view, ExtraKeyButton extraButton) {
-        int pos = activity.getPagerPosition();
+        int pos = pagerPosition();
         int width = pos == PAGER_POSITION_TOP || pos == PAGER_POSITION_BOTTOM ? view.getMeasuredWidth() : view.getMeasuredHeight();
         int height = pos == PAGER_POSITION_TOP || pos == PAGER_POSITION_BOTTOM ? view.getMeasuredHeight() : view.getMeasuredWidth();
         Button button;
