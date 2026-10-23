@@ -576,6 +576,10 @@ public class XSessionManager {
         void onResult(boolean ok, int display, String message);
     }
 
+    /** Display -> entri terakhir yang diluncurkan di situ (untuk auto-fit). */
+    private final java.util.Map<Integer, String> lastEntryByDisplay =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Peta entri -> display floating terakhir (memori saja; untuk fokus ulang). */
     private final java.util.Map<String, Integer> floatingDisplays =
             new java.util.concurrent.ConcurrentHashMap<>();
@@ -629,6 +633,7 @@ public class XSessionManager {
                 return;
             }
             X11DebugLog.log("LAUNCH", "GUI d" + d + " " + entry.id + " :: " + entry.command);
+            if (d > 0) lastEntryByDisplay.put(d, entry.id);
             if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
                 if (openViewer) main.post(() -> openViewerForDisplay(d));
                 post(cb, true, entry.name + " sudah jalan — display :" + d + " dibuka");
@@ -669,40 +674,56 @@ public class XSessionManager {
     }
 
     /**
-     * Auto-fit konten untuk display bare (floating, tanpa WM): watcher
-     * chroot seumur app — tunggu jendela app (dari PID launch) lahir, lalu
+     * Auto-fit konten untuk display bare (floating, tanpa WM): one-shot
+     * terpicu surface — tunggu jendela app (dari PID launch) lahir, lalu
      * paksa posisi 0,0 + ukuran = dimensi layar X; diulang tiap dimensi
      * layar berubah (resize jendela floating -> RANDR -> watcher ngefit
      * ulang). Satu watcher per entri (lock pid). Butuh xdotool + xdpyinfo
      * (x11-utils); tanpa itu skrip diam (log di /tmp/astro-fit-*).
      */
     private void queueAutoFit(LauncherEntry entry, int d) {
-        String fitLog = "/tmp/astro-fit-" + entry.id + ".log";
-        String lock = "/tmp/astro-fit-" + entry.id + ".watcher";
+        runFitOnce(entry.id, d, 0, 0);
+    }
+
+    /**
+     * Dipanggil host floating saat surface berubah ukuran (resize jendela
+     * Android -> RANDR): fit ulang konten display ini SEKALI ke ukuran
+     * surface terakhir. Pengganti watcher polling — nol beban diam.
+     */
+    public void notifyFloatingResized(int d, int w, int h) {
+        String entryId = lastEntryByDisplay.get(d);
+        if (entryId == null || w <= 0 || h <= 0) return;
+        runFitOnce(entryId, d, w, h);
+    }
+
+    /** Satu kali fit: tunggu jendela app lahir (maks ~4 dtk), paksa 0,0 + W×H. */
+    private void runFitOnce(String entryId, int d, int w, int h) {
+        String dims = (w > 0 && h > 0)
+                ? "W=" + w + "; H=" + h + "; "
+                : "dims=$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print $2}'); "
+                + "[ -n \"$dims\" ] || exit 0; W=${dims%x*}; H=${dims#*x}; ";
         String script =
                 "export DISPLAY=:" + d + "; "
                 + "command -v xdotool >/dev/null 2>&1 || { echo 'xdotool tidak ada'; exit 0; }; "
-                + "pid=$(cat /tmp/astro-launch-" + entry.id + ".pid 2>/dev/null); "
+                + "pid=$(cat /tmp/astro-launch-" + entryId + ".pid 2>/dev/null); "
                 + "[ -n \"$pid\" ] || exit 0; "
-                // satu watcher per entri: lock berisi pid watcher; hidup -> keluar
-                + "if [ -f " + lock + " ] && kill -0 $(cat " + lock + ") 2>/dev/null; then echo 'watcher sudah jalan'; exit 0; fi; "
-                + "echo $$ > " + lock + "; "
-                + "last=''; lastwin=''; "
-                + "while kill -0 $pid 2>/dev/null; do "
+                + dims
+                + "win=''; "
+                + "for i in $(seq 1 12); do "
                 + "win=$(xdotool search --pid $pid 2>/dev/null | head -1); "
-                + "dims=$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print $2}'); "
-                + "if [ -n \"$win\" ] && [ -n \"$dims\" ] && { [ \"$dims\" != \"$last\" ] || [ \"$win\" != \"$lastwin\" ]; }; then "
-                + "W=${dims%x*}; H=${dims#*x}; "
+                + "[ -n \"$win\" ] && break; "
+                + "kill -0 $pid 2>/dev/null || exit 0; "
+                + "sleep 0.35; done; "
+                + "[ -n \"$win\" ] || exit 0; "
                 + "xdotool windowmove $win 0 0 windowsize $win $W $H 2>/dev/null; "
-                + "echo \"fit win=$win dims=$dims\"; last=$dims; lastwin=$win; "
-                + "fi; sleep 0.5; done; "
-                + "rm -f " + lock + "; echo 'watcher selesai (app mati)'";
-        String cmd = "(setsid sh -c " + shq(script) + " >" + fitLog + " 2>&1 </dev/null &)";
+                + "echo \"fit win=$win ${W}x${H}\"";
+        String cmd = "(setsid sh -c " + shq(script) + " >>/tmp/astro-fit-" + entryId
+                + ".log 2>&1 </dev/null &)";
         try {
             core.threadChrootCommand(cmd);
-            X11DebugLog.log("FIT", "watcher auto-fit diantrekan d=" + d + " " + entry.id);
+            X11DebugLog.log("FIT", "fit sekali d=" + d + " " + entryId + " " + w + "x" + h);
         } catch (Exception e) {
-            X11DebugLog.log("FIT", "gagal antre: " + e);
+            X11DebugLog.log("FIT", "gagal fit: " + e);
         }
     }
 

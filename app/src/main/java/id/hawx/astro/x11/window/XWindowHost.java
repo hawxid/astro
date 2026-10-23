@@ -72,6 +72,12 @@ public class XWindowHost implements XHost {
 
     private final IBinder.DeathRecipient deathRecipient = () -> handler.post(this::disconnectService);
     private final Runnable handoffPoll = this::pollHandoffStep;
+    private int fitW, fitH;
+    private final Runnable fitNotify = () -> {
+        if (display > 0)
+            id.hawx.astro.x11.XSessionManager.get(activity)
+                    .notifyFloatingResized(display, fitW, fitH);
+    };
     private int handoffTries;
 
     public XWindowHost(Activity activity, int display) {
@@ -115,7 +121,14 @@ public class XWindowHost implements XHost {
                 tryConnect();
             }
             @Override public void surfaceChanged(android.view.SurfaceHolder h,
-                                                 int f, int w, int hh) {}
+                                                 int f, int w, int hh) {
+                // Resize jendela Android -> layar X ikut (RANDR): minta
+                // manager fit ulang konten SEKALI (debounce 300 ms). Tanpa
+                // watcher/polling — nol beban saat diam.
+                fitW = w; fitH = hh;
+                handler.removeCallbacks(fitNotify);
+                handler.postDelayed(fitNotify, 300);
+            }
             @Override public void surfaceDestroyed(android.view.SurfaceHolder h) {
                 surfaceReady = false;
             }
