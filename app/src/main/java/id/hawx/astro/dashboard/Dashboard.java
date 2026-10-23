@@ -378,10 +378,21 @@ public class Dashboard extends Fragment {
         cell.addView(chrootIconView(e));
         boolean run = xRunning.contains(e.id);
         cell.addView(cellLabel((run ? "\u25CF " : "") + e.name, run));
-        cell.setOnClickListener(v -> xMgr.launch(e, (ok, msg) -> {
-            core.toaster(msg);
-            refreshXState();
-        }));
+        cell.setOnClickListener(v -> {
+            if (e.floating) {
+                xMgr.launchFloating(e, (ok, d, msg) -> {
+                    core.toaster(msg);
+                    if (ok && d > 0)
+                        id.hawx.astro.x11.window.XWindowActivity.launch(context, d);
+                    refreshXState();
+                });
+                return;
+            }
+            xMgr.launch(e, (ok, msg) -> {
+                core.toaster(msg);
+                refreshXState();
+            });
+        });
         cell.setOnLongClickListener(v -> {
             Intent i = new Intent(context, LauncherEditActivity.class);
             i.putExtra("entry_id", e.id);
