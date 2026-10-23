@@ -178,9 +178,10 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
 
     @Override
     public void onContentTapped(XFloatingWindow w) {
-        // Aturan Hawx: tap jendela X = fokus + keyboard naik, strip mengikuti.
+        // Tap konten = FOKUS SAJA (aturan Hawx — keyboard HANYA dari
+        // tombol ⌨ di bar judul jendela; tap micu keyboard sudah
+        // dimatikan permanen buat semua badan jendela kita).
         if (active != w) setActive(w);
-        w.host().showKeyboardAndStrip();
     }
 
     @Override
