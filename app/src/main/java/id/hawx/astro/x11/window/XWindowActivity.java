@@ -323,41 +323,49 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
     private void tryShowEkPopup() {
         if (!ekRequested || host == null) return;
-        // Baca insets dari LorieView sendiri (getRootWindowInsets) — jalur
-        // yang dipakai upstream; listener root activity terbukti tak nembak.
-        if (imeBottomPx <= 0 && android.os.Build.VERSION.SDK_INT >= 30
-                && host.view().getRootWindowInsets() != null) {
-            android.view.WindowInsets vi = host.view().getRootWindowInsets();
-            boolean vIme = vi.isVisible(android.view.WindowInsets.Type.ime());
-            int vBottom = vi.getInsets(android.view.WindowInsets.Type.ime()).bottom;
-            X11DebugLog.log("KB", "viewInsets ime=" + vIme + " bottom=" + vBottom);
-            if (vIme && vBottom > 0) imeBottomPx = vBottom;
-        }
-        if (ekPopup != null && ekPopup.isShowing()) {
-            ekPopup.update(ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, -1, imeBottomPx);
-            return;
-        }
-        if (imeBottomPx <= 0) {
-            X11DebugLog.log("KB", "popup TUNDA imeBottom=0");
-            return; // nunggu insets keyboard dulu
-        }
+        if (ekPopup != null && ekPopup.isShowing()) return;
         android.view.View ekView = host.extraKeysView();
         if (ekView == null) return;
         if (ekView.getParent() != null)
             ((ViewGroup) ekView.getParent()).removeView(ekView);
+        // Tinggi TETAP 37.5dp seperti pager toolbar upstream: layout EK
+        // match_parent — di popup WRAP_CONTENT dia kolaps ke 0 (gepeng).
+        int hPx = Math.round(37.5f * getResources().getDisplayMetrics().density);
         ekPopup = new PopupWindow(ekView,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT, false);
+                ViewGroup.LayoutParams.MATCH_PARENT, hPx, false);
         ekPopup.setTouchable(true);
         ekPopup.setOutsideTouchable(false);
         ekPopup.setBackgroundDrawable(new ColorDrawable(0xF7232C4E));
         ekPopup.setAnimationStyle(0);
-        ekPopup.showAtLocation(getWindow().getDecorView(),
-                Gravity.BOTTOM, 0, imeBottomPx);
-        X11DebugLog.log("KB", "popup SHOW imeBottom=" + imeBottomPx
-                + " ekH=" + ekView.getHeight() + " ekChild="
-                + (ekView instanceof ViewGroup ? ((ViewGroup) ekView).getChildCount() : -1));
+        // Nempel di dasar JENDELA (bukan layar): jendela ke-resize IME,
+        // jadi bar parkir tepat di atas keyboard.
+        ekPopup.showAtLocation(getWindow().getDecorView(), Gravity.BOTTOM, 0, 0);
+        X11DebugLog.log("KB", "popup SHOW hPx=" + hPx);
+        startEkWatchdog();
+    }
+
+    /** Selama popup tampil: pantau IME dari insets view; keyboard turun -> tutup. */
+    private void startEkWatchdog() {
+        new android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed(new Runnable() {
+                    int hiddenStreak = 0;
+                    @Override public void run() {
+                        if (ekPopup == null || !ekPopup.isShowing()) return;
+                        boolean imeVis = false;
+                        if (android.os.Build.VERSION.SDK_INT >= 30
+                                && host != null && host.view().getRootWindowInsets() != null)
+                            imeVis = host.view().getRootWindowInsets()
+                                    .isVisible(android.view.WindowInsets.Type.ime());
+                        hiddenStreak = imeVis ? 0 : hiddenStreak + 1;
+                        if (hiddenStreak >= 3) {
+                            X11DebugLog.log("KB", "watchdog: IME hilang -> tutup popup");
+                            hideKeyboardAndStrip();
+                            return;
+                        }
+                        new android.os.Handler(android.os.Looper.getMainLooper())
+                                .postDelayed(this, 400);
+                    }
+                }, 400);
     }
 
     private void dismissEkPopup() {
