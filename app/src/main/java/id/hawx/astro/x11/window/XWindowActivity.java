@@ -346,10 +346,13 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         // Tinggi TETAP 37.5dp seperti pager toolbar upstream: layout EK
         // match_parent — di popup WRAP_CONTENT dia kolaps ke 0 (gepeng).
         int hPx = Math.round(37.5f * getResources().getDisplayMetrics().density);
-        // Lebar TETAP selebar layar (keputusan Hawx): strip itu lapisan
-        // keyboard, bukan lapisan jendela.
-        ekPopup = new PopupWindow(ekView,
-                ViewGroup.LayoutParams.MATCH_PARENT, hPx, false);
+        // Lebar EKSPLISIT selebar display (keputusan Hawx: lapisan keyboard,
+        // diam): MATCH_PARENT popup ngikut lebar jendela jangkar.
+        int wPx = getResources().getDisplayMetrics().widthPixels;
+        try {
+            wPx = getWindowManager().getCurrentWindowMetrics().getBounds().width();
+        } catch (Exception ignored) {}
+        ekPopup = new PopupWindow(ekView, wPx, hPx, false);
         ekPopup.setTouchable(true);
         ekPopup.setOutsideTouchable(false);
         ekPopup.setBackgroundDrawable(new ColorDrawable(0xF7232C4E));
@@ -360,14 +363,18 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         // di koordinat layar lalu diubah ke koordinat frame popup.
         stripHpx = hPx;
         int yLocal = stripYLocal();
-        if (yLocal >= 0) {
-            ekPopup.showAtLocation(getWindow().getDecorView(),
-                    Gravity.TOP | Gravity.START, 0, yLocal);
-        } else {
-            // insets belum ngasih IME (keyboard belum naik) — jangkar lama
-            // sementara; watchdog reposisi begitu insets kebaca.
-            ekPopup.showAtLocation(getWindow().getDecorView(), Gravity.BOTTOM, 0, 0);
+        if (yLocal < 0) {
+            // Frame keyboard belum kebaca (IME masih naik): TUNDA tampil —
+            // jangan nebak posisi (fallback gravity beda = strip terbang).
+            ekPopup = null;
+            new android.os.Handler(android.os.Looper.getMainLooper())
+                    .postDelayed(this::tryShowEkPopup, 150);
+            X11DebugLog.log("KB", "popup TUNDA (frame IME belum siap)");
+            return;
         }
+        // SELALU gravity TOP + offset yang sama dengan reposisi watchdog.
+        ekPopup.showAtLocation(getWindow().getDecorView(),
+                Gravity.TOP | Gravity.START, 0, yLocal);
         X11DebugLog.log("KB", "popup SHOW hPx=" + hPx + " yLocal=" + yLocal);
         startEkWatchdog();
     }
@@ -375,22 +382,23 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private int stripHpx;
 
     /**
-     * Y lokal (frame popup) agar strip duduk TEPAT di atas keyboard:
-     * kbTop(layar) = dasar jendela di layar - insets IME; strip di atasnya.
-     * -1 bila insets belum melaporkan IME.
+     * Y lokal (frame popup) agar strip duduk TEPAT di atas keyboard,
+     * dari frame tampil jendela. -1 bila IME belum terlihat.
      */
     private int stripYLocal() {
         if (host == null || stripHpx <= 0) return -1;
         android.view.View decor = getWindow().getDecorView();
+        if (android.os.Build.VERSION.SDK_INT < 30) return -1;
         android.view.WindowInsets in = decor.getRootWindowInsets();
-        if (in == null || android.os.Build.VERSION.SDK_INT < 30) return -1;
-        if (!in.isVisible(android.view.WindowInsets.Type.ime())) return -1;
-        int imeB = in.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+        if (in == null || !in.isVisible(android.view.WindowInsets.Type.ime()))
+            return -1;
+        // Tepi atas keyboard = tepi bawah frame TAMPIL jendela ini di layar
+        // (frame tampil terpotong IME untuk jendela target keyboard).
+        android.graphics.Rect frame = new android.graphics.Rect();
+        decor.getWindowVisibleDisplayFrame(frame);
         int[] loc = new int[2];
         decor.getLocationOnScreen(loc);
-        int winBottomScreen = loc[1] + decor.getHeight();
-        int kbTopScreen = winBottomScreen - imeB;
-        return kbTopScreen - stripHpx - loc[1];
+        return frame.bottom - stripHpx - loc[1];
     }
 
     /** Selama popup tampil: pantau IME dari insets view; keyboard turun -> tutup. */
