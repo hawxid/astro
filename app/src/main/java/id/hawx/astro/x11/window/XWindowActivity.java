@@ -27,14 +27,14 @@ public class XWindowActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         setContentView(root);
         host = new XWindowHost(this, display);
-        LorieView view = host.getView();
+        LorieView view = host.view();
         root.addView(view, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         host.attach();
     }
 
     @Override protected void onDestroy() {
-        if (host != null) host.close();
+        if (host != null) host.detach();
         super.onDestroy();
     }
 
