@@ -35,6 +35,19 @@ import id.hawx.astro.x11.XSessionManager;
  * hidup terus); ✕ = bunuh display + app-nya (aturan Hawx).
  */
 public class XWindowActivity extends Activity implements XWindowHost.Listener {
+
+    /** Registry jendela floating yang sedang terbuka (untuk serah-terima). */
+    private static final java.util.Map<Integer, XWindowActivity> OPEN =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Tutup jendela floating untuk display ini (viewer fullscreen mengambil alih). */
+    public static void closeForDisplay(int d) {
+        XWindowActivity a = OPEN.get(d);
+        if (a != null) {
+            X11DebugLog.log("HANDOFF", "tutup jendela floating d=" + d + " (fullscreen ambil alih)");
+            a.finish();
+        }
+    }
     public static final String EXTRA_DISPLAY = "astro_xwin_display";
     public static final String EXTRA_TITLE = "astro_xwin_title";
 
@@ -55,6 +68,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         display = getIntent().getIntExtra(EXTRA_DISPLAY, 1);
+        OPEN.put(display, this);
         String title = getIntent().getStringExtra(EXTRA_TITLE);
         if (title == null) title = "XTerm";
         X11DebugLog.log("FLOAT", "XWindowActivity onCreate d=" + display);
@@ -373,6 +387,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     }
 
     @Override protected void onDestroy() {
+        OPEN.remove(display, this);
         dismissEkPopup();
         if (host != null) host.detach();
         super.onDestroy();

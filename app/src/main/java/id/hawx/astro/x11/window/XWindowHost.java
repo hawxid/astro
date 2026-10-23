@@ -185,6 +185,17 @@ public class XWindowHost implements XHost {
     // ---- koneksi (cermin MainActivity upstream) ----
 
     private void connectToService(IBinder binder) {
+        // SERAH-TERIMA VIEWER: satu display = satu koneksi viewer. Bila
+        // viewer fullscreen (MainActivity bertag) masih hidup untuk tag ini,
+        // tutup dia dulu dan TUNGGU knock berikutnya — menabrak konek saat
+        // dia masih terdaftar = error arbitrase upstream.
+        com.termux.x11.MainActivity fsViewer = com.termux.x11.MainActivity.getInstance(tag);
+        if (fsViewer != null) {
+            id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
+                    "tutup viewer fullscreen tag=" + tag + ", tunggu knock berikut");
+            fsViewer.finish();
+            return;
+        }
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "connectToService tag=" + tag);
         service = ICmdEntryInterface.Stub.asInterface(binder);
         try {
