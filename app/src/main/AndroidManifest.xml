@@ -240,10 +240,16 @@
         <activity
             android:name="com.termux.x11.MainActivity"
             android:exported="false"
-            tools:replace="android:exported" />
+            android:label="Astro X"
+            tools:replace="android:exported,android:label" />
+        <activity
+            android:name="com.termux.x11.MainActivity$MainActivityTagged"
+            android:label="Astro X" />
             <activity
             android:name=".x11.window.XWindowActivity"
             android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="id.hawx.astro.xwindows"
             android:launchMode="singleInstancePerTask"
             android:documentLaunchMode="intoExisting"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
