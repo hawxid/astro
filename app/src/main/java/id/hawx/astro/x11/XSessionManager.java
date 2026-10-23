@@ -669,32 +669,38 @@ public class XSessionManager {
     }
 
     /**
-     * Auto-fit konten untuk display bare (floating, tanpa WM): skrip chroot
-     * yang hidup ~9 detik — tunggu jendela app (dari PID launch) lahir, lalu
+     * Auto-fit konten untuk display bare (floating, tanpa WM): watcher
+     * chroot seumur app — tunggu jendela app (dari PID launch) lahir, lalu
      * paksa posisi 0,0 + ukuran = dimensi layar X; diulang tiap dimensi
-     * berubah (viewer nyambung -> RANDR ubah layar). Butuh xdotool +
-     * xdpyinfo (x11-utils); tanpa itu skrip diam (log di /tmp/astro-fit-*).
+     * layar berubah (resize jendela floating -> RANDR -> watcher ngefit
+     * ulang). Satu watcher per entri (lock pid). Butuh xdotool + xdpyinfo
+     * (x11-utils); tanpa itu skrip diam (log di /tmp/astro-fit-*).
      */
     private void queueAutoFit(LauncherEntry entry, int d) {
+        String fitLog = "/tmp/astro-fit-" + entry.id + ".log";
+        String lock = "/tmp/astro-fit-" + entry.id + ".watcher";
         String script =
                 "export DISPLAY=:" + d + "; "
                 + "command -v xdotool >/dev/null 2>&1 || { echo 'xdotool tidak ada'; exit 0; }; "
                 + "pid=$(cat /tmp/astro-launch-" + entry.id + ".pid 2>/dev/null); "
                 + "[ -n \"$pid\" ] || exit 0; "
-                + "last=''; "
-                + "for i in $(seq 1 30); do "
+                // satu watcher per entri: lock berisi pid watcher; hidup -> keluar
+                + "if [ -f " + lock + " ] && kill -0 $(cat " + lock + ") 2>/dev/null; then echo 'watcher sudah jalan'; exit 0; fi; "
+                + "echo $$ > " + lock + "; "
+                + "last=''; lastwin=''; "
+                + "while kill -0 $pid 2>/dev/null; do "
                 + "win=$(xdotool search --pid $pid 2>/dev/null | head -1); "
                 + "dims=$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print $2}'); "
-                + "if [ -n \"$win\" ] && [ -n \"$dims\" ] && [ \"$dims\" != \"$last\" ]; then "
+                + "if [ -n \"$win\" ] && [ -n \"$dims\" ] && { [ \"$dims\" != \"$last\" ] || [ \"$win\" != \"$lastwin\" ]; }; then "
                 + "W=${dims%x*}; H=${dims#*x}; "
                 + "xdotool windowmove $win 0 0 windowsize $win $W $H 2>/dev/null; "
-                + "echo \"fit win=$win dims=$dims\"; last=$dims; "
-                + "fi; sleep 0.3; done";
-        String cmd = "(setsid sh -c " + shq(script) + " >/tmp/astro-fit-" + entry.id
-                + ".log 2>&1 </dev/null &)";
+                + "echo \"fit win=$win dims=$dims\"; last=$dims; lastwin=$win; "
+                + "fi; sleep 0.5; done; "
+                + "rm -f " + lock + "; echo 'watcher selesai (app mati)'";
+        String cmd = "(setsid sh -c " + shq(script) + " >" + fitLog + " 2>&1 </dev/null &)";
         try {
             core.threadChrootCommand(cmd);
-            X11DebugLog.log("FIT", "auto-fit diantrekan d=" + d + " " + entry.id);
+            X11DebugLog.log("FIT", "watcher auto-fit diantrekan d=" + d + " " + entry.id);
         } catch (Exception e) {
             X11DebugLog.log("FIT", "gagal antre: " + e);
         }
