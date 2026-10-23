@@ -114,6 +114,14 @@ public class XWindowHost implements XHost {
         ekView.setHostOverride(this);
         this.extraKeysView = ekView;
         this.extraKeys = new com.termux.x11.utils.TermuxX11ExtraKeys(keyListener, this, ekView);
+        // Warna tombol: warna "normal" bawaan EK itu TRANSPARAN, tapi tombol
+        // lahir dicat hitam pekat -> tap pertama bikin bg "berubah dan tak
+        // balik" (temuan Hawx). Samakan warna normal dengan warna lahirnya.
+        ekView.setButtonColors(
+                com.termux.x11.extrakeys.ExtraKeysView.DEFAULT_BUTTON_TEXT_COLOR,
+                com.termux.x11.extrakeys.ExtraKeysView.DEFAULT_BUTTON_ACTIVE_TEXT_COLOR,
+                0xFF000000,
+                com.termux.x11.extrakeys.ExtraKeysView.DEFAULT_BUTTON_ACTIVE_BACKGROUND_COLOR);
         ekView.reload();
         // Urutan upstream: surface lahir DULU, koneksi X diambil SESUDAHNYA.
         // Host tertanam yang connect sebelum surface ada bikin renderer

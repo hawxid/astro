@@ -61,9 +61,13 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     // Strip model B final: jendela OVERLAY WindowManager sendiri (koordinat
     // layar absolut, tanpa jangkar ke jendela floating) — butuh izin
     // SYSTEM_ALERT_WINDOW; tanpa izin, jatuh ke popup lama.
-    private android.view.WindowManager ekWm;
-    private android.view.WindowManager.LayoutParams ekLp;
-    private android.view.View ekOverlayView;
+    // Overlay strip dimiliki STATIS (satu per proses): instance berganti
+    // tak boleh ninggalin strip yatim; pemilik tercatat agar onStop
+    // instance lain tak membunuh strip instance yang sedang tampil.
+    private static android.view.WindowManager sEkWm;
+    private static android.view.WindowManager.LayoutParams sEkLp;
+    private static android.view.View sEkOverlayView;
+    private static Object sEkOwner;
     private static int learnedKbTopY = -1;
     private boolean overlayHintShown;
     private int imeBottomPx;
@@ -182,8 +186,8 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                 boolean wasVisible = imeWasVisible;
                 imeWasVisible = imeVisible;
                 imeBottomPx = newBottom;
-                if (imeVisible) tryShowEkPopup();
-                else if (wasVisible && ekPopup != null && ekPopup.isShowing())
+                if (imeVisible) tryShowStrip();
+                else if (wasVisible && stripShowing())
                     hideKeyboardAndStrip();
                 return insets;
             });
@@ -343,8 +347,13 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     // ---- lapisan EK terpisah: PopupWindow selebar layar di atas keyboard ----
     // (aturan Hawx: lapisan softkey dipisah dari lapisan render X)
 
+    /** Tebal strip: 45dp (dari 37.5 — konten terlalu mepet, kata Hawx). */
+    private int stripHeightPx() {
+        return Math.round(45f * getResources().getDisplayMetrics().density);
+    }
+
     private boolean stripShowing() {
-        return ekOverlayView != null
+        return sEkOverlayView != null
                 || (ekPopup != null && ekPopup.isShowing());
     }
 
@@ -389,7 +398,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private void tryShowEkOverlay() {
         if (!ekRequested || host == null) return;
         if (isFinishing() || isDestroyed()) return;
-        if (ekOverlayView != null) return;
+        if (sEkOverlayView != null && sEkOwner == this) return;
         android.view.View ekView = host.extraKeysView();
         if (ekView == null) return;
         int kbTop = kbTopScreenY();
@@ -399,30 +408,38 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             X11DebugLog.log("KB", "overlay TUNDA (kbTop belum kebaca)");
             return;
         }
+        // Rebut strip dari pemilik lama (instance/display lain): satu
+        // strip per proses, tak ada yatim.
+        if (sEkOverlayView != null && sEkWm != null) {
+            try { sEkWm.removeView(sEkOverlayView); } catch (Exception ignored) {}
+            sEkOverlayView = null;
+        }
         if (ekView.getParent() != null)
             ((ViewGroup) ekView.getParent()).removeView(ekView);
         ekView.setBackgroundColor(0xF7232C4E);
-        int hPx = Math.round(37.5f * getResources().getDisplayMetrics().density);
+        int hPx = stripHeightPx();
         stripHpx = hPx;
-        ekLp = new android.view.WindowManager.LayoutParams(
+        sEkLp = new android.view.WindowManager.LayoutParams(
                 android.view.WindowManager.LayoutParams.MATCH_PARENT, hPx,
                 android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 android.graphics.PixelFormat.TRANSLUCENT);
-        ekLp.gravity = Gravity.TOP | Gravity.START;
-        ekLp.x = 0;
-        ekLp.y = kbTop - hPx;
-        ekWm = (android.view.WindowManager) getSystemService(
+        sEkLp.gravity = Gravity.TOP | Gravity.START;
+        sEkLp.x = 0;
+        sEkLp.y = kbTop - hPx;
+        sEkWm = (android.view.WindowManager) getSystemService(
                 android.content.Context.WINDOW_SERVICE);
         try {
-            ekWm.addView(ekView, ekLp);
-            ekOverlayView = ekView;
-            X11DebugLog.log("KB", "overlay SHOW y=" + ekLp.y + " kbTop=" + kbTop);
+            sEkWm.addView(ekView, sEkLp);
+            sEkOverlayView = ekView;
+            sEkOwner = this;
+            X11DebugLog.log("KB", "overlay SHOW y=" + sEkLp.y + " kbTop=" + kbTop);
             startEkOverlayWatchdog();
         } catch (Exception e) {
             X11DebugLog.log("KB", "overlay GAGAL (" + e.getMessage() + ") -> popup");
-            ekOverlayView = null;
+            sEkOverlayView = null;
+            sEkOwner = null;
             tryShowEkPopup();
         }
     }
@@ -434,14 +451,14 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                 .postDelayed(new Runnable() {
                     int hiddenStreak = 0;
                     @Override public void run() {
-                        if (ekOverlayView == null) return;
+                        if (sEkOverlayView == null || sEkOwner != XWindowActivity.this) return;
                         int kbTop = kbTopScreenY();
                         if (kbTop >= 0) {
                             hiddenStreak = 0;
                             int y = kbTop - stripHpx;
-                            if (y != ekLp.y) {
-                                ekLp.y = y;
-                                try { ekWm.updateViewLayout(ekOverlayView, ekLp); }
+                            if (y != sEkLp.y) {
+                                sEkLp.y = y;
+                                try { sEkWm.updateViewLayout(sEkOverlayView, sEkLp); }
                                 catch (Exception ignored) {}
                                 X11DebugLog.log("KB", "overlay reposisi y=" + y);
                             }
@@ -466,7 +483,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             ((ViewGroup) ekView.getParent()).removeView(ekView);
         // Tinggi TETAP 37.5dp seperti pager toolbar upstream: layout EK
         // match_parent — di popup WRAP_CONTENT dia kolaps ke 0 (gepeng).
-        int hPx = Math.round(37.5f * getResources().getDisplayMetrics().density);
+        int hPx = stripHeightPx();
         // Lebar EKSPLISIT selebar display (keputusan Hawx: lapisan keyboard,
         // diam): MATCH_PARENT popup ngikut lebar jendela jangkar.
         int wPx = getResources().getDisplayMetrics().widthPixels;
@@ -562,11 +579,23 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     }
 
     private void dismissStrip() {
-        if (ekOverlayView != null && ekWm != null) {
-            try { ekWm.removeView(ekOverlayView); } catch (Exception ignored) {}
-            ekOverlayView = null;
+        if (sEkOverlayView != null && sEkOwner == this && sEkWm != null) {
+            try { sEkWm.removeView(sEkOverlayView); } catch (Exception ignored) {}
+            sEkOverlayView = null;
+            sEkOwner = null;
         }
         dismissEkPopup();
+    }
+
+    /** Activity tertutup layar lain / ke background: strip nutup INSTAN
+     *  (tak nunggu watchdog — strip yatim di launcher, temuan Hawx). */
+    @Override protected void onStop() {
+        if (sEkOwner == this && stripShowing()) {
+            ekRequested = false;
+            dismissStrip();
+            X11DebugLog.log("KB", "onStop -> strip ditutup");
+        }
+        super.onStop();
     }
 
     @Override protected void onDestroy() {
