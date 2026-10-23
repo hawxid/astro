@@ -337,6 +337,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
     private void tryShowEkPopup() {
         if (!ekRequested || host == null) return;
+        if (isFinishing() || isDestroyed()) return; // BadToken di log 20
         if (ekPopup != null && ekPopup.isShowing()) return;
         android.view.View ekView = host.extraKeysView();
         if (ekView == null) return;
@@ -450,8 +451,14 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         Intent i = new Intent(from, XWindowActivity.class);
         i.putExtra(EXTRA_DISPLAY, display);
         if (title != null) i.putExtra(EXTRA_TITLE, title);
-        if (!(from instanceof Activity))
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        // TASK SENDIRI per jendela (temuan multi-window 2026-10-23): dua
+        // activity di task yang sama -> yang bawah kehilangan window focus
+        // (winFocus=false, IME tak pernah naik, jendela "beku"). Data unik
+        // per display + intoExisting: relaunch display yang sama mengangkat
+        // task/jendela lamanya, bukan bikin duplikat.
+        i.setData(android.net.Uri.parse("astro-x-window://d" + display));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
         from.startActivity(i);
     }
 }
