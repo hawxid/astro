@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema jendela floating X (XWindowActivity). windowIsFloating =
+         region sentuh window sebatas rangkanya — obat "area di luar badan
+         jendela mati sentuh" (tema Translucent biasa bikin window manager
+         memperlakukan window sebagai activity fullscreen walau rangkanya
+         kecil). Sisanya meniru tema lama persis. -->
+    <style name="AstroXWindowTheme" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+</resources>
