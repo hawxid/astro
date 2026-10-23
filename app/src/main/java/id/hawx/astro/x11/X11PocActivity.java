@@ -70,7 +70,7 @@ public class X11PocActivity extends AppCompatActivity {
 
         TextView hint = new TextView(this);
         hint.setText("Server X hidup malas: hanya saat ada tool GUI yang dibuka.\n"
-                + "Syarat chroot: apt install -y xterm xkb-data openbox x11-xserver-utils xfonts-base fonts-dejavu-core");
+                + "Syarat chroot: apt install -y xterm xkb-data openbox x11-xserver-utils xfonts-base fonts-dejavu-core xdotool x11-utils");
         hint.setPadding(0, dp(6), 0, dp(10));
         root.addView(hint);
 
