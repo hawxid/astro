@@ -353,7 +353,8 @@ public class XSessionManager {
                 // d>0: bare font/dpi saja — PoC tanpa WM)
                 try {
                     if (core.isMounted()) {
-                        core.threadChrootCommand(d == 0 ? sessionSetupCommand() : sessionSetupBareCommand(d));
+                        core.threadChrootCommand((d == 0 ? sessionSetupCommand() : sessionSetupBareCommand(d)) + XRUN_DEPLOY);
+                        syncXrunWatcher();
                         Thread.sleep(700);
                         report.append(d == 0 ? "server jalan, sesi disiapkan (font/DPI/openbox)"
                                 : "server :" + d + " jalan, setup bare (font/DPI, tanpa WM)");
@@ -593,6 +594,121 @@ public class XSessionManager {
      * XWindowActivity untuk display hasil. Entri yang sudah jalan ->
      * kembalikan display terakhirnya (fokus ulang, bukan luncur ulang).
      */
+    /** Info satu display floating buat panel aktivitas. */
+    public static class DisplayInfo {
+        public final int display;
+        public final String entryId;
+        public final String name;
+        public final boolean appRunning;
+
+        DisplayInfo(int display, String entryId, String name, boolean appRunning) {
+            this.display = display;
+            this.entryId = entryId;
+            this.name = name;
+            this.appRunning = appRunning;
+        }
+    }
+
+    public interface DisplaysCallback {
+        void onDisplays(java.util.List<DisplayInfo> list);
+    }
+
+    /** Daftar display :1-:4 yang servernya HIDUP (buat panel aktivitas di
+     *  desktop: buka lagi / matikan display yatim yang jendelanya sudah
+     *  tertutup — kebutuhan Hawx). Peta basi untuk display mati sekalian
+     *  dibersihkan di sini. */
+    public void listDisplays(DisplaysCallback cb) {
+        exec.execute(() -> {
+            java.util.List<DisplayInfo> out = new java.util.ArrayList<>();
+            for (int d = 1; d <= 4; d++) {
+                if (probeSync(d).state != State.RUNNING) {
+                    lastEntryByDisplay.remove(d);
+                    lastEntryObjByDisplay.remove(d);
+                    floatingDisplays.values().removeIf(v -> v == d);
+                    continue;
+                }
+                LauncherEntry e = lastEntryObjByDisplay.get(d);
+                boolean app = e != null && entryRunningSync(e.id, e.firstWord());
+                out.add(new DisplayInfo(d, e != null ? e.id : null,
+                        e != null ? e.name : null, app));
+            }
+            main.post(() -> cb.onDisplays(out));
+        });
+    }
+
+    // ---- fondasi toggle terminal: xrun ----
+    private static final String KEY_FLOAT_TERM = "terminal_float";
+
+    public boolean getTerminalFloat() {
+        return prefs().getBoolean(KEY_FLOAT_TERM, false);
+    }
+
+    public void setTerminalFloat(boolean on) {
+        prefs().edit().putBoolean(KEY_FLOAT_TERM, on).apply();
+        syncXrunWatcher();
+    }
+
+    /** Perintah deploy shim xrun ke chroot (idempotent, base64 biar aman
+     *  dari quoting): /usr/local/bin/xrun menulis berkas request yang
+     *  diawasi FileObserver di sisi host. */
+    private static final String XRUN_DEPLOY =
+            "echo IyEvYmluL3NoCmQ9L3RtcC9hc3Ryby14cnVuLXJlcXVlc3RzCm1rZGlyIC1wICIkZCIKZj0iJGQvcmVxLSQkLSQoZGF0ZSArJXMpIgpwcmludGYgIiVzIiAiJCoiID4gIiRmLnRtcCIgJiYgbXYgIiRmLnRtcCIgIiRmIgplY2hvICJ4cnVuOiB0ZXJraXJpbTogJCoiCg== | base64 -d > /usr/local/bin/xrun 2>/dev/null; "
+            + "chmod +x /usr/local/bin/xrun 2>/dev/null; "
+            + "mkdir -p /tmp/astro-xrun-requests; ";
+
+    private android.os.FileObserver xrunObserver;
+
+    private synchronized void syncXrunWatcher() {
+        boolean want = getTerminalFloat() && core.isMounted();
+        if (want && xrunObserver == null) {
+            java.io.File dir = new java.io.File(tmp(), "astro-xrun-requests");
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            xrunObserver = new android.os.FileObserver(dir.getAbsolutePath(),
+                    android.os.FileObserver.CREATE | android.os.FileObserver.MOVED_TO) {
+                @Override public void onEvent(int event, String path) {
+                    if (path != null) handleXrunRequest(new java.io.File(dir, path));
+                }
+            };
+            xrunObserver.startWatching();
+            X11DebugLog.log("XRUN", "watcher AKTIF di " + dir);
+        } else if (!want && xrunObserver != null) {
+            xrunObserver.stopWatching();
+            xrunObserver = null;
+            X11DebugLog.log("XRUN", "watcher mati");
+        }
+    }
+
+    private void handleXrunRequest(java.io.File f) {
+        if (f.getName().endsWith(".tmp")) return;
+        String cmd;
+        try {
+            // tunggu tulis selesai (mv atomik harusnya cukup; jaga-jaga)
+            Thread.sleep(60);
+            cmd = new String(java.nio.file.Files.readAllBytes(f.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (Exception e) {
+            return;
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
+        }
+        if (cmd.isEmpty()) return;
+        X11DebugLog.log("XRUN", "request: " + cmd);
+        LauncherEntry e = new LauncherEntry();
+        e.id = "xrun-" + (System.currentTimeMillis() / 1000);
+        String fw = cmd.split("\\s+")[0];
+        e.name = "Terminal · " + fw;
+        e.command = cmd;
+        e.type = "gui";
+        e.floating = true;
+        e.allowMultiple = true;
+        launchFloating(e, (ok, d, msg) -> {
+            if (ok && d > 0)
+                id.hawx.astro.MainActivity.openXWindowFrom(appCtx, d, e.name + " · :" + d);
+        });
+    }
+
     public void launchFloating(LauncherEntry entry, FloatingCallback cb) {
         exec.execute(() -> {
             boolean running = entryRunningSync(entry.id, entry.firstWord());

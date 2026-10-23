@@ -147,6 +147,26 @@ public class X11PocActivity extends AppCompatActivity {
             }
         });
 
+        // ---- toggle GUI terminal melayang (fondasi xrun) ----
+        LinearLayout termRow = new LinearLayout(this);
+        termRow.setOrientation(LinearLayout.HORIZONTAL);
+        termRow.setGravity(Gravity.CENTER_VERTICAL);
+        termRow.setPadding(0, dp(10), 0, 0);
+        TextView termLabel = new TextView(this);
+        termLabel.setText("GUI dari terminal melayang (xrun)");
+        termLabel.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        android.widget.Switch termSwitch = new android.widget.Switch(this);
+        termSwitch.setChecked(mgr.getTerminalFloat());
+        termSwitch.setOnCheckedChangeListener((b, on) -> {
+            mgr.setTerminalFloat(on);
+            toast(on ? "xrun aktif — di terminal bawaan: xrun <perintah GUI>"
+                     : "xrun dimatikan");
+        });
+        termRow.addView(termLabel);
+        termRow.addView(termSwitch);
+        root.addView(termRow);
+
         // ---- header launcher ----
         LinearLayout lh = new LinearLayout(this);
         lh.setOrientation(LinearLayout.HORIZONTAL);

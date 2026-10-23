@@ -48,6 +48,10 @@ public class GhostVizActivity extends AppCompatActivity {
         ws.setDisplayZoomControls(false);
         ws.setSupportZoom(true);
         webView.setWebViewClient(new WebViewClient());
+        // Fondasi tools WebView: bridge perintah chroot buat halaman lokal.
+        webView.addJavascriptInterface(
+                new ToolsBridge(new id.hawx.astro.utils.Core(this), webView),
+                "AstroBridge");
 
         if (path != null) {
             File f = new File(path);

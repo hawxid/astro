@@ -39,11 +39,11 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
     private final FrameLayout windowsBox;
     private final LinearLayout chipsBar;
     private final LinearLayout strip;
+    private FrameLayout ekBox;
     private final Map<Integer, XFloatingWindow> windows = new HashMap<>();
     private final Map<Integer, Button> chips = new HashMap<>();
     private XFloatingWindow active;
     private KillListener killListener;
-    private int latchedMeta;
 
     public XWindowLayer(Context ctx, AttributeSet attrs) {
         super(ctx, attrs);
@@ -62,9 +62,9 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         chipsLp.bottomMargin = dp(48);
         addView(chipsBar, chipsLp);
 
-        strip = buildStrip(ctx);
+        strip = buildEkStrip(ctx);
         LayoutParams stripLp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
+                dp(45));
         stripLp.gravity = Gravity.BOTTOM;
         addView(strip, stripLp);
         strip.setVisibility(GONE);
@@ -144,6 +144,9 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         windows.remove(display);
         Button chip = chips.remove(display);
         if (chip != null) chipsBar.removeView(chip);
+        if (ekBox != null && ekBox.getChildCount() > 0
+                && ekBox.getChildAt(0) == win.host().extraKeysView())
+            ekBox.removeAllViews();
         if (active == win) {
             active = null;
             strip.setVisibility(GONE);
@@ -215,43 +218,37 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
     @Override
     public void onStripVisibilityRequested(XWindowHost host, boolean visible) {
         XFloatingWindow w = windows.get(host.display());
-        if (w != null) setActive(w);
-        strip.setVisibility(visible ? VISIBLE : GONE);
+        if (visible) {
+            if (w != null) setActive(w);
+            android.view.View ek = host.extraKeysView();
+            if (ek.getParent() != null)
+                ((ViewGroup) ek.getParent()).removeView(ek);
+            ek.setBackgroundColor(0xF7232C4E);
+            ekBox.removeAllViews();
+            ekBox.addView(ek, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+            strip.setVisibility(VISIBLE);
+            strip.bringToFront();
+        } else {
+            strip.setVisibility(GONE);
+        }
     }
 
-    // ---- strip softkey (level layar, di atas keyboard) ----
+    // ---- strip softkey: EK ASLI Lorie milik jendela aktif (disatukan
+    //  2026-10-24 — strip custom lama pensiun; posisi bener gratis karena
+    //  strip ini anak layout di activity adjustResize: duduk tepat di
+    //  atas keyboard, tanpa overlay / matematika kbTop) ----
 
-    private LinearLayout buildStrip(Context ctx) {
+    private LinearLayout buildEkStrip(Context ctx) {
         LinearLayout root = new LinearLayout(ctx);
         root.setOrientation(LinearLayout.HORIZONTAL);
         root.setBackgroundColor(0xF7232C4E);
         root.setGravity(Gravity.CENTER_VERTICAL);
-
-        HorizontalScrollView scroll = new HorizontalScrollView(ctx);
-        scroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout row = new LinearLayout(ctx);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        scroll.addView(row);
-        root.addView(scroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-
-        row.addView(stripToggle("CTRL", KeyEvent.META_CTRL_ON));
-        row.addView(stripToggle("ALT", KeyEvent.META_ALT_ON));
-        row.addView(stripKey("ESC", KeyEvent.KEYCODE_ESCAPE));
-        row.addView(stripKey("TAB", KeyEvent.KEYCODE_TAB));
-        row.addView(stripKey("HOME", KeyEvent.KEYCODE_MOVE_HOME));
-        row.addView(stripKey("END", KeyEvent.KEYCODE_MOVE_END));
-        row.addView(stripKey("PGUP", KeyEvent.KEYCODE_PAGE_UP));
-        row.addView(stripKey("PGDN", KeyEvent.KEYCODE_PAGE_DOWN));
-        row.addView(stripKey("←", KeyEvent.KEYCODE_DPAD_LEFT));
-        row.addView(stripKey("↑", KeyEvent.KEYCODE_DPAD_UP));
-        row.addView(stripKey("↓", KeyEvent.KEYCODE_DPAD_DOWN));
-        row.addView(stripKey("→", KeyEvent.KEYCODE_DPAD_RIGHT));
-        for (int i = 1; i <= 12; i++) {
-            final int code = KeyEvent.KEYCODE_F1 + (i - 1);
-            row.addView(stripKey("F" + i, code));
-        }
-
-        TextView hide = stripButton("⌄");
+        ekBox = new FrameLayout(ctx);
+        root.addView(ekBox, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
+        TextView hide = stripButton("\u2304");
         hide.setOnClickListener(v -> hideKeyboardAndStrip());
         root.addView(hide);
         return root;
@@ -261,46 +258,15 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         TextView b = new TextView(getContext());
         b.setText(label);
         b.setTextColor(0xFFE8EBFA);
-        b.setTextSize(12);
+        b.setTextSize(14);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(10), dp(7), dp(10), dp(7));
         return b;
     }
 
-    private TextView stripKey(String label, int keyCode) {
-        TextView b = stripButton(label);
-        b.setOnClickListener(v -> {
-            if (active == null) return;
-            active.host().dispatchKey(keyCode, latchedMeta);
-            clearLatch();
-        });
-        return b;
-    }
-
-    private TextView stripToggle(String label, int meta) {
-        TextView b = stripButton(label);
-        b.setOnClickListener(v -> {
-            if ((latchedMeta & meta) != 0) {
-                latchedMeta &= ~meta;
-                b.setTextColor(0xFFE8EBFA);
-            } else {
-                latchedMeta |= meta;
-                b.setTextColor(0xFF3DDC84);
-            }
-        });
-        return b;
-    }
-
-    private void clearLatch() {
-        latchedMeta = 0;
-        // reset warna semua toggle (dua anak pertama baris tombol)
-        LinearLayout row = (LinearLayout) ((HorizontalScrollView) strip.getChildAt(0)).getChildAt(0);
-        for (int i = 0; i < 2 && i < row.getChildCount(); i++)
-            ((TextView) row.getChildAt(i)).setTextColor(0xFFE8EBFA);
-    }
-
     private void hideKeyboardAndStrip() {
         strip.setVisibility(GONE);
+        if (active != null) active.host().toggleExtraKeys(false, false);
         if (active != null) {
             InputMethodManager imm = (InputMethodManager) getContext()
                     .getSystemService(Context.INPUT_METHOD_SERVICE);

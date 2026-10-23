@@ -58,6 +58,7 @@ public class Dashboard extends Fragment {
     private static final String PREF_TOOL = "dash_tool_";
 
     private LinearLayout toolsGrid;
+    private LinearLayout displaysBox;
     private XSessionManager xMgr;
     private LauncherStore launcherStore;
     private final java.util.Set<String> xRunning = new java.util.HashSet<>();
@@ -85,6 +86,7 @@ public class Dashboard extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         toolsGrid = view.findViewById(R.id.tools_grid);
+        displaysBox = view.findViewById(R.id.displays_box);
         checkPermission();
         xMgr = XSessionManager.get(context);
         launcherStore = new LauncherStore(context);
@@ -434,8 +436,59 @@ public class Dashboard extends Fragment {
         refreshXState();
     }
 
+    /** Panel aktivitas: daftar display floating yang servernya hidup —
+     *  termasuk yang jendelanya sudah tertutup (buka lagi / matikan). */
+    private void rebuildDisplays() {
+        if (displaysBox == null || xMgr == null) return;
+        xMgr.listDisplays(list -> {
+            if (displaysBox == null) return;
+            displaysBox.removeAllViews();
+            if (list.isEmpty()) {
+                displaysBox.setVisibility(View.GONE);
+                return;
+            }
+            displaysBox.setVisibility(View.VISIBLE);
+            TextView hdr = new TextView(context);
+            hdr.setText("Jendela Aktif");
+            hdr.setTextColor(0xFF8B93B8);
+            hdr.setTextSize(12);
+            hdr.setPadding(dp(4), dp(2), dp(4), dp(4));
+            displaysBox.addView(hdr);
+            for (XSessionManager.DisplayInfo di : list) {
+                LinearLayout row = new LinearLayout(context);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(4), dp(2), dp(4), dp(2));
+                TextView label = new TextView(context);
+                label.setText((di.appRunning ? "\u25CF " : "\u25CB ")
+                        + (di.name != null ? di.name : "Display") + " · :" + di.display);
+                label.setTextColor(0xFFE8EBFA);
+                label.setTextSize(13);
+                row.addView(label, new LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                android.widget.Button bOpen = new android.widget.Button(context);
+                bOpen.setText("Buka");
+                bOpen.setTextSize(11);
+                bOpen.setOnClickListener(v ->
+                        id.hawx.astro.MainActivity.openXWindowFrom(context, di.display,
+                                (di.name != null ? di.name : "Display") + " · :" + di.display));
+                row.addView(bOpen);
+                android.widget.Button bKill = new android.widget.Button(context);
+                bKill.setText("Matikan");
+                bKill.setTextSize(11);
+                bKill.setOnClickListener(v -> xMgr.stopDisplay(di.display, (ok, msg) -> {
+                    core.toaster(msg);
+                    refreshXState();
+                }));
+                row.addView(bKill);
+                displaysBox.addView(row);
+            }
+        });
+    }
+
     private void refreshXState() {
         if (xMgr == null) return;
+        rebuildDisplays();
         // Jam + tombol Layar X di panel sekarang diurus MainActivity
         // (panel milik activity); di sini cuma status jalan launcher
         // buat titik indikator di grid desktop.
