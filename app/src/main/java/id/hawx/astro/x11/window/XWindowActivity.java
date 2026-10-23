@@ -11,7 +11,10 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.KeyEvent;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.HorizontalScrollView;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -39,6 +42,9 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private TextView dot;
     private boolean maximized;
     private int[] savedRect; // x, y, w, h sebelum maximize
+    private LinearLayout strip;
+    private int latchedMeta;
+    private TextView latchCtrl, latchAlt;
 
     private int dp(int v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
@@ -111,6 +117,12 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         content.addView(view, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
+        // ---- strip softkey (di bingkai jendela, di bawah display) ----
+        strip = buildStrip();
+        strip.setVisibility(View.GONE);
+        root.addView(strip, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         TextView grip = new TextView(this);
         grip.setText("◢");
         grip.setTextSize(11);
@@ -124,9 +136,12 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         // Wiring sentuh meniru MainActivity upstream: listener di PARENT,
         // diteruskan ke TouchInputHandler host.
         content.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_DOWN
-                    && android.os.Build.VERSION.SDK_INT >= 29)
-                v.requestUnbufferedDispatch(e);
+            if (e.getAction() == MotionEvent.ACTION_DOWN) {
+                if (android.os.Build.VERSION.SDK_INT >= 29)
+                    v.requestUnbufferedDispatch(e);
+                if (strip.getVisibility() != View.VISIBLE)
+                    host.showKeyboardAndStrip();
+            }
             return host.handleTouch(v, e);
         });
         content.setOnHoverListener((v, e) -> host.handleTouch(v, e));
@@ -136,6 +151,14 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
         setContentView(root);
         applyInitialWindowRect();
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                boolean imeVisible = insets.isVisible(android.view.WindowInsets.Type.ime());
+                if (!imeVisible && strip.getVisibility() == View.VISIBLE)
+                    hideKeyboardAndStrip();
+                return insets;
+            });
+        }
         host.attach();
     }
 
@@ -260,7 +283,97 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     }
 
     @Override public void onStripVisibilityRequested(XWindowHost h, boolean visible) {
-        // Strip softkey = tahap 2; di sini keyboard saja yang diatur host.
+        if (strip != null) strip.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) clearLatch();
+    }
+
+    private void hideKeyboardAndStrip() {
+        if (strip != null) strip.setVisibility(View.GONE);
+        clearLatch();
+        InputMethodManager imm = (InputMethodManager)
+                getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        if (imm != null && host != null)
+            imm.hideSoftInputFromWindow(host.view().getWindowToken(), 0);
+    }
+
+    // ---- strip softkey (port dari XWindowLayer) ----
+
+    private LinearLayout buildStrip() {
+        LinearLayout rootS = new LinearLayout(this);
+        rootS.setOrientation(LinearLayout.HORIZONTAL);
+        rootS.setBackgroundColor(0xF7232C4E);
+        rootS.setGravity(Gravity.CENTER_VERTICAL);
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        scroll.addView(row);
+        rootS.addView(scroll, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        latchCtrl = stripToggle("CTRL", KeyEvent.META_CTRL_ON);
+        latchAlt = stripToggle("ALT", KeyEvent.META_ALT_ON);
+        row.addView(latchCtrl);
+        row.addView(latchAlt);
+        row.addView(stripKey("ESC", KeyEvent.KEYCODE_ESCAPE));
+        row.addView(stripKey("TAB", KeyEvent.KEYCODE_TAB));
+        row.addView(stripKey("HOME", KeyEvent.KEYCODE_MOVE_HOME));
+        row.addView(stripKey("END", KeyEvent.KEYCODE_MOVE_END));
+        row.addView(stripKey("PGUP", KeyEvent.KEYCODE_PAGE_UP));
+        row.addView(stripKey("PGDN", KeyEvent.KEYCODE_PAGE_DOWN));
+        row.addView(stripKey("←", KeyEvent.KEYCODE_DPAD_LEFT));
+        row.addView(stripKey("↑", KeyEvent.KEYCODE_DPAD_UP));
+        row.addView(stripKey("↓", KeyEvent.KEYCODE_DPAD_DOWN));
+        row.addView(stripKey("→", KeyEvent.KEYCODE_DPAD_RIGHT));
+        for (int i = 1; i <= 12; i++) {
+            final int code = KeyEvent.KEYCODE_F1 + (i - 1);
+            row.addView(stripKey("F" + i, code));
+        }
+
+        TextView hide = stripButton("⌄");
+        hide.setOnClickListener(v -> hideKeyboardAndStrip());
+        rootS.addView(hide);
+        return rootS;
+    }
+
+    private TextView stripButton(String label) {
+        TextView b = new TextView(this);
+        b.setText(label);
+        b.setTextColor(0xFFE8EBFA);
+        b.setTextSize(12);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(10), dp(7), dp(10), dp(7));
+        return b;
+    }
+
+    private TextView stripKey(String label, int keyCode) {
+        TextView b = stripButton(label);
+        b.setOnClickListener(v -> {
+            host.dispatchKey(keyCode, latchedMeta);
+            clearLatch();
+        });
+        return b;
+    }
+
+    private TextView stripToggle(String label, int meta) {
+        TextView b = stripButton(label);
+        b.setOnClickListener(v -> {
+            if ((latchedMeta & meta) != 0) {
+                latchedMeta &= ~meta;
+                b.setTextColor(0xFFE8EBFA);
+            } else {
+                latchedMeta |= meta;
+                b.setTextColor(0xFF3DDC84);
+            }
+        });
+        return b;
+    }
+
+    private void clearLatch() {
+        latchedMeta = 0;
+        if (latchCtrl != null) latchCtrl.setTextColor(0xFFE8EBFA);
+        if (latchAlt != null) latchAlt.setTextColor(0xFFE8EBFA);
     }
 
     @Override protected void onDestroy() {
