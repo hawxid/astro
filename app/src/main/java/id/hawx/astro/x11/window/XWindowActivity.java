@@ -292,7 +292,20 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     @Override public void onStripVisibilityRequested(XWindowHost h, boolean visible) {
         X11DebugLog.log("KB", "stripReq visible=" + visible + " imeBottom=" + imeBottomPx);
         ekRequested = visible;
-        if (visible) tryShowEkPopup();
+        if (visible) {
+            tryShowEkPopup();
+            // Polling pendek: IME naiknya asinkron; cek insets view 5x2 detik.
+            for (int i = 1; i <= 5; i++) {
+                final int n = i;
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(() -> {
+                            if (!ekRequested) return;
+                            X11DebugLog.log("KB", "poll#" + n);
+                            tryShowEkPopup();
+                            if (ekPopup != null && ekPopup.isShowing()) return;
+                        }, 400L * i);
+            }
+        }
         else dismissEkPopup();
     }
 
@@ -310,6 +323,16 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
     private void tryShowEkPopup() {
         if (!ekRequested || host == null) return;
+        // Baca insets dari LorieView sendiri (getRootWindowInsets) — jalur
+        // yang dipakai upstream; listener root activity terbukti tak nembak.
+        if (imeBottomPx <= 0 && android.os.Build.VERSION.SDK_INT >= 30
+                && host.view().getRootWindowInsets() != null) {
+            android.view.WindowInsets vi = host.view().getRootWindowInsets();
+            boolean vIme = vi.isVisible(android.view.WindowInsets.Type.ime());
+            int vBottom = vi.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+            X11DebugLog.log("KB", "viewInsets ime=" + vIme + " bottom=" + vBottom);
+            if (vIme && vBottom > 0) imeBottomPx = vBottom;
+        }
         if (ekPopup != null && ekPopup.isShowing()) {
             ekPopup.update(ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT, -1, imeBottomPx);
