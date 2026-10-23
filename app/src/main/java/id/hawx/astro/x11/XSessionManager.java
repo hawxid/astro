@@ -594,7 +594,10 @@ public class XSessionManager {
      */
     public void launchFloating(LauncherEntry entry, FloatingCallback cb) {
         exec.execute(() -> {
-            if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
+            boolean running = entryRunningSync(entry.id, entry.firstWord());
+            X11DebugLog.log("LAUNCH", "launchFloating " + entry.id
+                    + " allowMultiple=" + entry.allowMultiple + " running=" + running);
+            if (!entry.allowMultiple && running) {
                 Integer d = floatingDisplays.get(entry.id);
                 if (d != null) postF(cb, true, d, entry.name + " sudah jalan di :" + d);
                 else postF(cb, false, -1, entry.name + " sedang jalan (bukan floating)");
@@ -609,9 +612,19 @@ public class XSessionManager {
                 return;
             }
             final int disp = chosen;
-            floatingDisplays.put(entry.id, disp);
-            launchOnDisplay(entry, disp, (ok, msg) -> {
-                if (!ok) floatingDisplays.remove(entry.id);
+            // Entri multi yang SUDAH jalan: instance berikutnya beridentitas
+            // sendiri (klon ber-id per display) — file PID/log/fit tak lagi
+            // tabrakan antar instance (akar "multiple ON tapi tetap gabisa"
+            // + fit nyasar ke jendela tetangga).
+            LauncherEntry use = entry;
+            if (entry.allowMultiple && running) {
+                use = entry.copyWithId(entry.id + "-d" + disp);
+                X11DebugLog.log("LAUNCH", "instance baru: " + use.id + " di :" + disp);
+            }
+            final LauncherEntry fu = use;
+            floatingDisplays.put(fu.id, disp);
+            launchOnDisplay(fu, disp, (ok, msg) -> {
+                if (!ok) floatingDisplays.remove(fu.id);
                 postF(cb, ok, disp, msg);
             }, false);
         });

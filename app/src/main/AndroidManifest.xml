@@ -251,7 +251,6 @@
             <activity
             android:name=".x11.window.XWindowActivity"
             android:exported="false"
-            android:excludeFromRecents="true"
             android:taskAffinity="id.hawx.astro.xwindows"
             android:launchMode="singleInstancePerTask"
             android:documentLaunchMode="intoExisting"

@@ -46,6 +46,23 @@ public class LauncherEntry {
         hidden = false;
     }
 
+    /** Salinan dengan id lain — buat instance tambahan entri multi. */
+    public LauncherEntry copyWithId(String newId) {
+        LauncherEntry c = new LauncherEntry();
+        c.id = newId;
+        c.name = name;
+        c.icon = icon;
+        c.command = command;
+        c.type = type;
+        c.workdir = workdir;
+        c.env = env;
+        c.allowMultiple = allowMultiple;
+        c.floating = floating;
+        c.builtin = builtin;
+        c.hidden = hidden;
+        return c;
+    }
+
     public String workdirOrDefault() {
         return (workdir == null || workdir.trim().isEmpty()) ? "/root" : workdir.trim();
     }

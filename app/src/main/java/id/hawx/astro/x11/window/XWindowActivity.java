@@ -54,6 +54,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private XWindowHost host;
     private int display;
     private TextView dot;
+    private FrameLayout contentFrame;
     private boolean maximized;
     private int[] savedRect; // x, y, w, h sebelum maximize
     private PopupWindow ekPopup;
@@ -143,6 +144,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
         // ---- isi: LorieView murni + grip resize ----
         FrameLayout content = new FrameLayout(this);
+        contentFrame = content;
         root.addView(content, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
         content.addView(view, new FrameLayout.LayoutParams(
@@ -164,8 +166,9 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             if (e.getAction() == MotionEvent.ACTION_DOWN) {
                 if (android.os.Build.VERSION.SDK_INT >= 29)
                     v.requestUnbufferedDispatch(e);
-                X11DebugLog.log("KB", "tap konten d=" + display + " ekReq=" + ekRequested);
-                host.showKeyboardAndStrip();
+                // Tap konten = fokus saja. Keyboard HANYA dari tombol ⌨
+                // di bar judul (keputusan Hawx).
+                X11DebugLog.log("KB", "tap konten d=" + display + " (fokus saja)");
             }
             return host.handleTouch(v, e);
         });
@@ -244,6 +247,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             maximized = false;
         }
         getWindow().setAttributes(lp);
+        updateStripInset();
     }
 
     /** Seret bar judul = pindahkan window. */
@@ -352,6 +356,16 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         return Math.round(45f * getResources().getDisplayMetrics().density);
     }
 
+    /** Pas MAXIMIZED, strip tak boleh nutupin layar X: area konten
+     *  disusutkan setebal strip (surface ngecil -> RANDR ngikut -> konten
+     *  reflow ke atas strip). */
+    private void updateStripInset() {
+        if (contentFrame == null) return;
+        int pad = (maximized && stripShowing()) ? stripHpx : 0;
+        if (contentFrame.getPaddingBottom() != pad)
+            contentFrame.setPadding(0, 0, 0, pad);
+    }
+
     private boolean stripShowing() {
         return sEkOverlayView != null
                 || (ekPopup != null && ekPopup.isShowing());
@@ -434,6 +448,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             sEkWm.addView(ekView, sEkLp);
             sEkOverlayView = ekView;
             sEkOwner = this;
+            updateStripInset();
             X11DebugLog.log("KB", "overlay SHOW y=" + sEkLp.y + " kbTop=" + kbTop);
             startEkOverlayWatchdog();
         } catch (Exception e) {
@@ -515,6 +530,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                 Gravity.TOP | Gravity.START, 0, yLocal);
         X11DebugLog.log("KB", "popup SHOW hPx=" + hPx + " yLocal=" + yLocal);
         startEkWatchdog();
+        updateStripInset();
     }
 
     private int stripHpx;
@@ -585,6 +601,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             sEkOwner = null;
         }
         dismissEkPopup();
+        updateStripInset();
     }
 
     /** Activity tertutup layar lain / ke background: strip nutup INSTAN
