@@ -568,6 +568,49 @@ public class XSessionManager {
     }
 
     /** Launch app GUI ke display :d (varian launch() dengan DISPLAY bebas). */
+    public interface FloatingCallback {
+        void onResult(boolean ok, int display, String message);
+    }
+
+    /** Peta entri -> display floating terakhir (memori saja; untuk fokus ulang). */
+    private final java.util.Map<String, Integer> floatingDisplays =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Luncurkan entri sebagai jendela floating: pilih display bebas terendah
+     * (>= :1), jalankan TANPA viewer fullscreen; pemanggil membuka
+     * XWindowActivity untuk display hasil. Entri yang sudah jalan ->
+     * kembalikan display terakhirnya (fokus ulang, bukan luncur ulang).
+     */
+    public void launchFloating(LauncherEntry entry, FloatingCallback cb) {
+        exec.execute(() -> {
+            if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
+                Integer d = floatingDisplays.get(entry.id);
+                if (d != null) postF(cb, true, d, entry.name + " sudah jalan di :" + d);
+                else postF(cb, false, -1, entry.name + " sedang jalan (bukan floating)");
+                return;
+            }
+            int chosen = -1;
+            for (int d = 1; d <= 4; d++) {
+                if (probeSync(d).state != State.RUNNING) { chosen = d; break; }
+            }
+            if (chosen < 0) {
+                postF(cb, false, -1, "Semua display floating penuh (:1-:4)");
+                return;
+            }
+            final int disp = chosen;
+            floatingDisplays.put(entry.id, disp);
+            launchOnDisplay(entry, disp, (ok, msg) -> {
+                if (!ok) floatingDisplays.remove(entry.id);
+                postF(cb, ok, disp, msg);
+            }, false);
+        });
+    }
+
+    private void postF(FloatingCallback cb, boolean ok, int d, String msg) {
+        if (cb != null) main.post(() -> cb.onResult(ok, d, msg));
+    }
+
     public void launchOnDisplay(LauncherEntry entry, int d, Callback cb) {
         launchOnDisplay(entry, d, cb, true);
     }

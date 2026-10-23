@@ -27,6 +27,8 @@ public class LauncherEntry {
     /** "KUNCI=nilai" per baris; boleh kosong. */
     public String env;
     public boolean allowMultiple;
+    /** true = buka sebagai jendela floating (display sendiri >= :1), bukan viewer fullscreen :0. */
+    public boolean floating;
     public boolean builtin;
     public boolean hidden;
 
@@ -39,6 +41,7 @@ public class LauncherEntry {
         workdir = "/root";
         env = "";
         allowMultiple = false;
+        floating = false;
         builtin = false;
         hidden = false;
     }
@@ -73,6 +76,7 @@ public class LauncherEntry {
         o.put("workdir", workdir);
         o.put("env", env);
         o.put("allowMultiple", allowMultiple);
+        o.put("floating", floating);
         o.put("builtin", builtin);
         o.put("hidden", hidden);
         return o;
@@ -88,6 +92,7 @@ public class LauncherEntry {
         e.workdir = o.optString("workdir", "/root");
         e.env = o.optString("env", "");
         e.allowMultiple = o.optBoolean("allowMultiple", false);
+        e.floating = o.optBoolean("floating", false);
         e.builtin = o.optBoolean("builtin", false);
         e.hidden = o.optBoolean("hidden", false);
         if (e.id.isEmpty()) e.id = slug(e.name);

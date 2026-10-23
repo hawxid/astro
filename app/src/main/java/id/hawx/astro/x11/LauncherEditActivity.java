@@ -33,6 +33,7 @@ public class LauncherEditActivity extends AppCompatActivity {
     private EditText fName, fIcon, fCommand, fWorkdir, fEnv;
     private Spinner fType;
     private CheckBox fMultiple;
+    private CheckBox fFloating;
 
     private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
 
@@ -77,6 +78,10 @@ public class LauncherEditActivity extends AppCompatActivity {
         fMultiple.setText("Boleh banyak jendela (tap saat jalan = luncurkan lagi, bukan fokus)");
         root.addView(fMultiple);
 
+        fFloating = new CheckBox(this);
+        fFloating.setText("Buka sebagai jendela floating (display sendiri, bukan layar penuh)");
+        root.addView(fFloating);
+
         if (existing != null) {
             fName.setText(existing.name);
             fIcon.setText(existing.icon);
@@ -85,6 +90,7 @@ public class LauncherEditActivity extends AppCompatActivity {
             fWorkdir.setText(existing.workdir);
             fEnv.setText(existing.env);
             fMultiple.setChecked(existing.allowMultiple);
+            fFloating.setChecked(existing.floating);
         }
 
         LinearLayout row1 = new LinearLayout(this);
@@ -158,6 +164,7 @@ public class LauncherEditActivity extends AppCompatActivity {
         e.workdir = fWorkdir.getText().toString().trim();
         e.env = fEnv.getText().toString();
         e.allowMultiple = fMultiple.isChecked();
+        e.floating = fFloating.isChecked();
         e.builtin = existing != null && existing.builtin;
         e.hidden = existing != null && existing.hidden;
         return e;

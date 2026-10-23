@@ -318,6 +318,16 @@ public class X11PocActivity extends AppCompatActivity {
     }
 
     private void doLaunch(LauncherEntry e) {
+        if (e.floating) {
+            toast("Menyiapkan jendela floating " + e.name + "…");
+            mgr.launchFloating(e, (ok, d, msg) -> {
+                toast(msg);
+                if (ok && d > 0)
+                    id.hawx.astro.x11.window.XWindowActivity.launch(this, d);
+                refreshAll();
+            });
+            return;
+        }
         mgr.launch(e, (ok, msg) -> {
             toast(msg);
             refreshAll();
@@ -402,7 +412,7 @@ public class X11PocActivity extends AppCompatActivity {
         mid.setOrientation(LinearLayout.VERTICAL);
         mid.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         TextView name = new TextView(this);
-        name.setText(e.name + (e.hidden ? " (tersembunyi)" : ""));
+        name.setText(e.name + (e.floating ? "  🗔" : "") + (e.hidden ? " (tersembunyi)" : ""));
         name.setTypeface(null, Typeface.BOLD);
         mid.addView(name);
         TextView sub = new TextView(this);
