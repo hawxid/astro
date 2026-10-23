@@ -254,7 +254,7 @@
             android:taskAffinity="id.hawx.astro.xwindows"
             android:launchMode="singleInstancePerTask"
             android:documentLaunchMode="intoExisting"
-            android:theme="@style/AstroXWindowTheme"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize" />
     </application>

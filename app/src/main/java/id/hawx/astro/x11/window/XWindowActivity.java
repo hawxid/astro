@@ -639,6 +639,35 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         i.setData(android.net.Uri.parse("astro-x-window://d" + display));
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        // BADAN JENDELA = FREEFORM BAWAAN ANDROID (keputusan Hawx
+        // 2026-10-23 malam): pengelola luar jendela (gerak/ukuran/
+        // fullscreen/region sentuh) diserahkan ke mode freeform sistem —
+        // gestur garis bawahnya lengkap (tutup/fullscreen/kembali, dan
+        // kembali = micu keyboard di layar X). Chrome + strip kita tetap.
+        // Mode+bounds HANYA di launch pertama per display (penjaga statis):
+        // raise jendela yang sudah ada tak boleh menyeretnya balik ke
+        // rect awal.
+        if (android.os.Build.VERSION.SDK_INT >= 26
+                && sFreeformPrimed.add(display)) {
+            android.util.DisplayMetrics dm = from.getResources().getDisplayMetrics();
+            float dens = dm.density;
+            int w = Math.round(dm.widthPixels * 0.88f);
+            int h = Math.round(dm.heightPixels * 0.58f);
+            int cascade = (display % 5) * Math.round(22 * dens);
+            int x = Math.max(0, (dm.widthPixels - w) / 2 + cascade - Math.round(44 * dens));
+            int y = Math.round(56 * dens) + cascade;
+            android.app.ActivityOptions opts = android.app.ActivityOptions.makeBasic();
+            opts.setLaunchWindowingMode(5 /* WINDOWING_MODE_FREEFORM */);
+            opts.setLaunchBounds(new android.graphics.Rect(x, y, x + w, y + h));
+            X11DebugLog.log("FLOAT", "launch freeform d=" + display
+                    + " bounds=" + x + "," + y + " " + w + "x" + h);
+            from.startActivity(i, opts.toBundle());
+            return;
+        }
         from.startActivity(i);
     }
+
+    /** Display yang task-nya sudah diluncurkan sebagai freeform. */
+    private static final java.util.Set<Integer> sFreeformPrimed =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 }
