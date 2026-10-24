@@ -56,7 +56,10 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
     private boolean attached;
     private boolean syncing;
     private boolean wasMaximized;
-    private int homeX, homeY;
+    private int lastMX, lastMY;
+    private final android.os.Handler ui =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable settle = this::settleMargins;
 
     // ---------------- statis ----------------
 
@@ -131,8 +134,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         wlp.gravity = Gravity.TOP | Gravity.START;
         wlp.x = dp(14) + (display - 1) * dp(26);
         wlp.y = dp(70) + (display - 1) * dp(30);
-        homeX = wlp.x;
-        homeY = wlp.y;
         win.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, orr, ob) -> syncContainer());
     }
 
@@ -159,6 +160,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
 
     /** — : lepas dari WindowManager saja; sesi X tetap hidup. */
     public void hide() {
+        ui.removeCallbacks(settle);
         if (attached) {
             wm.removeView(container);
             attached = false;
@@ -189,13 +191,16 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         }
     }
 
-    /** Bar terminal melayani jendela ini selama dia aktif. */
+    /** Bar terminal melayani jendela ini selama dia aktif.
+     *  Jalur = LorieView.sendKeyEvent(scanCode, keyCode, down) —
+     *  kanal hardware-key yang DIPAKAI EK Lorie sendiri. Versi
+     *  pertama router pakai dispatchKeyEvent generik: event-nya
+     *  tidak sampai ke server X (temuan Hawx: softkey ga ngaruh). */
     private void registerRouter() {
         final XWindowHost h = host;
         XKeyRouter.keySink = code -> {
-            long t = SystemClock.uptimeMillis();
-            h.view().dispatchKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0));
-            h.view().dispatchKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0));
+            h.view().sendKeyEvent(0, code, true);
+            h.view().sendKeyEvent(0, code, false);
         };
         XKeyRouter.textSink = text -> h.view().dispatchKeyEvent(new KeyEvent(
                 SystemClock.uptimeMillis(), text, KeyCharacterMap.VIRTUAL_KEYBOARD, 0));
@@ -203,17 +208,19 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             int code = "Ctrl".equals(name) ? KeyEvent.KEYCODE_CTRL_LEFT
                     : "Alt".equals(name) ? KeyEvent.KEYCODE_ALT_LEFT
                     : KeyEvent.KEYCODE_SHIFT_LEFT;
-            long t = SystemClock.uptimeMillis();
-            h.view().dispatchKeyEvent(new KeyEvent(t, t,
-                    down ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP, code, 0));
+            h.view().sendKeyEvent(0, code, down);
         };
     }
 
     /**
      * Sinkronkan parameter WindowManager kontainer dengan geometri
-     * yang diminta jendela (margins/ukuran FrameLayout-nya). Jendela
-     * selalu mengisi kontainernya persis (margins dinolkan); gerakan
-     * dipindah ke kontainer. Maximize = kontainer layar penuh.
+     * yang diminta jendela. Margin jendela bersifat KUMULATIF dari
+     * awal gestur (model DragListener-nya) — kontainer menyerap
+     * DELTA margin tiap perubahan, dan ukurannya = ukuran jendela +
+     * margin (permukaan harus menampung anak yang bergeser).
+     * 120 md setelah perubahan terakhir (gestur selesai), settle
+     * menolkan margin di objek LayoutParams yang sama: geometri
+     * visual identik, keadaan kembali bersih buat gestur berikut.
      */
     private void syncContainer() {
         if (syncing || !attached) return;
@@ -221,59 +228,78 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 (FrameLayout.LayoutParams) win.getLayoutParams();
         syncing = true;
         try {
-            DisplayMetrics m = new DisplayMetrics();
-            wm.getDefaultDisplay().getRealMetrics(m);
             if (win.isMaximized()) {
-                if (!wasMaximized) {
-                    homeX = wlp.x;
-                    homeY = wlp.y;
-                }
                 wasMaximized = true;
+                ui.removeCallbacks(settle);
+                DisplayMetrics m = new DisplayMetrics();
+                wm.getDefaultDisplay().getRealMetrics(m);
                 wlp.x = 0;
                 wlp.y = 0;
                 wlp.width = m.widthPixels;
                 wlp.height = m.heightPixels;
                 wm.updateViewLayout(container, wlp);
-                win.setLayoutParams(new FrameLayout.LayoutParams(
-                        m.widthPixels - dp(12), m.heightPixels - dp(12)));
-                FrameLayout.LayoutParams nlp =
-                        (FrameLayout.LayoutParams) win.getLayoutParams();
-                nlp.leftMargin = dp(6);
-                nlp.topMargin = dp(6);
-                win.setLayoutParams(nlp);
+                lp.width = m.widthPixels - dp(12);
+                lp.height = m.heightPixels - dp(12);
+                lp.leftMargin = dp(6);
+                lp.topMargin = dp(6);
+                lastMX = lp.leftMargin;
+                lastMY = lp.topMargin;
+                win.setLayoutParams(lp);
                 return;
             }
             if (wasMaximized) {
+                // Jendela memulihkan rect tersimpannya sendiri; adopsi
+                // marginnya apa adanya (tanpa delta), posisi kontainer
+                // tak berubah — posisi visual kembali persis.
                 wasMaximized = false;
-                wlp.x = homeX;
-                wlp.y = homeY;
+                lastMX = lp.leftMargin;
+                lastMY = lp.topMargin;
             } else {
-                wlp.x += lp.leftMargin;
-                wlp.y += lp.topMargin;
-                homeX = wlp.x;
-                homeY = wlp.y;
+                wlp.x += lp.leftMargin - lastMX;
+                wlp.y += lp.topMargin - lastMY;
+                lastMX = lp.leftMargin;
+                lastMY = lp.topMargin;
             }
-            wlp.width = lp.width;
-            wlp.height = lp.height;
+            wlp.width = lp.width + lp.leftMargin;
+            wlp.height = lp.height + lp.topMargin;
             wm.updateViewLayout(container, wlp);
-            if (lp.leftMargin != 0 || lp.topMargin != 0) {
-                win.setLayoutParams(new FrameLayout.LayoutParams(lp.width, lp.height));
-            }
+            ui.removeCallbacks(settle);
+            ui.postDelayed(settle, 120);
         } finally {
             syncing = false;
         }
+    }
+
+    /** Gestur selesai: nolkan margin (objek sama), kontainer pas. */
+    private void settleMargins() {
+        if (!attached || win.isMaximized()) return;
+        FrameLayout.LayoutParams lp =
+                (FrameLayout.LayoutParams) win.getLayoutParams();
+        if (lp.leftMargin == 0 && lp.topMargin == 0) return;
+        wlp.width = lp.width;
+        wlp.height = lp.height;
+        lp.leftMargin = 0;
+        lp.topMargin = 0;
+        lastMX = 0;
+        lastMY = 0;
+        win.setLayoutParams(lp);
+        wm.updateViewLayout(container, wlp);
     }
 
     // ---------------- XFloatingWindow.Listener ----------------
 
     @Override
     public void onFocusGained(XFloatingWindow w) {
+        host.view().requestFocus();
         setActive();
     }
 
     @Override
     public void onContentTapped(XFloatingWindow w) {
-        setActive(); // fokus saja — keyboard hanya dari tombol ⌨
+        // Fokus saja — keyboard hanya dari tombol ⌨. requestFocus
+        // eksplisit: tanpa ini LorieView tak terikat IME/input.
+        host.view().requestFocus();
+        setActive();
     }
 
     @Override
