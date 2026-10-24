@@ -229,15 +229,12 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
             ekBox.addView(ek, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT));
-            // Strip parkir DI ATAS dock desktop — jangan nutupin dock
-            // pas muncul (temuan Hawx).
-            android.view.View dock = getRootView() != null
-                    ? getRootView().findViewById(id.hawx.astro.R.id.xfce_dock) : null;
-            FrameLayout.LayoutParams slp =
-                    (FrameLayout.LayoutParams) strip.getLayoutParams();
-            slp.bottomMargin = (dock != null && dock.getVisibility() == VISIBLE)
-                    ? dock.getHeight() : 0;
-            strip.setLayoutParams(slp);
+            // RESIZE LAYAR, bukan geser posisi (model Hawx): pas softkey
+            // muncul, area layar desktop (flContent) menyusut setinggi
+            // strip — dock yang berjangkar di bawah IKUT NAIK dan
+            // beristirahat tepat di atas softkey. Urutan dari bawah:
+            // keyboard -> softkey -> dock.
+            setScreenInset(true);
             strip.setVisibility(VISIBLE);
             strip.bringToFront();
             // Bangun ulang EK di rumah barunya, lalu PAKSA tombol ikon
@@ -274,8 +271,28 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
                         "layer EK: anak=" + g.getChildCount() + " keys: " + keys);
             });
         } else {
+            setScreenInset(false);
             strip.setVisibility(GONE);
         }
+    }
+
+    /** Susutkan/kembalikan area layar desktop (flContent) setinggi
+     *  strip softkey. Strip sendiri tetap di dasar layer (tepi atas
+     *  keyboard); yang bergerak adalah LAYAR di atasnya — persis
+     *  perilaku desktop pas panel bawah muncul. */
+    private void setScreenInset(boolean on) {
+        android.view.View root = getRootView();
+        if (root == null) return;
+        android.view.View content =
+                root.findViewById(id.hawx.astro.R.id.flContent);
+        if (content == null) return;
+        int h = 0;
+        if (on) {
+            h = strip.getLayoutParams() != null
+                    ? strip.getLayoutParams().height : 0;
+            if (h <= 0) h = (int) (45 * getResources().getDisplayMetrics().density);
+        }
+        content.setPadding(0, 0, 0, h);
     }
 
     // ---- strip softkey: EK ASLI Lorie milik jendela aktif (disatukan
