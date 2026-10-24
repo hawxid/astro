@@ -140,12 +140,12 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         win.setListener(this);
         host.setListener(this);
 
-        int w = (int) (getWidth() * 0.86f);
-        int h = (int) (getHeight() * 0.58f);
+        int w = (int) (getWidth() * 0.43f);
+        int h = (int) (getHeight() * 0.29f);
         if (w <= 0) { // layer belum ter-layout (dibuka dari onCreate) — pakai metrik layar
             android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-            w = (int) (dm.widthPixels * 0.86f);
-            h = (int) (dm.heightPixels * 0.5f);
+            w = (int) (dm.widthPixels * 0.43f);
+            h = (int) (dm.heightPixels * 0.25f);
         }
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h);
         lp.leftMargin = dp(14) + display * dp(18);

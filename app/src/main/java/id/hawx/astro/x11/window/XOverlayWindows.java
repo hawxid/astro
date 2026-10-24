@@ -116,36 +116,48 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                     (FrameLayout.LayoutParams) o.win.getLayoutParams();
             int oldTop = lp.topMargin;
             int oldH = lp.height;
-            int bottom = oldTop + oldH;
             int newTop = oldTop;
-            boolean pinBawah = false;
-            // Debug ke-2 (log 31): jendela yang LEBIH TINGGI dari
-            // anchor tidak mungkin memenuhi kedua tepi sekaligus —
-            // dua cabang lama berosilasi selamanya (top 76<->221
-            // tiap ~167 md, h=1287 vs tinggi anchor 1142). Pin
-            // bawah saja: tepi bawah di atas EK jauh lebih penting
-            // daripada tepi atas, karena EK harus tetap bisa dipakai.
-            if (oldH > anchorB - anchorT) {
-                newTop = anchorB - oldH;
-                pinBawah = true;
-            } else if (bottom > anchorB) {
-                newTop = oldTop - (bottom - anchorB);
-            } else if (oldTop < anchorT) {
+            int newH = oldH;
+            boolean potong = false;
+            // Koreksi user (ganti bottom-pin geser): top DIAM,
+            // bottom yang lewat anchor DIPOTONG. Geser hanya ke
+            // bawah (top < anchorT -> top = anchorT); geser ke atas
+            // DILARANG karena itulah yang berosilasi dengan cabang
+            // bawah di log 31 (top 76<->221). Setelah potong,
+            // top>=anchorT DAN bottom==anchorB terpenuhi sekaligus
+            // sehingga loop putus. Maximized sudah di-skip di guard
+            // loop di atas (harus tetap penuh, tidak dipotong).
+            if (oldTop < anchorT && anchorT - oldTop >= threshPx) {
                 newTop = anchorT;
             }
-            int move = newTop - oldTop;
-            // Pelanggaran kecil diabaikan: tidak gerak, tidak log
-            // (menghindari getar tiap settle yang nyaris pas).
-            // Berlaku juga untuk gerakan bottom-pin.
-            if (move == 0 || Math.abs(move) < threshPx) continue;
+            if (newTop + newH > anchorB) {
+                int hasil = anchorB - newTop;
+                int minH = Math.round(200 * density);
+                if (hasil < minH) {
+                    // Pengaman: hasil di bawah 200dp — biarkan
+                    // jendela apa adanya, catat saja di log.
+                    X11DebugLog.log("ANCHOR", "d=" + o.display
+                            + " anchorT=" + anchorT + " anchorB=" + anchorB
+                            + " potong ditahan: hasil=" + hasil
+                            + "px < 200dp top=" + oldTop + " h=" + oldH);
+                    continue;
+                }
+                if (newH - hasil >= threshPx) {
+                    newH = hasil;
+                    potong = true;
+                }
+            }
+            if (newTop == oldTop && newH == oldH) continue;
             lp.topMargin = newTop;
+            lp.height = newH;
             o.win.setLayoutParams(lp);
             // Log ANCHOR temporer sampai verdict jitter lulus: satu
-            // baris per gerakan yang benar-benar dieksekusi.
+            // baris per perubahan yang benar-benar dieksekusi.
             X11DebugLog.log("ANCHOR", "d=" + o.display
                     + " anchorT=" + anchorT + " anchorB=" + anchorB
-                    + " top " + oldTop + "->" + newTop + " h=" + oldH
-                    + (pinBawah ? " pin=bawah" : ""));
+                    + " top " + oldTop + "->" + newTop
+                    + " h=" + oldH + "->" + newH
+                    + (potong ? " potong" : ""));
         }
     }
 
@@ -288,8 +300,8 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         container.setClickable(false);
         android.util.DisplayMetrics m = new android.util.DisplayMetrics();
         act.getWindowManager().getDefaultDisplay().getRealMetrics(m);
-        int w = (int) (m.widthPixels * 0.88f);
-        int h = (int) (m.heightPixels * 0.55f);
+        int w = (int) (m.widthPixels * 0.44f);
+        int h = (int) (m.heightPixels * 0.275f);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h);
         lp.leftMargin = dp(14) + (display - 1) * dp(26);
         lp.topMargin = dp(70) + (display - 1) * dp(30);
