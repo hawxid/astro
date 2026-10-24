@@ -118,7 +118,17 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             int oldH = lp.height;
             int bottom = oldTop + oldH;
             int newTop = oldTop;
-            if (bottom > anchorB) {
+            boolean pinBawah = false;
+            // Debug ke-2 (log 31): jendela yang LEBIH TINGGI dari
+            // anchor tidak mungkin memenuhi kedua tepi sekaligus —
+            // dua cabang lama berosilasi selamanya (top 76<->221
+            // tiap ~167 md, h=1287 vs tinggi anchor 1142). Pin
+            // bawah saja: tepi bawah di atas EK jauh lebih penting
+            // daripada tepi atas, karena EK harus tetap bisa dipakai.
+            if (oldH > anchorB - anchorT) {
+                newTop = anchorB - oldH;
+                pinBawah = true;
+            } else if (bottom > anchorB) {
                 newTop = oldTop - (bottom - anchorB);
             } else if (oldTop < anchorT) {
                 newTop = anchorT;
@@ -126,6 +136,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             int move = newTop - oldTop;
             // Pelanggaran kecil diabaikan: tidak gerak, tidak log
             // (menghindari getar tiap settle yang nyaris pas).
+            // Berlaku juga untuk gerakan bottom-pin.
             if (move == 0 || Math.abs(move) < threshPx) continue;
             lp.topMargin = newTop;
             o.win.setLayoutParams(lp);
@@ -133,7 +144,8 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             // baris per gerakan yang benar-benar dieksekusi.
             X11DebugLog.log("ANCHOR", "d=" + o.display
                     + " anchorT=" + anchorT + " anchorB=" + anchorB
-                    + " top " + oldTop + "->" + newTop + " h=" + oldH);
+                    + " top " + oldTop + "->" + newTop + " h=" + oldH
+                    + (pinBawah ? " pin=bawah" : ""));
         }
     }
 

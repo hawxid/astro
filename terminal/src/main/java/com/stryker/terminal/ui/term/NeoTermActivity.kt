@@ -202,6 +202,7 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
             .setPackage(packageName)
             .putExtra("enabled", now)
             .putIntegerArrayListExtra("pids", ArrayList(collectTermPids()))
+            .putStringArrayListExtra("tabInfo", ArrayList(collectTermTabInfo()))
         )
         true
       }
@@ -262,10 +263,16 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
               // Ronde perbaikan: penolakan filter harus bersuara.
               // Modul terminal tak boleh merujuk logger modul app,
               // jadi dititipkan lewat broadcast paket-lokal yang
-              // dicatat sisi app sebagai baris TAB.
+              // dicatat sisi app sebagai baris TAB. Debug ke-2:
+              // bawa juga title + reason supaya log berikutnya
+              // mengidentifikasi tiap tab tanpa tebak-tebakan
+              // ("pid" bila pid<=0, "path" bila path bukan stryker-ch).
+              val reason = if (pid <= 0) "pid" else "path"
               sendBroadcast(Intent("id.hawx.astro.TERMINAL_TAB_DEBUG")
                 .setPackage(packageName).putExtra("pid", pid)
-                .putExtra("path", path))
+                .putExtra("path", path)
+                .putExtra("title", tab.title.toString())
+                .putExtra("reason", reason))
             }
           }
         }
@@ -314,6 +321,27 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
           if (pid > 0 && path != null && path.endsWith("stryker-ch")) {
             out.add(pid)
           }
+        }
+      }
+    } catch (_: Exception) {
+    }
+    return out
+  }
+
+  /** Debug ke-2: info semua tab hidup buat log TAB saat toggle
+   *  (satu string per tab, format "title|pid|path"). Dihitung
+   *  dalam loop yang sama polanya dengan collectTermPids, tanpa
+   *  mengubah fungsi itu (dipakai jalur lain). Volume rendah:
+   *  hanya dicatat sisi app saat toggle, bukan per-poll. */
+  fun collectTermTabInfo(): List<String> {
+    val out = ArrayList<String>()
+    try {
+      for (i in 0 until tabSwitcher.count) {
+        val tab = tabSwitcher.getTab(i)
+        if (tab is TermTab) {
+          val sess = tab.termData.termSession
+          out.add(tab.title.toString() + "|" + (sess?.pid ?: 0)
+              + "|" + (sess?.shellPath ?: ""))
         }
       }
     } catch (_: Exception) {

@@ -40,6 +40,21 @@ public class AstroApp extends com.termux.x11.LorieApp {
                 // (NeoTermActivity); bisa absen dari pengirim lama.
                 java.util.ArrayList<Integer> pids =
                         i.getIntegerArrayListExtra("pids");
+                // Debug ke-2: info tiap tab hidup (format
+                // "title|pid|path") — dicatat hanya saat toggle ON,
+                // volume rendah, supaya log berikutnya langsung
+                // menunjukkan tab mana yang chroot dan mana yang
+                // bukan tanpa tebak-tebakan.
+                if (en) {
+                    java.util.ArrayList<String> tabInfo =
+                            i.getStringArrayListExtra("tabInfo");
+                    if (tabInfo != null) {
+                        for (String t : tabInfo) {
+                            id.hawx.astro.x11.X11DebugLog.log("TAB",
+                                    "tab toggle: " + t);
+                        }
+                    }
+                }
                 id.hawx.astro.x11.XSessionManager.get(c)
                         .setTerminalFloat(en, pids);
                 id.hawx.astro.x11.X11DebugLog.log("XRUN",
@@ -93,9 +108,13 @@ public class AstroApp extends com.termux.x11.LorieApp {
                                           android.content.Intent i) {
                         int pid = i.getIntExtra("pid", 0);
                         String path = i.getStringExtra("path");
+                        String title = i.getStringExtra("title");
+                        String reason = i.getStringExtra("reason");
                         id.hawx.astro.x11.X11DebugLog.log("TAB",
-                                "tab ditolak filter: pid=" + pid
-                                        + " path=" + path);
+                                "tab ditolak filter: title=" + title
+                                        + " pid=" + pid
+                                        + " path=" + path
+                                        + " reason=" + reason);
                     }
                 }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_DEBUG"),
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
