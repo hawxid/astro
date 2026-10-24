@@ -448,6 +448,13 @@ public class Dashboard extends Fragment {
         boolean run = xRunning.contains(e.id);
         cell.addView(cellLabel((run ? "\u25CF " : "") + e.name, run));
         cell.setOnClickListener(v -> {
+            if ("webview".equals(e.type)) {
+                Intent i = new Intent(context, id.hawx.astro.goose.GhostVizActivity.class);
+                i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_PATH, e.command);
+                i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_TITLE, e.name);
+                startActivity(i);
+                return;
+            }
             if (e.floating) {
                 xMgr.launchFloating(e, (ok, d, msg) -> {
                     core.toaster(msg);
@@ -475,10 +482,17 @@ public class Dashboard extends Fragment {
                     i.putExtra("entry_id", e.id);
                     startActivity(i);
                 } else if (t.equals("Kill")) {
-                    xMgr.stopEntry(e, (ok, msg) -> {
-                        core.toaster(msg);
-                        refreshXState();
-                    });
+                    if ("webview".equals(e.type)) {
+                        boolean closed = id.hawx.astro.goose.GhostVizActivity
+                                .closeByPath(e.command);
+                        core.toaster(closed ? e.name + " ditutup"
+                                : e.name + " tidak sedang terbuka");
+                    } else {
+                        xMgr.stopEntry(e, (ok, msg) -> {
+                            core.toaster(msg);
+                            refreshXState();
+                        });
+                    }
                 } else {
                     v.performClick();
                 }

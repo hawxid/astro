@@ -32,6 +32,7 @@ public class LauncherEditActivity extends AppCompatActivity {
 
     private EditText fName, fIcon, fCommand, fWorkdir, fEnv;
     private Spinner fType;
+    private TextView fCommandLabel;
     private CheckBox fMultiple;
     private CheckBox fFloating;
 
@@ -58,6 +59,7 @@ public class LauncherEditActivity extends AppCompatActivity {
         fName = field(root, "Nama", "mis. Wireshark");
         fIcon = field(root, "Ikon (emoji, kosong = huruf pertama; atau file:<nama.png> di /sdcard/Astro/icons/)", "🖥");
         fCommand = field(root, "Perintah (dijalankan di chroot, apa adanya)", "mis. wireshark -i wlan0");
+        fCommandLabel = (TextView) root.getChildAt(root.indexOfChild(fCommand) - 1);
         fCommand.setSingleLine(false);
         fCommand.setMinLines(2);
 
@@ -65,9 +67,24 @@ public class LauncherEditActivity extends AppCompatActivity {
         root.addView(typeLabel);
         fType = new Spinner(this);
         ArrayAdapter<String> ad = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"GUI — tampil di Layar X", "CLI — jalan di terminal chroot"});
+                new String[]{"GUI — tampil di Layar X", "CLI — jalan di terminal chroot",
+                        "WebView — jendela web kustom (HTML lokal)"});
         fType.setAdapter(ad);
         root.addView(fType);
+        fType.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent,
+                                                 android.view.View view, int pos, long id) {
+                if (fCommandLabel == null) return;
+                if (pos == 2) {
+                    fCommandLabel.setText("Berkas HTML (path lengkap berkas web lokal)");
+                    fCommand.setHint("mis. /sdcard/Astro/tools/hitung.html");
+                } else {
+                    fCommandLabel.setText("Perintah (dijalankan di chroot, apa adanya)");
+                    fCommand.setHint("mis. wireshark -i wlan0");
+                }
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
 
         fWorkdir = field(root, "Folder kerja di chroot (kosong = /root)", "/root");
         fEnv = field(root, "Env tambahan (KUNCI=nilai, satu per baris; DISPLAY diatur otomatis untuk GUI)", "GTK_THEME=Adwaita:dark");
@@ -86,7 +103,8 @@ public class LauncherEditActivity extends AppCompatActivity {
             fName.setText(existing.name);
             fIcon.setText(existing.icon);
             fCommand.setText(existing.command);
-            fType.setSelection("cli".equals(existing.type) ? 1 : 0);
+            fType.setSelection("cli".equals(existing.type) ? 1
+                    : "webview".equals(existing.type) ? 2 : 0);
             fWorkdir.setText(existing.workdir);
             fEnv.setText(existing.env);
             fMultiple.setChecked(existing.allowMultiple);
@@ -160,7 +178,8 @@ public class LauncherEditActivity extends AppCompatActivity {
         e.name = fName.getText().toString().trim();
         e.icon = fIcon.getText().toString().trim();
         e.command = fCommand.getText().toString().trim();
-        e.type = fType.getSelectedItemPosition() == 1 ? "cli" : "gui";
+        int tp = fType.getSelectedItemPosition();
+        e.type = tp == 1 ? "cli" : tp == 2 ? "webview" : "gui";
         e.workdir = fWorkdir.getText().toString().trim();
         e.env = fEnv.getText().toString();
         e.allowMultiple = fMultiple.isChecked();
@@ -172,7 +191,11 @@ public class LauncherEditActivity extends AppCompatActivity {
 
     private boolean valid(LauncherEntry e) {
         if (e.name.isEmpty()) { toast("Nama tidak boleh kosong"); return false; }
-        if (e.command.isEmpty()) { toast("Perintah tidak boleh kosong"); return false; }
+        if (e.command.isEmpty()) {
+            toast("webview".equals(e.type) ? "Berkas HTML tidak boleh kosong"
+                    : "Perintah tidak boleh kosong");
+            return false;
+        }
         return true;
     }
 
@@ -188,6 +211,14 @@ public class LauncherEditActivity extends AppCompatActivity {
     private void testRun() {
         LauncherEntry e = collect(existing != null ? existing.id : "tes");
         if (!valid(e)) return;
+        if ("webview".equals(e.type)) {
+            android.content.Intent i = new android.content.Intent(
+                    this, id.hawx.astro.goose.GhostVizActivity.class);
+            i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_PATH, e.command);
+            i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_TITLE, e.name);
+            startActivity(i);
+            return;
+        }
         mgr.launch(e, (ok, msg) -> toast(msg));
     }
 }

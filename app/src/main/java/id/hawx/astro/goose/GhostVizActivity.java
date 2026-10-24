@@ -19,6 +19,20 @@ import java.io.File;
 public class GhostVizActivity extends AppCompatActivity {
 
     public static final String EXTRA_PATH = "path";
+
+    // Registry jendela web terbuka (buat "Kill" dari ikon desktop):
+    // satu activity per berkas, ditutup lewat closeByPath.
+    private static final java.util.Map<String,
+            java.lang.ref.WeakReference<GhostVizActivity>> sOpen =
+            new java.util.HashMap<>();
+
+    public static boolean closeByPath(String path) {
+        java.lang.ref.WeakReference<GhostVizActivity> r = sOpen.get(path);
+        GhostVizActivity a = r != null ? r.get() : null;
+        if (a == null || a.isFinishing()) return false;
+        a.finish();
+        return true;
+    }
     public static final String EXTRA_TITLE = "title";
 
     @Override
@@ -33,6 +47,7 @@ public class GhostVizActivity extends AppCompatActivity {
         }
 
         String path = getIntent().getStringExtra(EXTRA_PATH);
+        if (path != null) sOpen.put(path, new java.lang.ref.WeakReference<>(this));
         String title = getIntent().getStringExtra(EXTRA_TITLE);
         if (title != null && getSupportActionBar() != null) {
             getSupportActionBar().setTitle(title);
@@ -59,6 +74,16 @@ public class GhostVizActivity extends AppCompatActivity {
                 webView.loadUrl("file://" + f.getAbsolutePath());
             }
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        String path = getIntent().getStringExtra(EXTRA_PATH);
+        if (path != null) {
+            java.lang.ref.WeakReference<GhostVizActivity> r = sOpen.get(path);
+            if (r != null && r.get() == this) sOpen.remove(path);
+        }
+        super.onDestroy();
     }
 
     @Override

@@ -457,7 +457,26 @@ public class XSessionManager {
         return run(script).contains("RUNNING");
     }
 
+    /** Skala global aplikasi klasik (keputusan Hawx: global, bukan
+     *  per jendela): xterm tak nurut Xft.dpi (font bitmap) — suntik
+     *  font TrueType + ukuran turunan nilai DPI pas peluncuran.
+     *  Entri tersimpan tetap bersih; transformasi cuma di sini. */
+    private String scaledCommand(LauncherEntry entry) {
+        String cmd = entry.command;
+        if (cmd == null) return "";
+        if ("xterm".equals(entry.firstWord()) && !cmd.contains("-fa")) {
+            int fs = Math.max(8, Math.min(24, getDpi() / 16));
+            return "xterm -fa 'DejaVu Sans Mono' -fs " + fs
+                    + cmd.substring("xterm".length());
+        }
+        return cmd;
+    }
+
     public void launch(LauncherEntry entry, Callback cb) {
+        if ("webview".equals(entry.type)) {
+            post(cb, false, "Entri WebView dibuka dari ikon desktopnya");
+            return;
+        }
         if ("cli".equals(entry.type)) {
             // CLI: kirim ke kanal terminal chroot Astro (tanpa DISPLAY dari template)
             String cmd = "cd " + shq(entry.workdirOrDefault()) + " 2>/dev/null || cd /root; "
@@ -493,7 +512,7 @@ public class XSessionManager {
                     + "xset fp+ " + root() + "/usr/share/fonts/X11/misc 2>/dev/null; xset fp rehash 2>/dev/null; "
                     + "cd " + shq(entry.workdirOrDefault()) + " 2>/dev/null || cd /root; "
                     + envExports(entry.env)
-                    + "(setsid " + entry.command + " >" + entryLogPath(entry.id) + " 2>&1 & "
+                    + "(setsid " + scaledCommand(entry) + " >" + entryLogPath(entry.id) + " 2>&1 & "
                     + "echo $! > /tmp/astro-launch-" + entry.id + ".pid)";
             try {
                 core.threadChrootCommand(launchCmd);
@@ -803,7 +822,7 @@ public class XSessionManager {
                     + "xset fp+ " + root() + "/usr/share/fonts/X11/misc 2>/dev/null; xset fp rehash 2>/dev/null; "
                     + "cd " + shq(entry.workdirOrDefault()) + " 2>/dev/null || cd /root; "
                     + envExports(entry.env)
-                    + "(setsid " + entry.command + " >" + entryLogPath(entry.id) + " 2>&1 & "
+                    + "(setsid " + scaledCommand(entry) + " >" + entryLogPath(entry.id) + " 2>&1 & "
                     + "echo $! > /tmp/astro-launch-" + entry.id + ".pid)";
             try {
                 core.threadChrootCommand(launchCmd);
