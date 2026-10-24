@@ -142,6 +142,9 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
 
   override fun onCreateOptionsMenu(menu: Menu?): Boolean {
     menuInflater.inflate(R.menu.menu_main, menu)
+    menu?.findItem(R.id.toggle_terminal_float)?.isChecked =
+      getSharedPreferences("astro_x11", Context.MODE_PRIVATE)
+        .getBoolean("terminal_float", false)
 
     TabSwitcher.setupWithMenu(
       tabSwitcher, toolbar.menu,
@@ -180,6 +183,20 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
       }
       R.id.get_usb_devices -> {
         WirelessDialogs.showUsbDevices(this)
+        true
+      }
+      R.id.toggle_terminal_float -> {
+        // Toggle "GUI melayang (xrun)" — rumahnya di sini (menu Tools
+        // terminal, sesuai permintaan Hawx), BUKAN di panel X11.
+        val now = !item.isChecked
+        item.isChecked = now
+        getSharedPreferences("astro_x11", Context.MODE_PRIVATE)
+          .edit().putBoolean("terminal_float", now).apply()
+        sendBroadcast(
+          Intent("id.hawx.astro.TOGGLE_TERMINAL_FLOAT")
+            .setPackage(packageName)
+            .putExtra("enabled", now)
+        )
         true
       }
       else -> item.let { super.onOptionsItemSelected(it) }

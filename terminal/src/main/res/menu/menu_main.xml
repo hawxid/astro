@@ -29,6 +29,11 @@
         android:id="@+id/get_usb_devices"
         android:title="@string/get_usb_devices"
         app:showAsAction="never"/>
+      <item
+        android:id="@+id/toggle_terminal_float"
+        android:title="GUI melayang (xrun)"
+        android:checkable="true"
+        app:showAsAction="never"/>
     </menu>
   </item>
   <item

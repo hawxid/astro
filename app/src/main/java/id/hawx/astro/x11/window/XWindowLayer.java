@@ -229,16 +229,50 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
             ekBox.addView(ek, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT));
+            // Strip parkir DI ATAS dock desktop — jangan nutupin dock
+            // pas muncul (temuan Hawx).
+            android.view.View dock = getRootView() != null
+                    ? getRootView().findViewById(id.hawx.astro.R.id.xfce_dock) : null;
+            FrameLayout.LayoutParams slp =
+                    (FrameLayout.LayoutParams) strip.getLayoutParams();
+            slp.bottomMargin = (dock != null && dock.getVisibility() == VISIBLE)
+                    ? dock.getHeight() : 0;
+            strip.setLayoutParams(slp);
             strip.setVisibility(VISIBLE);
             strip.bringToFront();
-            // Bangun ulang EK di rumah barunya: reload di konstruksi host
-            // terjadi pas view belum berukuran — tombol panah/TAB hilang
-            // di layer (temuan Hawx) walau layout default memuatnya.
+            // Bangun ulang EK di rumah barunya, lalu PAKSA tombol ikon
+            // (panah dkk) jadi teks glif: di konteks MainActivity ikon
+            // foreground EK tidak ter-render (tombolnya ada tapi kosong
+            // — temuan Hawx, panah hilang cuma di layer). Inventaris
+            // tombol sekalian ditulis ke log KB buat bukti.
             host.extraKeysView().reload();
             final android.view.View ekF = ek;
-            ek.post(() -> id.hawx.astro.x11.X11DebugLog.log("KB",
-                    "layer EK tampil: anak=" + ((ViewGroup) ekF).getChildCount()
-                            + " w=" + ekF.getWidth() + " h=" + ekF.getHeight()));
+            ek.post(() -> {
+                StringBuilder keys = new StringBuilder();
+                ViewGroup g = (ViewGroup) ekF;
+                for (int i = 0; i < g.getChildCount(); i++) {
+                    android.view.View ch = g.getChildAt(i);
+                    if (!(ch instanceof Button)) continue;
+                    Button b = (Button) ch;
+                    CharSequence cd = b.getContentDescription();
+                    String key = cd != null ? cd.toString() : "?";
+                    CharSequence tx = b.getText();
+                    keys.append(key).append('=')
+                            .append(tx != null ? tx.toString() : "null").append(' ');
+                    String glyph = null;
+                    if ("UP".equals(key)) glyph = "\u2191";
+                    else if ("DOWN".equals(key)) glyph = "\u2193";
+                    else if ("LEFT".equals(key)) glyph = "\u2190";
+                    else if ("RIGHT".equals(key)) glyph = "\u2192";
+                    if (glyph != null && (tx == null || tx.length() == 0)) {
+                        b.setForeground(null);
+                        b.setText(glyph);
+                        b.setTextColor(0xFFFFFFFF);
+                    }
+                }
+                id.hawx.astro.x11.X11DebugLog.log("KB",
+                        "layer EK: anak=" + g.getChildCount() + " keys: " + keys);
+            });
         } else {
             strip.setVisibility(GONE);
         }
