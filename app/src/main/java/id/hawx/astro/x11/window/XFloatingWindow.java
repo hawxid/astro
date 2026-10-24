@@ -196,6 +196,22 @@ public class XFloatingWindow extends FrameLayout {
     }
 
     /** Drag jendela lewat bar judul. */
+    /**
+     * Patokan drag opsional ([kiri, atas, kanan, bawah] dalam
+     * koordinat parent). Null = clamp ke batas parent (perilaku
+     * desktop, tak berubah). Dipakai layer terminal: patokannya
+     * rect TerminalView hidup (tepi bawah = atas softkey).
+     */
+    public interface AnchorSupplier {
+        int[] rect();
+    }
+
+    private AnchorSupplier anchorSupplier;
+
+    public void setAnchorSupplier(AnchorSupplier s) {
+        anchorSupplier = s;
+    }
+
     private class DragListener implements OnTouchListener {
         private float downX, downY;
         private int startLeft, startTop;
@@ -215,7 +231,17 @@ public class XFloatingWindow extends FrameLayout {
                     ViewGroup parent = (ViewGroup) getParent();
                     int nl = startLeft + Math.round(e.getRawX() - downX);
                     int nt = startTop + Math.round(e.getRawY() - downY);
-                    if (parent != null) {
+                    int[] ar = anchorSupplier != null ? anchorSupplier.rect() : null;
+                    if (ar != null) {
+                        // Patokan terminal: kiri/kanan boleh menyisakan
+                        // 80px, atas mentok tepi rect, bawah mentok
+                        // tepi rect + 40px kelihatan (bar EK di bawah
+                        // rect tak pernah tertutup).
+                        nl = Math.max(ar[0] - (lp.width - dp(80)),
+                                Math.min(nl, ar[2] - dp(80)));
+                        nt = Math.max(ar[1],
+                                Math.min(nt, Math.max(ar[1], ar[3] - dp(40))));
+                    } else if (parent != null) {
                         nl = Math.max(-lp.width + dp(80), Math.min(nl, parent.getWidth() - dp(80)));
                         nt = Math.max(0, Math.min(nt, parent.getHeight() - dp(40)));
                     }
