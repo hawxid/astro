@@ -124,6 +124,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
     // ---- siklus jendela ----
 
     public void openWindow(Activity activity, int display, String title) {
+        XOverlayWindows.hideForDisplay(display); // rumah overlay melepas
         XFloatingWindow existing = windows.get(display);
         if (existing != null) {
             restoreWindow(existing);

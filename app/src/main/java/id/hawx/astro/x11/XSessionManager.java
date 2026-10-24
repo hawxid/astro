@@ -733,8 +733,17 @@ public class XSessionManager {
         e.floating = true;
         e.allowMultiple = true;
         launchFloating(e, (ok, d, msg) -> {
-            if (ok && d > 0)
-                id.hawx.astro.MainActivity.openXWindowFrom(appCtx, d, e.name + " \u00B7 :" + d);
+            if (ok && d > 0) {
+                // Kelahiran terminal = overlay DI TEMPAT (keputusan
+                // Hawx: inti floating); gagal tampil -> jalur desktop.
+                main.post(() -> {
+                    boolean shown = id.hawx.astro.x11.window.XOverlayWindows
+                            .show(appCtx, d, e.name + " \u00B7 :" + d);
+                    if (!shown)
+                        id.hawx.astro.MainActivity.openXWindowFrom(appCtx, d,
+                                e.name + " \u00B7 :" + d);
+                });
+            }
         });
     }
 

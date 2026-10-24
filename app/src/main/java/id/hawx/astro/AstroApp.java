@@ -80,6 +80,14 @@ public class AstroApp extends com.termux.x11.LorieApp {
         });
     }
 
+    // Activity yang lagi di depan — dipakai jendela overlay X buat
+    // konteks host-nya (kelahiran terminal: NeoTermActivity).
+    private static volatile Activity sForeground;
+
+    public static Activity foregroundActivity() {
+        return sForeground;
+    }
+
     private void applyEdgeToEdgeInsets() {
         registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override
@@ -91,10 +99,14 @@ public class AstroApp extends com.termux.x11.LorieApp {
             public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle state) {}
 
             @Override
-            public void onActivityResumed(@NonNull Activity activity) {}
+            public void onActivityResumed(@NonNull Activity activity) {
+                sForeground = activity;
+            }
 
             @Override
-            public void onActivityPaused(@NonNull Activity activity) {}
+            public void onActivityPaused(@NonNull Activity activity) {
+                if (sForeground == activity) sForeground = null;
+            }
 
             @Override
             public void onActivityStopped(@NonNull Activity activity) {}

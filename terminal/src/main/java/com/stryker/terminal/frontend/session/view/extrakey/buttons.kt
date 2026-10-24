@@ -114,6 +114,19 @@ abstract class IExtraButton : View.OnClickListener {
         else -> chars = keyName
       }
 
+      // Router overlay X (XKeyRouter): bar melayani jendela X
+      // selama sink terdaftar; selain itu jalur terminal normal.
+      if (XKeyRouter.keySink != null) {
+        if (keyCode > 0) {
+          XKeyRouter.keySink?.accept(keyCode)
+          return
+        }
+        if (chars.isNotEmpty()) {
+          XKeyRouter.textSink?.accept(chars)
+          return
+        }
+      }
+
       if (keyCode > 0) {
         view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
         view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
@@ -174,6 +187,14 @@ open class StatedControlButton @JvmOverloads constructor(text: String, var initS
 
   override fun onClick(view: View) {
     setStatus(toggleButton?.isChecked)
+    // Router overlay X: latch Ctrl/Alt/LShift diteruskan juga ke
+    // jendela X (jadi key event asli di sisi aplikasi).
+    val name = displayText
+    if (XKeyRouter.modifierSink != null &&
+      (name == IExtraButton.KEY_CTRL || name == IExtraButton.KEY_ALT || name == IExtraButton.KEY_SHIFT)
+    ) {
+      XKeyRouter.modifierSink?.accept(name, toggleButton?.isChecked == true)
+    }
   }
 
   override fun makeButton(context: Context?, attrs: AttributeSet?, defStyleAttr: Int): Button {
