@@ -279,7 +279,18 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 int ny = dragStartY + Math.round(e.getRawY() - dragDownY);
                 nx = Math.max(-(wlp.width - dp2(80)),
                         Math.min(nx, m.widthPixels - dp2(80)));
-                ny = Math.max(0, Math.min(ny, m.heightPixels - dp2(40)));
+                // Jendela overlay (system window) SELALU di atas jendela
+                // aplikasi — tak bisa ditaruh "di belakang" bar terminal.
+                // Jadi batas seretnya yang dijaga: 40px jendela harus
+                // tetap kelihatan DI ATAS zona bar (~104dp = 2 baris EK)
+                // selama terminal di depan, biar bar tak ketutup jendela
+                // (temuan Hawx: "nutup EK pas jendelanya turun").
+                Activity fg = AstroApp.foregroundActivity();
+                boolean termFg = fg != null
+                        && fg.getClass().getName().contains("NeoTermActivity");
+                int reserve = termFg ? dp2(104) : 0;
+                int nyMax = Math.max(0, m.heightPixels - reserve - dp2(40));
+                ny = Math.max(0, Math.min(ny, nyMax));
                 if (nx != wlp.x || ny != wlp.y) {
                     wlp.x = nx;
                     wlp.y = ny;
