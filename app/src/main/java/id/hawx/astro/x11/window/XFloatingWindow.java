@@ -256,7 +256,7 @@ public class XFloatingWindow extends FrameLayout {
                     setLayoutParams(lp);
                     // Rect manual = keinginan baru: beri tahu
                     // listener (decor menghapus simpanan rect anchor).
-                    if (listener != null) listener.onUserRectChanged(this);
+                    if (listener != null) listener.onUserRectChanged(XFloatingWindow.this);
                     return true;
             }
             return false;
@@ -284,7 +284,7 @@ public class XFloatingWindow extends FrameLayout {
                     lp.height = Math.max(dp(200), startH + Math.round(e.getRawY() - downY));
                     setLayoutParams(lp);
                     // Rect manual = keinginan baru (lihat DragListener).
-                    if (listener != null) listener.onUserRectChanged(this);
+                    if (listener != null) listener.onUserRectChanged(XFloatingWindow.this);
                     return true;
             }
             return false;
