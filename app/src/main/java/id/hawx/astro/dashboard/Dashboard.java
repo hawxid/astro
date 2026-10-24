@@ -496,6 +496,11 @@ public class Dashboard extends Fragment {
         cell.addView(cellLabel((run ? "\u25CF " : "") + e.name, run));
         cell.setOnClickListener(v -> {
             if ("webview".equals(e.type)) {
+                if (e.floating) {
+                    boolean shown = id.hawx.astro.x11.window.WebOverlayWindows
+                            .show(context, e.name, e.command);
+                    if (shown) return;
+                }
                 Intent i = new Intent(context, id.hawx.astro.goose.GhostVizActivity.class);
                 i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_PATH, e.command);
                 i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_TITLE, e.name);
@@ -530,8 +535,10 @@ public class Dashboard extends Fragment {
                     startActivity(i);
                 } else if (t.equals("Kill")) {
                     if ("webview".equals(e.type)) {
-                        boolean closed = id.hawx.astro.goose.GhostVizActivity
-                                .closeByPath(e.command);
+                        boolean closed = id.hawx.astro.x11.window.WebOverlayWindows
+                                .closeByPath(e.command)
+                                || id.hawx.astro.goose.GhostVizActivity
+                                        .closeByPath(e.command);
                         core.toaster(closed ? e.name + " ditutup"
                                 : e.name + " tidak sedang terbuka");
                     } else {

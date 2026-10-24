@@ -78,9 +78,11 @@ public class LauncherEditActivity extends AppCompatActivity {
                 if (pos == 2) {
                     fCommandLabel.setText("Berkas HTML (path lengkap berkas web lokal)");
                     fCommand.setHint("mis. /sdcard/Astro/tools/hitung.html");
+                    fFloating.setText("Buka sebagai jendela melayang");
                 } else {
                     fCommandLabel.setText("Perintah (dijalankan di chroot, apa adanya)");
                     fCommand.setHint("mis. wireshark -i wlan0");
+                    fFloating.setText("Buka sebagai jendela floating (display sendiri, bukan layar penuh)");
                 }
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
@@ -212,6 +214,11 @@ public class LauncherEditActivity extends AppCompatActivity {
         LauncherEntry e = collect(existing != null ? existing.id : "tes");
         if (!valid(e)) return;
         if ("webview".equals(e.type)) {
+            if (e.floating) {
+                boolean shown = id.hawx.astro.x11.window.WebOverlayWindows
+                        .show(this, e.name, e.command);
+                if (shown) return;
+            }
             android.content.Intent i = new android.content.Intent(
                     this, id.hawx.astro.goose.GhostVizActivity.class);
             i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_PATH, e.command);

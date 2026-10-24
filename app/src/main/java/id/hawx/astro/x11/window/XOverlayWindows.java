@@ -67,6 +67,72 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         return sByDisplay.containsKey(display);
     }
 
+    /**
+     * Lepas fokus jendela overlay (balik NOT_FOCUSABLE) — dipanggil
+     * dari tombol ⌨ bar terminal: input harus pindah rumah ke
+     * terminal, dan showSoftInput terminal gagal selama jendela
+     * overlay masih pegang fokus window.
+     */
+    public static void releaseFocus() {
+        for (XOverlayWindows o : sByDisplay.values()) {
+            if (o.attached && (o.wlp.flags
+                    & WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0) {
+                o.wlp.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+                o.wm.updateViewLayout(o.container, o.wlp);
+            }
+        }
+        XKeyRouter.clear();
+        X11DebugLog.log("OVERLAY", "fokus dilepas (tombol keyboard terminal)");
+    }
+
+    // ---- Anchor watcher: jendela ngikut rect TerminalView ----
+    // Jendela overlay posisinya koordinat layar mentah: pas keyboard
+    // buka, blok terminal (TerminalView + EK) naik, tapi jendela
+    // diam — akhirnya menimpa bar EK (temuan Hawx: "ga otomatis
+    // naik pas ada keyboard"). Watcher ringan (400 md, hanya selama
+    // ada overlay tampil + depan NeoTerm) mendorong jendela naik
+    // bila bawahnya melewati tepi bawah rect TerminalView.
+    private static final android.os.Handler sWatch =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private static boolean sWatchRunning;
+    private static final Runnable sWatchTask = () -> {
+        sWatchRunning = false;
+        if (sByDisplay.isEmpty()) return;
+        Activity fg = AstroApp.foregroundActivity();
+        if (fg == null
+                || !fg.getClass().getName().contains("NeoTermActivity")) {
+            startAnchorWatch();
+            return;
+        }
+        android.view.View tv = findTerminalView(fg.getWindow().getDecorView());
+        if (tv != null && tv.getWidth() > 0 && tv.getHeight() > 0) {
+            int[] loc = new int[2];
+            tv.getLocationOnScreen(loc);
+            int anchorT = loc[1];
+            int anchorB = loc[1] + tv.getHeight();
+            for (XOverlayWindows o : sByDisplay.values()) {
+                if (!o.attached || o.win.isMaximized()) continue;
+                int bottom = o.wlp.y + o.wlp.height;
+                int top = o.wlp.y;
+                if (bottom > anchorB) {
+                    o.wlp.y -= (bottom - anchorB);
+                    o.wm.updateViewLayout(o.container, o.wlp);
+                } else if (top < anchorT) {
+                    o.wlp.y = anchorT;
+                    o.wm.updateViewLayout(o.container, o.wlp);
+                }
+            }
+        }
+        startAnchorWatch();
+    };
+
+    private static void startAnchorWatch() {
+        if (!sWatchRunning && !sByDisplay.isEmpty()) {
+            sWatchRunning = true;
+            sWatch.postDelayed(sWatchTask, 400);
+        }
+    }
+
     /** Sembunyikan overlay display ini (server tetap hidup). */
     public static void hideForDisplay(int display) {
         XOverlayWindows o = sByDisplay.get(display);
@@ -151,6 +217,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         attached = true;
         host.attach();
         setActive();
+        startAnchorWatch();
         X11DebugLog.log("OVERLAY", "tampil :" + display);
     }
 

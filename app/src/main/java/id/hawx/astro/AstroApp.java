@@ -42,6 +42,15 @@ public class AstroApp extends com.termux.x11.LorieApp {
             }
         }, new android.content.IntentFilter("id.hawx.astro.TOGGLE_TERMINAL_FLOAT"),
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+        androidx.core.content.ContextCompat.registerReceiver(this,
+                new android.content.BroadcastReceiver() {
+                    @Override
+                    public void onReceive(android.content.Context c,
+                                          android.content.Intent i) {
+                        id.hawx.astro.x11.window.XOverlayWindows.releaseFocus();
+                    }
+                }, new android.content.IntentFilter("id.hawx.astro.RELEASE_OVERLAY_FOCUS"),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         LogStore store = LogStore.init(this);
         store.add(LogEntry.INFO, "session", "==== Astro " + BuildConfig.VERSION_NAME
                 + " session start ====");

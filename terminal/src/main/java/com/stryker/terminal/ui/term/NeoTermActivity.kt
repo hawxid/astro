@@ -798,10 +798,19 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
       // fokuskan TerminalView sesi aktif, tampilkan keyboard UNTUKNYA.
       if (XKeyRouter.keySink != null) {
         XKeyRouter.clear()
+        // Lepas fokus window overlay dulu (broadcast ke aplikasi):
+        // showSoftInput terminal gagal selama overlay pegang fokus.
+        sendBroadcast(android.content.Intent(
+          "id.hawx.astro.RELEASE_OVERLAY_FOCUS").setPackage(packageName))
         val termView = findVisibleTerminalView(window.decorView)
         if (termView != null) {
-          termView.requestFocus()
-          imm.showSoftInput(termView, 0)
+          // Tunda 150 md: broadcast pelepas fokus overlay jalan
+          // asinkron; showSoftInput gagal bila jendela overlay
+          // masih pegang fokus window.
+          android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            termView.requestFocus()
+            imm.showSoftInput(termView, 0)
+          }, 150)
         } else {
           imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
         }

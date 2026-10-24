@@ -1,0 +1,325 @@
+package id.hawx.astro.x11.window;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.PixelFormat;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.provider.Settings;
+import android.util.DisplayMetrics;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+
+import id.hawx.astro.AstroApp;
+import id.hawx.astro.x11.X11DebugLog;
+
+/**
+ * Bentuk MELAYANG jendela webview (keputusan Hawx: webview selama
+ * ini cuma layar penuh GhostVizActivity). Satu overlay sistem per
+ * berkas: chrome (judul + seret + grip resize + —/✕) + WebView
+ * dengan ToolsBridge yang sama (AstroBridge). Dipilih lewat
+ * checkbox "floating" entri launcher; tanpa itu tetap GhostViz.
+ * — = lepas dari WindowManager saja (WebView hidup, bisa dibuka
+ * lagi); ✕ = hancurkan WebView + tutup.
+ */
+public class WebOverlayWindows {
+
+    private static final Map<String, WebOverlayWindows> sByPath = new HashMap<>();
+
+    private final Activity activity;
+    private final WindowManager wm;
+    private final String path;
+    private final FrameLayout container;
+    private final FrameLayout win;
+    private final WebView webView;
+    private final WindowManager.LayoutParams wlp;
+    private boolean attached;
+
+    // ---------------- statis ----------------
+
+    /** @return false bila tak bisa tampil (izin/foreground) — pemanggil jatuh ke GhostViz. */
+    public static boolean show(Context ctx, String title, String path) {
+        if (!Settings.canDrawOverlays(ctx)) {
+            Activity act = AstroApp.foregroundActivity();
+            if (act != null) {
+                Toast.makeText(act, "Aktifkan izin \"Tampil di atas aplikasi lain\" "
+                        + "buat Astro, lalu ulangi", Toast.LENGTH_LONG).show();
+                Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + ctx.getPackageName()));
+                act.startActivity(i);
+            }
+            return false;
+        }
+        Activity act = AstroApp.foregroundActivity();
+        if (act == null) return false;
+        WebOverlayWindows ex = sByPath.get(path);
+        if (ex != null) {
+            ex.raise();
+            return true;
+        }
+        new WebOverlayWindows(act, title, path).attach();
+        return true;
+    }
+
+    public static boolean closeByPath(String path) {
+        WebOverlayWindows o = sByPath.get(path);
+        if (o == null) return false;
+        o.close();
+        return true;
+    }
+
+    public static void hideForPath(String path) {
+        WebOverlayWindows o = sByPath.get(path);
+        if (o != null) o.hide();
+    }
+
+    // ---------------- instance ----------------
+
+    private WebOverlayWindows(Activity act, String title, String path) {
+        this.activity = act;
+        this.path = path;
+        wm = (WindowManager) act.getSystemService(Context.WINDOW_SERVICE);
+        DisplayMetrics m = new DisplayMetrics();
+        wm.getDefaultDisplay().getRealMetrics(m);
+
+        container = new WebContainer(act);
+
+        win = new FrameLayout(act);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xF21A2138);
+        bg.setCornerRadius(dp(14));
+        bg.setStroke(dp(1), 0xFF3D4A7A);
+        win.setBackground(bg);
+        win.setClipToOutline(true);
+        win.setElevation(dp(10));
+
+        LinearLayout col = new LinearLayout(act);
+        col.setOrientation(LinearLayout.VERTICAL);
+        win.addView(col, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
+        LinearLayout bar = new LinearLayout(act);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(10), 0, dp(4), 0);
+        GradientDrawable barBg = new GradientDrawable();
+        barBg.setColor(0xFF232C4E);
+        barBg.setCornerRadii(new float[]{dp(14), dp(14), dp(14), dp(14), 0, 0, 0, 0});
+        bar.setBackground(barBg);
+        col.addView(bar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(32)));
+
+        TextView titleView = new TextView(act);
+        titleView.setText(title);
+        titleView.setTextColor(0xFFE8EBFA);
+        titleView.setTextSize(13);
+        titleView.setSingleLine(true);
+        bar.addView(titleView, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        Button minBtn = chromeBtn("—");
+        minBtn.setOnClickListener(v -> hide());
+        bar.addView(minBtn);
+        Button closeBtn = chromeBtn("✕");
+        closeBtn.setOnClickListener(v -> close());
+        bar.addView(closeBtn);
+
+        webView = new WebView(act);
+        WebSettings ws = webView.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setDomStorageEnabled(true);
+        ws.setAllowFileAccess(true);
+        ws.setMediaPlaybackRequiresUserGesture(false);
+        ws.setBuiltInZoomControls(true);
+        ws.setDisplayZoomControls(false);
+        ws.setSupportZoom(true);
+        webView.setWebViewClient(new WebViewClient());
+        webView.addJavascriptInterface(
+                new id.hawx.astro.goose.ToolsBridge(
+                        new id.hawx.astro.utils.Core(act), webView),
+                "AstroBridge");
+        col.addView(webView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+
+        View grip = new View(act);
+        grip.setBackgroundColor(0x00000000);
+        FrameLayout.LayoutParams gripLp = new FrameLayout.LayoutParams(dp(30), dp(30));
+        gripLp.gravity = Gravity.BOTTOM | Gravity.END;
+        win.addView(grip, gripLp);
+        grip.setOnTouchListener(new ResizeListener());
+
+        int w = (int) (m.widthPixels * 0.88f);
+        int h = (int) (m.heightPixels * 0.55f);
+        win.setLayoutParams(new FrameLayout.LayoutParams(w, h));
+        container.addView(win);
+
+        wlp = new WindowManager.LayoutParams(w, h,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT);
+        wlp.gravity = Gravity.TOP | Gravity.START;
+        int n = sByPath.size();
+        wlp.x = dp(14) + n * dp(26);
+        wlp.y = dp(70) + n * dp(30);
+    }
+
+    private Button chromeBtn(String t) {
+        Button b = new Button(activity);
+        b.setText(t);
+        b.setTextSize(13);
+        b.setTextColor(0xFFC7CCE8);
+        b.setBackgroundColor(0x00000000);
+        b.setPadding(dp(6), 0, dp(6), 0);
+        b.setMinWidth(0);
+        return b;
+    }
+
+    private int dp(int v) {
+        return Math.round(v * activity.getResources().getDisplayMetrics().density);
+    }
+
+    private void attach() {
+        sByPath.put(path, this);
+        wm.addView(container, wlp);
+        attached = true;
+        File f = new File(path);
+        if (f.exists()) {
+            webView.loadUrl("file://" + f.getAbsolutePath());
+        } else if (path.startsWith("http://") || path.startsWith("https://")) {
+            webView.loadUrl(path);
+        } else {
+            webView.loadData("<h3>Berkas tidak ditemukan</h3><p>" + path + "</p>",
+                    "text/html", "UTF-8");
+        }
+        X11DebugLog.log("WEBOV", "tampil: " + path);
+    }
+
+    private void raise() {
+        if (!attached) {
+            wm.addView(container, wlp);
+            attached = true;
+        }
+    }
+
+    private void hide() {
+        if (attached) {
+            wm.removeView(container);
+            attached = false;
+        }
+    }
+
+    private void close() {
+        hide();
+        try {
+            webView.destroy();
+        } catch (Throwable ignored) {
+        }
+        sByPath.remove(path);
+    }
+
+    /** Seret lewat bar judul — gerakkan parameter WindowManager langsung. */
+    private class WebContainer extends FrameLayout {
+        private boolean dragArmed;
+        private float dragDownX, dragDownY;
+        private int dragStartX, dragStartY;
+
+        WebContainer(Context ctx) {
+            super(ctx);
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(android.view.MotionEvent e) {
+            int action = e.getActionMasked();
+            if (action == android.view.MotionEvent.ACTION_DOWN) {
+                if (e.getY() >= win.getTop() && e.getY() <= win.getTop() + dp(32)
+                        && e.getX() >= win.getLeft() && e.getX() <= win.getRight()) {
+                    dragArmed = true;
+                    dragDownX = e.getRawX();
+                    dragDownY = e.getRawY();
+                    dragStartX = wlp.x;
+                    dragStartY = wlp.y;
+                }
+                return false;
+            }
+            if (action == android.view.MotionEvent.ACTION_MOVE && dragArmed) {
+                if (Math.abs(e.getRawX() - dragDownX) > dp(10)
+                        || Math.abs(e.getRawY() - dragDownY) > dp(10)) {
+                    return true;
+                }
+            }
+            if (action == android.view.MotionEvent.ACTION_UP
+                    || action == android.view.MotionEvent.ACTION_CANCEL) {
+                dragArmed = false;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean onTouchEvent(android.view.MotionEvent e) {
+            int action = e.getActionMasked();
+            if (action == android.view.MotionEvent.ACTION_MOVE && dragArmed) {
+                DisplayMetrics m = new DisplayMetrics();
+                wm.getDefaultDisplay().getRealMetrics(m);
+                int nx = dragStartX + Math.round(e.getRawX() - dragDownX);
+                int ny = dragStartY + Math.round(e.getRawY() - dragDownY);
+                nx = Math.max(-(wlp.width - dp(80)),
+                        Math.min(nx, m.widthPixels - dp(80)));
+                ny = Math.max(0, Math.min(ny, m.heightPixels - dp(40)));
+                if (nx != wlp.x || ny != wlp.y) {
+                    wlp.x = nx;
+                    wlp.y = ny;
+                    wm.updateViewLayout(container, wlp);
+                }
+                return true;
+            }
+            if (action == android.view.MotionEvent.ACTION_UP
+                    || action == android.view.MotionEvent.ACTION_CANCEL) {
+                dragArmed = false;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /** Resize lewat grip pojok — ubah parameter WindowManager langsung. */
+    private class ResizeListener implements View.OnTouchListener {
+        private float downX, downY;
+        private int startW, startH;
+
+        @Override
+        public boolean onTouch(View v, android.view.MotionEvent e) {
+            switch (e.getAction()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    downX = e.getRawX();
+                    downY = e.getRawY();
+                    startW = wlp.width;
+                    startH = wlp.height;
+                    return true;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    wlp.width = Math.max(dp(280),
+                            startW + Math.round(e.getRawX() - downX));
+                    wlp.height = Math.max(dp(200),
+                            startH + Math.round(e.getRawY() - downY));
+                    wm.updateViewLayout(container, wlp);
+                    return true;
+            }
+            return false;
+        }
+    }
+}
