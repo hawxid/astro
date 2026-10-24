@@ -194,10 +194,14 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
         item.isChecked = now
         getSharedPreferences("astro_x11", Context.MODE_PRIVATE)
           .edit().putBoolean("terminal_float", now).apply()
+        // Ronde perbaikan: pengirim (terminal) yang tahu tab-nya —
+        // daftar PID ikut dibroadcast supaya klaim toggle ON tidak
+        // lagi bergantung pada snapshot foregroundActivity().
         sendBroadcast(
           Intent("id.hawx.astro.TOGGLE_TERMINAL_FLOAT")
             .setPackage(packageName)
             .putExtra("enabled", now)
+            .putIntegerArrayListExtra("pids", ArrayList(collectTermPids()))
         )
         true
       }
@@ -254,6 +258,14 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
             if (pid > 0 && path != null && path.endsWith("stryker-ch")) {
               sendBroadcast(Intent("id.hawx.astro.TERMINAL_TAB_ADDED")
                 .setPackage(packageName).putExtra("pid", pid))
+            } else {
+              // Ronde perbaikan: penolakan filter harus bersuara.
+              // Modul terminal tak boleh merujuk logger modul app,
+              // jadi dititipkan lewat broadcast paket-lokal yang
+              // dicatat sisi app sebagai baris TAB.
+              sendBroadcast(Intent("id.hawx.astro.TERMINAL_TAB_DEBUG")
+                .setPackage(packageName).putExtra("pid", pid)
+                .putExtra("path", path))
             }
           }
         }

@@ -36,7 +36,12 @@ public class AstroApp extends com.termux.x11.LorieApp {
             @Override
             public void onReceive(android.content.Context c, android.content.Intent i) {
                 boolean en = i.getBooleanExtra("enabled", false);
-                id.hawx.astro.x11.XSessionManager.get(c).setTerminalFloat(en);
+                // Ronde perbaikan: daftar PID dibawa pengirim
+                // (NeoTermActivity); bisa absen dari pengirim lama.
+                java.util.ArrayList<Integer> pids =
+                        i.getIntegerArrayListExtra("pids");
+                id.hawx.astro.x11.XSessionManager.get(c)
+                        .setTerminalFloat(en, pids);
                 id.hawx.astro.x11.X11DebugLog.log("XRUN",
                         "toggle dari menu terminal -> " + en);
             }
@@ -51,6 +56,11 @@ public class AstroApp extends com.termux.x11.LorieApp {
                     public void onReceive(android.content.Context c,
                                           android.content.Intent i) {
                         int pid = i.getIntExtra("pid", 0);
+                        // Ronde perbaikan: receipt dicatat dulu supaya
+                        // log bisa membedakan "broadcast tak sampai"
+                        // vs "klaim gagal".
+                        id.hawx.astro.x11.X11DebugLog.log("TAB",
+                                "broadcast TAB_ADDED diterima pid=" + pid);
                         if (pid > 0) {
                             id.hawx.astro.x11.XSessionManager.get(c)
                                     .onTerminalTabAdded(pid);
@@ -64,12 +74,30 @@ public class AstroApp extends com.termux.x11.LorieApp {
                     public void onReceive(android.content.Context c,
                                           android.content.Intent i) {
                         int pid = i.getIntExtra("pid", 0);
+                        id.hawx.astro.x11.X11DebugLog.log("TAB",
+                                "broadcast TAB_REMOVED diterima pid=" + pid);
                         if (pid > 0) {
                             id.hawx.astro.x11.XSessionManager.get(c)
                                     .onTerminalTabRemoved(pid);
                         }
                     }
                 }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_REMOVED"),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+        // Ronde perbaikan: penolakan filter onTabAdded (modul
+        // terminal) dititipkan lewat broadcast ini dan dicatat
+        // sebagai baris TAB — tanpa logger baru di modul terminal.
+        androidx.core.content.ContextCompat.registerReceiver(this,
+                new android.content.BroadcastReceiver() {
+                    @Override
+                    public void onReceive(android.content.Context c,
+                                          android.content.Intent i) {
+                        int pid = i.getIntExtra("pid", 0);
+                        String path = i.getStringExtra("path");
+                        id.hawx.astro.x11.X11DebugLog.log("TAB",
+                                "tab ditolak filter: pid=" + pid
+                                        + " path=" + path);
+                    }
+                }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_DEBUG"),
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         androidx.core.content.ContextCompat.registerReceiver(this,
                 new android.content.BroadcastReceiver() {

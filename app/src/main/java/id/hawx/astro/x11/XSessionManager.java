@@ -672,17 +672,32 @@ public class XSessionManager {
     }
 
     public void setTerminalFloat(boolean on) {
+        setTerminalFloat(on, null);
+    }
+
+    /** Overload ronde perbaikan: daftar PID boleh dibawa pengirim
+     *  broadcast (NeoTermActivity tahu tab-nya sendiri) supaya klaim
+     *  tidak bergantung pada snapshot foregroundActivity(). List
+     *  null/kosong = fallback ke snapshot foreground seperti dulu
+     *  (dipakai switch X11PocActivity yang tak membawa PID). */
+    public void setTerminalFloat(boolean on,
+            java.util.List<Integer> providedPids) {
         prefs().edit().putBoolean(KEY_FLOAT_TERM, on).apply();
         syncXrunWatcher();
         // R2: isi toggle berubah dari "watcher xrun on/off" menjadi
         // "server per-tab on/off + marker". Klaim/lepas jalan di thread
         // exec (satu jalur dengan launchFloating — tanpa balapan soal
-        // nomor display). Snapshot PID diambil di sini (thread utama,
-        // menyentuh tabSwitcher); kalau pemanggil bukan thread utama
-        // atau activity depan bukan terminal, snapshot kosong + tercatat
-        // di log — tab baru tetap ter-klaim lewat broadcast onTabAdded.
+        // nomor display). Tab baru tetap ter-klaim lewat broadcast
+        // onTabAdded.
         if (on) {
-            final java.util.List<Integer> pids = collectForegroundTermPids();
+            final java.util.List<Integer> pids;
+            if (providedPids != null && !providedPids.isEmpty()) {
+                pids = new java.util.ArrayList<>(providedPids);
+                X11DebugLog.log("TAB", "toggle ON: " + pids.size()
+                        + " pid dari broadcast");
+            } else {
+                pids = collectForegroundTermPids();
+            }
             exec.execute(() -> {
                 refreshLiveProfile();
                 for (Integer pid : pids) claimTabDisplay(pid);
@@ -697,9 +712,11 @@ public class XSessionManager {
      *  Hanya dipanggil dari thread utama. */
     private java.util.List<Integer> collectForegroundTermPids() {
         java.util.List<Integer> out = new java.util.ArrayList<>();
+        String fgName = null;
         try {
             android.app.Activity fg =
                     id.hawx.astro.AstroApp.foregroundActivity();
+            fgName = (fg == null) ? null : fg.getClass().getName();
             if (fg instanceof com.stryker.terminal.ui.term.NeoTermActivity) {
                 out.addAll(((com.stryker.terminal.ui.term.NeoTermActivity) fg)
                         .collectTermPids());
@@ -707,6 +724,11 @@ public class XSessionManager {
         } catch (Throwable t) {
             X11DebugLog.log("TAB", "snapshot tab gagal: " + t);
         }
+        // Ronde perbaikan: snapshot yang kosong harus bersuara
+        // (kelas foreground + jumlah pid) supaya log berikutnya
+        // bisa membedakan "bukan terminal" vs "terminal tanpa tab".
+        X11DebugLog.log("TAB", "snapshot tab: fg=" + fgName
+                + " pids=" + out.size());
         return out;
     }
 
@@ -1159,9 +1181,25 @@ public class XSessionManager {
      *  bare -> marker. Gagal start = reservasi dilepas, tanpa marker
      *  (hook tak pernah menunjuk display mati). */
     private void claimTabDisplay(int pid) {
-        if (!getTerminalFloat()) return;
-        if (pid <= 0) return;
-        if (tabDisplayByPid.containsKey(pid)) return;
+        // Ronde perbaikan: early return yang dulu sunyi kini
+        // dicatat satu baris, supaya log bisa membedakan "klaim
+        // tak pernah jalan" vs "klaim jalan tapi dilewat".
+        if (!getTerminalFloat()) {
+            X11DebugLog.log("TAB", "klaim pid=" + pid
+                    + " dilewat: toggle OFF");
+            return;
+        }
+        if (pid <= 0) {
+            X11DebugLog.log("TAB", "klaim pid=" + pid
+                    + " dilewat: pid tidak valid");
+            return;
+        }
+        if (tabDisplayByPid.containsKey(pid)) {
+            X11DebugLog.log("TAB", "klaim pid=" + pid
+                    + " dilewat: sudah diklaim :"
+                    + tabDisplayByPid.get(pid));
+            return;
+        }
         int chosen = -1;
         for (int d = 1; d <= 4; d++) {
             if (reservedDisplays.contains(d)) continue;

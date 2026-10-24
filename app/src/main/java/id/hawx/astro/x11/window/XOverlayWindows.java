@@ -79,14 +79,27 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
     // ---- Patokan TUNGGAL pengunci di atas softkey ----
     // Patokannya: tepi bawah TerminalView (= tepi atas bar EK,
     // karena TerminalView layout_above extra_keys), dalam
-    // koordinat decor. Penegaknya listener layout TerminalView
-    // — sinkron tiap layout pass, termasuk selama animasi
-    // keyboard, jadi jendela bergerak mulus mengikuti. Watcher
-    // 400 md tinggal bertugas menempelkan ulang listener kalau
-    // view TerminalView-nya berganti (ganti tab/dll), TANPA
+    // koordinat decor. Penegaknya listener layout TerminalView,
+    // TAPI didebounce (ronde perbaikan jitter): selama animasi
+    // keyboard, layout event datang beruntun dengan rect
+    // setengah jalan — penegak sinkron tiap event bikin jendela
+    // mengejar rect yang masih bergerak (bolak-balik antara
+    // batas keyboard dan batas EK). Kini penegak hanya jalan
+    // ~150 md setelah layout event TERAKHIR (rect sudah settle)
+    // dan mengabaikan pelanggaran < 8dp. Watcher 400 md tinggal
+    // bertugas menempelkan ulang listener kalau view
+    // TerminalView-nya berganti (ganti tab/dll), TANPA
     // menggerakkan jendela.
     private static android.view.View sAnchorView;
     private static android.view.ViewTreeObserver.OnGlobalLayoutListener sAnchorListener;
+    // Debounce penegak anchor: satu Handler main thread + satu
+    // Runnable yang sama dipakai ulang; tiap layout event
+    // membatalkan jadwal lama dan menjadwal ulang 150 md ke
+    // depan, jadi enforceAnchor hanya jalan setelah layout
+    // berhenti berubah (settle).
+    private static final android.os.Handler sAnchorDebounce =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private static final Runnable sAnchorDebounced = () -> enforceAnchor();
 
     private static void enforceAnchor() {
         if (sAnchorView == null || sByDisplay.isEmpty()) return;
@@ -94,20 +107,33 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         if (r == null) return;
         int anchorT = r[1];
         int anchorB = r[3];
+        float density = sAnchorView.getResources().getDisplayMetrics().density;
+        int threshPx = Math.round(8 * density);
         for (XOverlayWindows o : sByDisplay.values()) {
             if (!o.attached || o.win.isMaximized()
                     || o.win.getVisibility() != android.view.View.VISIBLE) continue;
             FrameLayout.LayoutParams lp =
                     (FrameLayout.LayoutParams) o.win.getLayoutParams();
-            int bottom = lp.topMargin + lp.height;
-            int top = lp.topMargin;
+            int oldTop = lp.topMargin;
+            int oldH = lp.height;
+            int bottom = oldTop + oldH;
+            int newTop = oldTop;
             if (bottom > anchorB) {
-                lp.topMargin -= (bottom - anchorB);
-                o.win.setLayoutParams(lp);
-            } else if (top < anchorT) {
-                lp.topMargin = anchorT;
-                o.win.setLayoutParams(lp);
+                newTop = oldTop - (bottom - anchorB);
+            } else if (oldTop < anchorT) {
+                newTop = anchorT;
             }
+            int move = newTop - oldTop;
+            // Pelanggaran kecil diabaikan: tidak gerak, tidak log
+            // (menghindari getar tiap settle yang nyaris pas).
+            if (move == 0 || Math.abs(move) < threshPx) continue;
+            lp.topMargin = newTop;
+            o.win.setLayoutParams(lp);
+            // Log ANCHOR temporer sampai verdict jitter lulus: satu
+            // baris per gerakan yang benar-benar dieksekusi.
+            X11DebugLog.log("ANCHOR", "d=" + o.display
+                    + " anchorT=" + anchorT + " anchorB=" + anchorB
+                    + " top " + oldTop + "->" + newTop + " h=" + oldH);
         }
     }
 
@@ -115,11 +141,15 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         if (tv == sAnchorView && sAnchorListener != null) return;
         detachAnchorListener();
         sAnchorView = tv;
-        sAnchorListener = () -> enforceAnchor();
+        sAnchorListener = () -> {
+            sAnchorDebounce.removeCallbacks(sAnchorDebounced);
+            sAnchorDebounce.postDelayed(sAnchorDebounced, 150);
+        };
         tv.getViewTreeObserver().addOnGlobalLayoutListener(sAnchorListener);
     }
 
     private static void detachAnchorListener() {
+        sAnchorDebounce.removeCallbacks(sAnchorDebounced);
         if (sAnchorView != null && sAnchorListener != null) {
             try {
                 sAnchorView.getViewTreeObserver()
