@@ -231,6 +231,14 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
                     ViewGroup.LayoutParams.MATCH_PARENT));
             strip.setVisibility(VISIBLE);
             strip.bringToFront();
+            // Bangun ulang EK di rumah barunya: reload di konstruksi host
+            // terjadi pas view belum berukuran — tombol panah/TAB hilang
+            // di layer (temuan Hawx) walau layout default memuatnya.
+            host.extraKeysView().reload();
+            final android.view.View ekF = ek;
+            ek.post(() -> id.hawx.astro.x11.X11DebugLog.log("KB",
+                    "layer EK tampil: anak=" + ((ViewGroup) ekF).getChildCount()
+                            + " w=" + ekF.getWidth() + " h=" + ekF.getHeight()));
         } else {
             strip.setVisibility(GONE);
         }

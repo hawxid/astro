@@ -633,6 +633,7 @@ public class XSessionManager {
                 out.add(new DisplayInfo(d, e != null ? e.id : null,
                         e != null ? e.name : null, app));
             }
+            X11DebugLog.log("PANEL", "listDisplays -> " + out.size() + " display hidup");
             main.post(() -> cb.onDisplays(out));
         });
     }
@@ -672,7 +673,11 @@ public class XSessionManager {
                 }
             };
             xrunObserver.startWatching();
-            X11DebugLog.log("XRUN", "watcher AKTIF di " + dir);
+            // Shim harus ada SEKARANG, bukan nunggu start server berikutnya
+            // (celah temuan Hawx: toggle dinyalakan tapi xrun belum dikenal
+            // terminal karena deploy cuma nempel di setup sesi).
+            core.threadChrootCommand(XRUN_DEPLOY);
+            X11DebugLog.log("XRUN", "watcher AKTIF di " + dir + " + shim dideploy");
         } else if (!want && xrunObserver != null) {
             xrunObserver.stopWatching();
             xrunObserver = null;
