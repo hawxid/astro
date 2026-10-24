@@ -55,7 +55,7 @@ import id.hawx.astro.x11.XSessionManager;
  */
 public class Dashboard extends Fragment {
 
-    private static final String PREF_TOOL = "dash_tool_";
+    public static final String PREF_TOOL = "dash_tool_";
 
     private LinearLayout toolsGrid;
     private LinearLayout dockBar;
@@ -198,6 +198,32 @@ public class Dashboard extends Fragment {
                 R.drawable.dashboard_tile_bg_orange, 0xFFEF6C00, false,
                 () -> receiver.changeFragment(R.id.logs_item)));
         return t;
+    }
+
+    /** Metadata tool desktop buat halaman pengatur (System >
+     *  Desktop): kunci + label + bawaan tampil. Isi WAJIB selaras
+     *  dengan tools() — di sana versi lengkapnya (dengan aksi buka). */
+    public static Object[][] toolMetas() {
+        return new Object[][]{
+                {"wifi", R.string.wifi_networks, true},
+                {"lan", R.string.local_network, true},
+                {"handshakes", R.string.dashboard_tile_handshakes, true},
+                {"exploits", R.string.dashboard_tile_exploits, true},
+                {"searchsploit", R.string.dashboard_tile_searchsploit, true},
+                {"nuclei", R.string.website, true},
+                {"geomac", R.string.dashboard_tile_geomac, true},
+                {"metasploit", R.string.dashboard_tile_metasploit, true},
+                {"goose", R.string.dashboard_card_goose_title, true},
+                {"nmap", R.string.dashboard_tile_nmap, false},
+                {"hid", R.string.dashboard_tile_hid, false},
+                {"wordlists", R.string.dashboard_tile_wordlists, false},
+                {"macchanger", R.string.dashboard_tile_macchanger, false},
+                {"wpair", R.string.dashboard_tile_wpair, false},
+                {"vnc", R.string.dashboard_tile_vnc, false},
+                {"usb", R.string.dashboard_tile_usb, false},
+                {"manager", R.string.dashboard_tile_manager, false},
+                {"logs", R.string.dashboard_tile_logs, false},
+        };
     }
 
     private boolean toolShown(Tool t) {

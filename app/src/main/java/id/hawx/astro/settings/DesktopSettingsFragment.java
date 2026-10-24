@@ -98,9 +98,50 @@ public class DesktopSettingsFragment extends Fragment {
             }
         });
 
-        // ---- Launcher: pintu tambah pintasan dari sini juga ----
-        TextView lh = sectionTitle("Launcher");
-        root.addView(lh);
+        // ---- Atur Ikon Desktop: PAKET PENSIL PENUH (keputusan
+        // Hawx: bukan cuma tombol add — saklar tampil/sembunyi per
+        // tool bawaan + per launcher, datanya sama persis dengan
+        // sheet pensil lama & popup ruang kosong) ----
+        root.addView(sectionTitle("Atur Ikon Desktop"));
+        id.hawx.astro.utils.Core prefs2 = new id.hawx.astro.utils.Core(requireContext());
+        TextView th = new TextView(requireContext());
+        th.setText("Tools bawaan");
+        th.setTextColor(0xFF8B93B8);
+        th.setTextSize(12);
+        root.addView(th);
+        for (Object[] meta : id.hawx.astro.dashboard.Dashboard.toolMetas()) {
+            String key = id.hawx.astro.dashboard.Dashboard.PREF_TOOL + meta[0];
+            com.google.android.material.switchmaterial.SwitchMaterial sw =
+                    new com.google.android.material.switchmaterial.SwitchMaterial(requireContext());
+            sw.setText(getString((Integer) meta[1]).replace('\n', ' '));
+            sw.setTextSize(14);
+            sw.setChecked(prefs2.contains(key) ? prefs2.getBoolean(key) : (Boolean) meta[2]);
+            sw.setPadding(0, dp(8), 0, dp(8));
+            sw.setOnCheckedChangeListener((b, checked) -> prefs2.putBoolean(key, checked));
+            root.addView(sw);
+        }
+        TextView lh2 = new TextView(requireContext());
+        lh2.setText("Launcher");
+        lh2.setTextColor(0xFF8B93B8);
+        lh2.setTextSize(12);
+        lh2.setPadding(0, dp(10), 0, 0);
+        root.addView(lh2);
+        id.hawx.astro.x11.LauncherStore store =
+                new id.hawx.astro.x11.LauncherStore(requireContext());
+        for (id.hawx.astro.x11.LauncherEntry e : store.list()) {
+            com.google.android.material.switchmaterial.SwitchMaterial sw =
+                    new com.google.android.material.switchmaterial.SwitchMaterial(requireContext());
+            sw.setText(e.name);
+            sw.setTextSize(14);
+            sw.setChecked(!e.hidden);
+            sw.setPadding(0, dp(8), 0, dp(8));
+            sw.setOnCheckedChangeListener((b, checked) -> {
+                e.hidden = !checked;
+                store.upsert(e);
+                store.save();
+            });
+            root.addView(sw);
+        }
         Button addL = new Button(requireContext());
         addL.setText("+ Add launcher");
         addL.setTextSize(13);
