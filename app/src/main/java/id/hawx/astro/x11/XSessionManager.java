@@ -557,6 +557,10 @@ public class XSessionManager {
     /** Matikan server display :d saja (penjaga starttime); display lain utuh. */
     public void stopDisplay(int d, Callback cb) {
         exec.execute(() -> {
+            // R2: display tab yang dimatikan (mis. Matikan dari dock)
+            // ikut melepas reservasi + markernya, supaya hook prompt
+            // berikutnya meng-unset DISPLAY (bukan menunjuk display mati).
+            clearTabForDisplay(d);
             killServerSync(d);
             post(cb, true, "Display :" + d + " dimatikan");
         });
@@ -645,6 +649,9 @@ public class XSessionManager {
                     lastEntryByDisplay.remove(d);
                     lastEntryObjByDisplay.remove(d);
                     floatingDisplays.values().removeIf(v -> v == dd);
+                    // R2: server tab yang mati sendiri (crash/dibunuh dari
+                    // luar) jangan mengunci slot pool selamanya.
+                    clearTabForDisplay(dd);
                     continue;
                 }
                 LauncherEntry e = lastEntryObjByDisplay.get(d);
@@ -667,6 +674,40 @@ public class XSessionManager {
     public void setTerminalFloat(boolean on) {
         prefs().edit().putBoolean(KEY_FLOAT_TERM, on).apply();
         syncXrunWatcher();
+        // R2: isi toggle berubah dari "watcher xrun on/off" menjadi
+        // "server per-tab on/off + marker". Klaim/lepas jalan di thread
+        // exec (satu jalur dengan launchFloating — tanpa balapan soal
+        // nomor display). Snapshot PID diambil di sini (thread utama,
+        // menyentuh tabSwitcher); kalau pemanggil bukan thread utama
+        // atau activity depan bukan terminal, snapshot kosong + tercatat
+        // di log — tab baru tetap ter-klaim lewat broadcast onTabAdded.
+        if (on) {
+            final java.util.List<Integer> pids = collectForegroundTermPids();
+            exec.execute(() -> {
+                refreshLiveProfile();
+                for (Integer pid : pids) claimTabDisplay(pid);
+            });
+        } else {
+            exec.execute(this::releaseAllTabDisplays);
+        }
+    }
+
+    /** PID shell chroot tab yang sedang hidup di activity depan (bila
+     *  activity depan adalah NeoTermActivity; kalau bukan, list kosong).
+     *  Hanya dipanggil dari thread utama. */
+    private java.util.List<Integer> collectForegroundTermPids() {
+        java.util.List<Integer> out = new java.util.ArrayList<>();
+        try {
+            android.app.Activity fg =
+                    id.hawx.astro.AstroApp.foregroundActivity();
+            if (fg instanceof com.stryker.terminal.ui.term.NeoTermActivity) {
+                out.addAll(((com.stryker.terminal.ui.term.NeoTermActivity) fg)
+                        .collectTermPids());
+            }
+        } catch (Throwable t) {
+            X11DebugLog.log("TAB", "snapshot tab gagal: " + t);
+        }
+        return out;
     }
 
     /** Perintah deploy shim xrun ke chroot (idempotent, base64 biar aman
@@ -869,6 +910,9 @@ public class XSessionManager {
             }
             int chosen = -1;
             for (int d = 1; d <= 4; d++) {
+                // R2: display tab (reserved) dilewati MESKI probe bilang
+                // STOPPED — nomor tanpa server itu tetap milik tab.
+                if (reservedDisplays.contains(d)) continue;
                 if (probeSync(d).state != State.RUNNING) { chosen = d; break; }
             }
             if (chosen < 0) {
@@ -1054,5 +1098,154 @@ public class XSessionManager {
                 post(cb, false, "Gagal menerapkan DPI: " + e);
             }
         });
+    }
+
+    // ---- R2: display per-tab (model service-display reaktif) ----
+    // Satu display bare per tab terminal chroot (bukan per tool):
+    // toggle ON -> tiap tab dapat nomor lowest-free dari SATU pool
+    // bersama desktop (allocator yang sama; tabrakan mustahil karena
+    // semua klaim jalan di thread exec ini) + server bare + marker
+    // /tmp/astro-display/<pid-shell> berisi ":N" di dalam chroot.
+    // Hook PROMPT_COMMAND di astro_profile.sh (dorman saat OFF) yang
+    // mengekspor DISPLAY dari marker tiap prompt — jadi flip ON
+    // belakangan tetap menyalakan GUI buat tab lama (asal shell-nya
+    // sudah me-source profil ber-hook; tab yang lahir sebelum profil
+    // ber-hook butuh dibuka ulang — lihat refreshLiveProfile).
+    // Peta ini HANYA di memori: restart proses app membuat server tab
+    // jadi yatim (kelihatan di dock sebagai server-only, bisa dimatikan
+    // dari dock) sampai toggle di-cycle atau tab baru lahir.
+    // BUKAN jatah R2 (tetap R4): visibility ngikut tab aktif, no-auto-
+    // reclaim dock, dialog konfirmasi tutup tab, viewer reaktif.
+    /** Display yang dipesan tab (meski servernya belum jalan). */
+    private final java.util.Set<Integer> reservedDisplays =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** PID shell chroot -> display tabnya. */
+    private final java.util.Map<Integer, Integer> tabDisplayByPid =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final String TAB_MARKER_DIR = "/tmp/astro-display";
+
+    /** Tab lahir (broadcast NeoTermActivity) — klaim bila toggle ON. */
+    public void onTerminalTabAdded(int pid) {
+        exec.execute(() -> claimTabDisplay(pid));
+    }
+
+    /** Tab ditutup (broadcast NeoTermActivity) — hanya cleanup server
+     *  + marker; cascade jendela/dialog = jatah R4. */
+    public void onTerminalTabRemoved(int pid) {
+        exec.execute(() -> releaseTabDisplay(pid));
+    }
+
+    /** Tulis marker display buat satu shell (root shell chroot, karena
+     *  proses app-uid tak bisa menulis ke pohon rootfs milik root). */
+    private void writeTabMarker(int pid, int d) {
+        try {
+            core.customChrootCommand("mkdir -p " + TAB_MARKER_DIR
+                    + " && printf '%s' ':" + d + "' > "
+                    + TAB_MARKER_DIR + "/" + pid);
+        } catch (Throwable t) {
+            X11DebugLog.log("TAB", "tulis marker pid=" + pid + " gagal: " + t);
+        }
+    }
+
+    private void deleteTabMarker(int pid) {
+        try {
+            core.customChrootCommand("rm -f " + TAB_MARKER_DIR + "/" + pid);
+        } catch (Throwable ignored) {}
+    }
+
+    /** Klaim display buat satu tab (thread exec saja). Urutan: nomor
+     *  lowest-free (lewati RUNNING + reserved) -> reservasi -> server
+     *  bare -> marker. Gagal start = reservasi dilepas, tanpa marker
+     *  (hook tak pernah menunjuk display mati). */
+    private void claimTabDisplay(int pid) {
+        if (!getTerminalFloat()) return;
+        if (pid <= 0) return;
+        if (tabDisplayByPid.containsKey(pid)) return;
+        int chosen = -1;
+        for (int d = 1; d <= 4; d++) {
+            if (reservedDisplays.contains(d)) continue;
+            if (probeSync(d).state != State.RUNNING) { chosen = d; break; }
+        }
+        if (chosen < 0) {
+            X11DebugLog.log("TAB", "pool penuh (:1-:4) — tab pid=" + pid
+                    + " tanpa display");
+            return;
+        }
+        reservedDisplays.add(chosen);
+        tabDisplayByPid.put(pid, chosen);
+        StringBuilder rep = new StringBuilder();
+        boolean ok = ensureRunningSync(chosen, rep);
+        if (!ok) {
+            reservedDisplays.remove(chosen);
+            tabDisplayByPid.remove(pid);
+            X11DebugLog.log("TAB", "server tab :" + chosen + " (pid=" + pid
+                    + ") gagal: " + rep);
+            return;
+        }
+        writeTabMarker(pid, chosen);
+        X11DebugLog.log("TAB", "tab pid=" + pid + " -> :" + chosen
+                + " (server jalan, marker ditulis)");
+    }
+
+    /** Lepas satu tab: server mati + marker hapus + nomor balik pool. */
+    private void releaseTabDisplay(int pid) {
+        Integer d = tabDisplayByPid.remove(pid);
+        if (d == null) return;
+        reservedDisplays.remove(d);
+        try {
+            killServerSync(d);
+        } catch (Throwable ignored) {}
+        deleteTabMarker(pid);
+        X11DebugLog.log("TAB", "tab pid=" + pid + " dilepas dari :" + d);
+    }
+
+    /** Lepas SEMUA tab (toggle OFF): server mati + seluruh marker hapus. */
+    private void releaseAllTabDisplays() {
+        java.util.List<Integer> pids =
+                new java.util.ArrayList<>(tabDisplayByPid.keySet());
+        for (Integer pid : pids) releaseTabDisplay(pid);
+        try {
+            core.customChrootCommand("rm -rf " + TAB_MARKER_DIR);
+        } catch (Throwable ignored) {}
+        X11DebugLog.log("TAB", "semua display tab dilepas (toggle OFF)");
+    }
+
+    /** Bersihkan pemetaan tab buat satu display TANPA membunuh server
+     *  (dipakai stopDisplay/listDisplays yang sudah membunuh / menemukan
+     *  server mati sendiri). Tanpa pemetaan = tanpa marker. */
+    private void clearTabForDisplay(int d) {
+        Integer pidToClear = null;
+        for (java.util.Map.Entry<Integer, Integer> e : tabDisplayByPid.entrySet()) {
+            if (e.getValue() != null && e.getValue().intValue() == d) {
+                pidToClear = e.getKey();
+                break;
+            }
+        }
+        if (pidToClear != null) {
+            tabDisplayByPid.remove(pidToClear);
+            deleteTabMarker(pidToClear);
+        }
+        reservedDisplays.remove(d);
+    }
+
+    /** Segarkan salinan profil hidup di chroot (best-effort, root sisi
+     *  Android). Latar: bootroot hanya menyalin asset profil saat MOUNT
+     *  chroot, dan chroot Hawx ter-mount persisten — jadi tanpa ini,
+     *  hook R2 tak pernah sampai ke /etc chroot yang sudah jalan sampai
+     *  remount, dan toggle ON kelihatan "tidak bekerja" buat tab baru.
+     *  Isi yang disalin = byte asset yang sama dengan yang dipakai
+     *  bootroot (idempotent). Shell yang SUDAH jalan tetap memakai
+     *  profil lama (profil cuma di-source saat shell lahir) — tab lama
+     *  pra-hook tetap butuh dibuka ulang; tab baru langsung ber-hook. */
+    private void refreshLiveProfile() {
+        try {
+            if (!core.isMounted()) return;
+            core.customCommand("cp /data/data/id.hawx.astro/files/astro_profile.sh "
+                    + Core.CHROOT_ROOT + "/etc/astro_profile.sh 2>/dev/null; true");
+            X11DebugLog.log("TAB", "profil hidup disegarkan dari asset");
+        } catch (Throwable t) {
+            X11DebugLog.log("TAB", "segarkan profil gagal: " + t);
+        }
     }
 }

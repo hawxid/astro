@@ -243,9 +243,32 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
 
         override fun onTabAdded(tabSwitcher: TabSwitcher, index: Int, tab: Tab, animation: Animation) {
           update_colors()
+          // R2: tab chroot baru lahir saat toggle ON -> klaim displaynya
+          // (sesi dibuat SEBELUM tab, jadi termSession + pid sudah valid
+          // di sini; broadcast karena modul terminal tak boleh merujuk
+          // kelas modul app langsung).
+          if (tab is TermTab) {
+            val sess = tab.termData.termSession
+            val pid = sess?.pid ?: 0
+            val path = sess?.shellPath
+            if (pid > 0 && path != null && path.endsWith("stryker-ch")) {
+              sendBroadcast(Intent("id.hawx.astro.TERMINAL_TAB_ADDED")
+                .setPackage(packageName).putExtra("pid", pid))
+            }
+          }
         }
 
         override fun onTabRemoved(tabSwitcher: TabSwitcher, index: Int, tab: Tab, animation: Animation) {
+          // R2: tab ditutup -> server + marker displaynya dibersihkan
+          // (hanya cleanup; cascade jendela/dialog = jatah R4). Broadcast
+          // dulu selagi termSession masih utuh.
+          if (tab is TermTab) {
+            val pid = tab.termData.termSession?.pid ?: 0
+            if (pid > 0) {
+              sendBroadcast(Intent("id.hawx.astro.TERMINAL_TAB_REMOVED")
+                .setPackage(packageName).putExtra("pid", pid))
+            }
+          }
           if (tab is TermTab) {
             SessionRemover.removeSession(termService, tab)
           } else if (tab is XSessionTab) {
@@ -260,6 +283,30 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
     val tab = tabSwitcher.selectedTab as NeoTab?
     tab?.onResume()
 
+  }
+
+  /** R2: PID shell chroot semua tab hidup (dipakai sisi app saat
+   *  toggle ON untuk mengklaim display tab yang sudah ada). Hanya tab
+   *  stryker-ch (chroot) yang diklaim: tab Android/ssh tak membaca
+   *  profil chroot, jadi marker buat mereka sia-sia + makan slot pool.
+   *  Dipanggil dari thread utama (menyentuh tabSwitcher). */
+  fun collectTermPids(): List<Int> {
+    val out = ArrayList<Int>()
+    try {
+      for (i in 0 until tabSwitcher.count) {
+        val tab = tabSwitcher.getTab(i)
+        if (tab is TermTab) {
+          val sess = tab.termData.termSession
+          val pid = sess?.pid ?: 0
+          val path = sess?.shellPath
+          if (pid > 0 && path != null && path.endsWith("stryker-ch")) {
+            out.add(pid)
+          }
+        }
+      }
+    } catch (_: Exception) {
+    }
+    return out
   }
 
   override fun onStart() {

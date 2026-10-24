@@ -54,3 +54,30 @@ if [ -z "$__STRYKER_GREETED" ]; then
 fi
 
 unset __s_rail __s_path __s_dim __s_rst __s_brand __s_tip
+
+# R2: display per-tab (model service-display reaktif).
+# Hook ini DORMAN saat toggle OFF: tiap prompt cuma stat satu marker;
+# tanpa marker, DISPLAY tetap unset persis seperti default terminal
+# (OFF = terminal normal 100%). Saat toggle ON, app menulis marker
+# /tmp/astro-display/<pid-shell> berisi ":N" + menyalakan servernya;
+# prompt berikutnya shell ini sendiri mengekspor DISPLAY dari marker.
+# Penanda __ASTRO_DISPLAY_HOOK bikin instalasi idempotent (aman
+# di-source ulang). PROMPT_COMMAND lama dipertahankan (hook jalan
+# duluan, lalu perintah lama) — bukan ditimpa.
+__astro_display_hook() {
+    _m=/tmp/astro-display/$$
+    if [ -r "$_m" ]; then
+        _d=$(cat "$_m" 2>/dev/null)
+        case "$_d" in
+            :[0-9]*) export DISPLAY="$_d" ;;
+            *) unset DISPLAY ;;
+        esac
+    else
+        unset DISPLAY
+    fi
+    unset _m _d
+}
+if [ -z "$__ASTRO_DISPLAY_HOOK" ]; then
+    __ASTRO_DISPLAY_HOOK=1
+    PROMPT_COMMAND="__astro_display_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+fi

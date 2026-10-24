@@ -42,6 +42,35 @@ public class AstroApp extends com.termux.x11.LorieApp {
             }
         }, new android.content.IntentFilter("id.hawx.astro.TOGGLE_TERMINAL_FLOAT"),
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+        // R2: tab terminal lahir/tutup -> klaim/bersihkan display per-tab
+        // (modul terminal tak boleh merujuk kelas app; sinyal lewat
+        // broadcast paket-lokal, pola yang sama dengan toggle).
+        androidx.core.content.ContextCompat.registerReceiver(this,
+                new android.content.BroadcastReceiver() {
+                    @Override
+                    public void onReceive(android.content.Context c,
+                                          android.content.Intent i) {
+                        int pid = i.getIntExtra("pid", 0);
+                        if (pid > 0) {
+                            id.hawx.astro.x11.XSessionManager.get(c)
+                                    .onTerminalTabAdded(pid);
+                        }
+                    }
+                }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_ADDED"),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+        androidx.core.content.ContextCompat.registerReceiver(this,
+                new android.content.BroadcastReceiver() {
+                    @Override
+                    public void onReceive(android.content.Context c,
+                                          android.content.Intent i) {
+                        int pid = i.getIntExtra("pid", 0);
+                        if (pid > 0) {
+                            id.hawx.astro.x11.XSessionManager.get(c)
+                                    .onTerminalTabRemoved(pid);
+                        }
+                    }
+                }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_REMOVED"),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         androidx.core.content.ContextCompat.registerReceiver(this,
                 new android.content.BroadcastReceiver() {
                     @Override

@@ -471,4 +471,11 @@ public class TerminalSession extends TerminalOutput {
     return mShellPid;
   }
 
+  /** Jalur executable sesi (mis. .../stryker-ch) — dipakai R2 untuk
+   *  membedakan tab chroot dari tab Android/ssh (yang tak membaca
+   *  profil chroot, jadi tak boleh diklaim display). */
+  public String getShellPath() {
+    return mShellPath;
+  }
+
 }
