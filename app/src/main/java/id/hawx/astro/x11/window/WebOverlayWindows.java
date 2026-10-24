@@ -49,6 +49,8 @@ public class WebOverlayWindows {
     private final WebView webView;
     private final WindowManager.LayoutParams wlp;
     private boolean attached;
+    private boolean maximized;
+    private int prevX, prevY, prevW, prevH;
 
     // ---------------- statis ----------------
 
@@ -136,6 +138,32 @@ public class WebOverlayWindows {
         Button minBtn = chromeBtn("—");
         minBtn.setOnClickListener(v -> hide());
         bar.addView(minBtn);
+        Button maxBtn = chromeBtn("□");
+        maxBtn.setOnClickListener(v -> {
+            if (maximized) {
+                wlp.x = prevX;
+                wlp.y = prevY;
+                wlp.width = prevW;
+                wlp.height = prevH;
+                maximized = false;
+                maxBtn.setText("□");
+            } else {
+                prevX = wlp.x;
+                prevY = wlp.y;
+                prevW = wlp.width;
+                prevH = wlp.height;
+                DisplayMetrics dm = new DisplayMetrics();
+                wm.getDefaultDisplay().getRealMetrics(dm);
+                wlp.x = 0;
+                wlp.y = 0;
+                wlp.width = dm.widthPixels;
+                wlp.height = dm.heightPixels;
+                maximized = true;
+                maxBtn.setText("❐");
+            }
+            wm.updateViewLayout(container, wlp);
+        });
+        bar.addView(maxBtn);
         Button closeBtn = chromeBtn("✕");
         closeBtn.setOnClickListener(v -> close());
         bar.addView(closeBtn);
@@ -166,7 +194,13 @@ public class WebOverlayWindows {
 
         int w = (int) (m.widthPixels * 0.88f);
         int h = (int) (m.heightPixels * 0.55f);
-        win.setLayoutParams(new FrameLayout.LayoutParams(w, h));
+        // PENTING: win HARUS match-parent kontainer, bukan ukuran
+        // fixed — kalau fixed, resize cuma mengubah kontainer dan
+        // isi (WebView) tetap di ukuran awal lalu terpotong
+        // (temuan Hawx: "pas diperkecil sisanya kepotong").
+        win.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
         container.addView(win);
 
         wlp = new WindowManager.LayoutParams(w, h,
