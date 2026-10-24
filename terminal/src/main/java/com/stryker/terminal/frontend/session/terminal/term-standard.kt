@@ -48,6 +48,10 @@ class TermViewClient(val context: Context) :
   }
 
   override fun onSingleTapUp(e: MotionEvent?) {
+    // Ketuk di luar jendela overlay = input pindah ke terminal
+    // (lebih natural daripada tombol keyboard): bersihkan router
+    // bar supaya tombol bar ikut pulang, bukan cuma ketikan.
+    com.stryker.terminal.frontend.session.view.extrakey.XKeyRouter.clear()
     val termView = termSessionData?.termView ?: return
     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
       .showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)

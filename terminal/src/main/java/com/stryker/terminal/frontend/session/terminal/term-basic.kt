@@ -49,6 +49,10 @@ class BasicViewClient(val terminalView: TerminalView) :
   }
 
   override fun onSingleTapUp(e: MotionEvent?) {
+    // Ketuk di luar jendela overlay = input pindah ke terminal
+    // (lebih natural daripada tombol keyboard): bersihkan router
+    // bar supaya tombol bar ikut pulang, bukan cuma ketikan.
+    com.stryker.terminal.frontend.session.view.extrakey.XKeyRouter.clear()
     if (terminalView.isFocusable && terminalView.isFocusableInTouchMode) {
       (terminalView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
         .showSoftInput(terminalView, InputMethodManager.SHOW_IMPLICIT)
