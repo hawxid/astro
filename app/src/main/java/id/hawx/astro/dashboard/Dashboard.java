@@ -423,13 +423,33 @@ public class Dashboard extends Fragment {
         return b;
     }
 
+    /** Tombol dock berikon vektor (samakan bahasa ikon dock dengan
+     *  sidebar — permintaan Hawx: ikon terminal dock = ikon terminal
+     *  Essentials, bukan glif keyboard). */
+    private View dockIconBtn(int iconRes, View.OnClickListener cb) {
+        ImageView b = new ImageView(context);
+        b.setImageResource(iconRes);
+        b.setColorFilter(0xFF9AA0AE);
+        b.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        b.setPadding(dp(11), dp(11), dp(11), dp(11));
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(0xFF1B2440);
+        b.setBackground(g);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        b.setLayoutParams(lp);
+        b.setOnClickListener(cb);
+        return b;
+    }
+
     private void buildDesktopChrome(View view) {
         // Panel XFCE sekarang milik activity (MainActivity.buildPanel)
         // supaya tetap hidup saat tools kebuka sebagai jendela.
         LinearLayout dock = view.findViewById(R.id.xfce_dock);
         if (dock != null) {
             dockBar = dock;
-            dock.addView(dockBtn("\u2328", v -> openTerminal()));
+            dock.addView(dockIconBtn(id.hawx.astro.R.drawable.terminal, v -> openTerminal()));
             dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
             dock.addView(dockBtn("\uD83E\uDDFE", v ->
                     startActivity(new Intent(context, X11PocActivity.class))));
