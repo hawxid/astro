@@ -129,6 +129,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         if (existing != null) {
             restoreWindow(existing);
             fireWindowsChanged();
+            id.hawx.astro.x11.XSessionManager.get(activity).watchEntryDisplay(display);
             return;
         }
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "openWindow mulai display=" + display);
@@ -155,6 +156,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         setActive(win);
         host.attach();
         fireWindowsChanged();
+        id.hawx.astro.x11.XSessionManager.get(activity).watchEntryDisplay(display);
       } catch (Throwable t) {
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "openWindow GAGAL: "
                 + android.util.Log.getStackTraceString(t));
@@ -163,6 +165,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
 
     public void closeWindow(XFloatingWindow win, boolean kill) {
         int display = win.host().display();
+        id.hawx.astro.x11.XSessionManager.get(getContext()).unwatchEntryDisplay(display);
         win.host().detach();
         windowsBox.removeView(win);
         windows.remove(display);

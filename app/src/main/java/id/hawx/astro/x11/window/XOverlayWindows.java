@@ -181,6 +181,19 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         if (o != null) o.hide();
     }
 
+    /** Tutup total jendela terminal display ini (dipakai watcher lifecycle R1). */
+    public static void closeForDisplay(int display) {
+        XOverlayWindows o = sByDisplay.get(display);
+        if (o == null) return;
+        o.close();
+        if (sActive == o) {
+            sActive = null;
+            XKeyRouter.clear();
+        }
+        o.refocusTerminalSoon();
+        X11DebugLog.log("OVERLAY", "tutup (lifecycle) :" + display);
+    }
+
     /**
      * Tampilkan jendela terminal buat display ini (layer decor).
      *
@@ -203,11 +216,13 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 sByDisplay.remove(display);
             } else {
                 existing.raise();
+                id.hawx.astro.x11.XSessionManager.get(ctx).watchEntryDisplay(display);
                 return true;
             }
         }
         XWindowLayer.closeForDisplay(display); // rumah lama melepas
         new XOverlayWindows(act, display, title).attach();
+        id.hawx.astro.x11.XSessionManager.get(ctx).watchEntryDisplay(display);
         return true;
     }
 
@@ -321,6 +336,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         attached = false;
         host.detach();
         sByDisplay.remove(display);
+        id.hawx.astro.x11.XSessionManager.get(activity).unwatchEntryDisplay(display);
         if (sByDisplay.isEmpty()) detachAnchorListener();
     }
 

@@ -688,6 +688,12 @@ public class XSessionManager {
             // diam-diam tak pernah menembak (bukti log 28: watcher
             // AKTIF 09:32, request 09:43 tak pernah sampai).
             xrunPoller = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+            // Bersihkan antrean LAMA: berkas yang sudah ada pas watcher
+            // nyala itu basi by definition (kasus 2026-10-24: request
+            // 'xrun wireshark' dari tes lama tereksekusi sendiri pas
+            // watcher pertama kali jalan beneran).
+            core.threadChrootCommand("rm -f /tmp/astro-xrun-requests/req-* "
+                    + "/tmp/astro-xrun-requests/*.tmp 2>/dev/null");
             xrunPoller.scheduleWithFixedDelay(this::pollXrunRequests,
                     400, 1500, java.util.concurrent.TimeUnit.MILLISECONDS);
             // Shim harus ada SEKARANG, bukan nunggu start server berikutnya.
@@ -710,6 +716,23 @@ public class XSessionManager {
             for (String name : names) {
                 name = name.trim();
                 if (!name.matches("req-[A-Za-z0-9-]+")) continue;
+                // Nama shim: req-<pid>-<epoch detik>. Yang umurnya
+                // >120 dtk = sisa tes lama — buang, jangan eksekusi.
+                long epoch = -1;
+                int dash = name.lastIndexOf('-');
+                if (dash > 0) {
+                    try {
+                        epoch = Long.parseLong(name.substring(dash + 1));
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+                if (epoch > 0
+                        && System.currentTimeMillis() / 1000 - epoch > 120) {
+                    core.customChrootCommand(
+                            "rm -f /tmp/astro-xrun-requests/" + name);
+                    X11DebugLog.log("XRUN", "request basi dibuang: " + name);
+                    continue;
+                }
                 java.util.List<String> out = core.customChrootCommand(
                         "cat /tmp/astro-xrun-requests/" + name
                                 + "; rm -f /tmp/astro-xrun-requests/" + name);
@@ -745,6 +768,92 @@ public class XSessionManager {
                 });
             }
         });
+    }
+
+    // ---- R1: lifecycle jendela floating berbasis liveness entri ----
+    // Aturan: display floating (bare, :1-:4) yang entrinya SUDAH pernah
+    // hidup lalu MATI 2 poll berturut-turut -> jendela ditutup +
+    // server dimatikan (bukan ditinggal gelap). Jendela yang entrinya
+    // belum pernah hidup TIDAK PERNAH ditutup watcher ini (grace
+    // launch lambat). Berlaku 1-entri-per-display (model sekarang);
+    // model per-tab nanti (multi tool per display) butuh hitung
+    // window, bukan liveness entri. Dipakai host lewat watch/unwatch;
+    // hide/minimize TIDAK unwatch (jendela masih ada).
+    private final java.util.Map<Integer, Boolean> lifeSeen =
+            new java.util.HashMap<>();
+    private final java.util.Map<Integer, Integer> lifeDeadStreak =
+            new java.util.HashMap<>();
+    private final java.util.Set<Integer> lifeWatched =
+            new java.util.HashSet<>();
+    private java.util.concurrent.ScheduledExecutorService lifePoller;
+
+    public synchronized void watchEntryDisplay(int d) {
+        if (d <= 0) return;
+        lifeWatched.add(d);
+        syncLifePoller();
+    }
+
+    public synchronized void unwatchEntryDisplay(int d) {
+        lifeWatched.remove(d);
+        lifeSeen.remove(d);
+        lifeDeadStreak.remove(d);
+        syncLifePoller();
+    }
+
+    private synchronized void syncLifePoller() {
+        if (!lifeWatched.isEmpty() && lifePoller == null) {
+            lifePoller = java.util.concurrent.Executors
+                    .newSingleThreadScheduledExecutor();
+            lifePoller.scheduleWithFixedDelay(this::pollEntryLife,
+                    1000, 4000, java.util.concurrent.TimeUnit.MILLISECONDS);
+            X11DebugLog.log("LIFE", "watcher jalan (" + lifeWatched.size() + " display)");
+        } else if (lifeWatched.isEmpty() && lifePoller != null) {
+            lifePoller.shutdownNow();
+            lifePoller = null;
+            X11DebugLog.log("LIFE", "watcher mati");
+        }
+    }
+
+    private void pollEntryLife() {
+        java.util.Set<Integer> snapshot;
+        synchronized (this) {
+            snapshot = new java.util.HashSet<>(lifeWatched);
+        }
+        for (Integer d : snapshot) {
+            try {
+                LauncherEntry entry = lastEntryObjByDisplay.get(d);
+                if (entry == null) continue;
+                boolean running = entryRunningSync(entry.id, entry.firstWord());
+                synchronized (this) {
+                    if (!lifeWatched.contains(d)) continue;
+                    if (running) {
+                        lifeSeen.put(d, true);
+                        lifeDeadStreak.put(d, 0);
+                    } else if (Boolean.TRUE.equals(lifeSeen.get(d))) {
+                        int streak = lifeDeadStreak.get(d) == null
+                                ? 1 : lifeDeadStreak.get(d) + 1;
+                        lifeDeadStreak.put(d, streak);
+                        X11DebugLog.log("LIFE", "d=" + d + " entri MATI streak=" + streak);
+                        if (streak >= 2) {
+                            lifeWatched.remove(d);
+                            lifeSeen.remove(d);
+                            lifeDeadStreak.remove(d);
+                            final int disp = d;
+                            main.post(() -> closeDeadEntryDisplay(disp));
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                // chroot sibuk — poll berikut mencoba lagi, jangan tutup apa-apa
+            }
+        }
+    }
+
+    private void closeDeadEntryDisplay(int d) {
+        X11DebugLog.log("LIFE", "tutup jendela :" + d + " (entri mati)");
+        id.hawx.astro.x11.window.XWindowLayer.closeForDisplay(d);
+        id.hawx.astro.x11.window.XOverlayWindows.closeForDisplay(d);
+        stopDisplay(d, (ok, msg) -> { });
     }
 
     public void launchFloating(LauncherEntry entry, FloatingCallback cb) {
