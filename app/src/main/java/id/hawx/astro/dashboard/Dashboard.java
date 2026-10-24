@@ -59,6 +59,8 @@ public class Dashboard extends Fragment {
 
     private LinearLayout toolsGrid;
     private LinearLayout dockBar;
+    private int dockFixedCount = 0;
+    private static final String PREF_DOCK = "dock_item_";
     private XSessionManager xMgr;
     private LauncherStore launcherStore;
     private final java.util.Set<String> xRunning = new java.util.HashSet<>();
@@ -275,9 +277,30 @@ public class Dashboard extends Fragment {
 
     // ================= grid desktop =================
 
+    /** Popup ruang kosong desktop (tahan area kosong grid). */
+    private void showDesktopMenu(View anchor) {
+        android.widget.PopupMenu pm = new android.widget.PopupMenu(context, anchor);
+        pm.getMenu().add("Add launcher");
+        pm.getMenu().add("Atur ikon desktop");
+        pm.setOnMenuItemClickListener(item -> {
+            if ("Atur ikon desktop".contentEquals(item.getTitle())) {
+                showCustomize();
+            } else {
+                startActivity(new Intent(context, LauncherEditActivity.class));
+            }
+            return true;
+        });
+        pm.show();
+    }
+
     private void buildTools() {
         if (toolsGrid == null) return;
         toolsGrid.removeAllViews();
+        toolsGrid.setOnLongClickListener(v -> { showDesktopMenu(v); return true; });
+        if (toolsGrid.getParent() instanceof View) {
+            ((View) toolsGrid.getParent()).setOnLongClickListener(
+                    v -> { showDesktopMenu(v); return true; });
+        }
 
         List<View> cells = new ArrayList<>();
         for (Tool t : tools()) if (toolShown(t)) cells.add(desktopCell(t));
@@ -296,6 +319,7 @@ public class Dashboard extends Fragment {
                 row.setLayoutParams(new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT));
+                row.setOnLongClickListener(v -> { showDesktopMenu(v); return true; });
                 toolsGrid.addView(row);
             }
             row.addView(cells.get(i));
@@ -349,6 +373,23 @@ public class Dashboard extends Fragment {
         cell.addView(icon);
         cell.addView(cellLabel(getString(tool.label), false));
         cell.setOnClickListener(v -> tool.open.run());
+        cell.setOnLongClickListener(v -> {
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(context, v);
+            pm.getMenu().add("Buka");
+            pm.getMenu().add("Sembunyikan");
+            pm.setOnMenuItemClickListener(item -> {
+                if ("Sembunyikan".contentEquals(item.getTitle())) {
+                    core.putBoolean(PREF_TOOL + tool.key, false);
+                    core.toaster(getString(tool.label).replace('\n', ' ') + " disembunyikan");
+                    buildTools();
+                } else {
+                    v.performClick();
+                }
+                return true;
+            });
+            pm.show();
+            return true;
+        });
         return cell;
     }
 
@@ -397,9 +438,27 @@ public class Dashboard extends Fragment {
             });
         });
         cell.setOnLongClickListener(v -> {
-            Intent i = new Intent(context, LauncherEditActivity.class);
-            i.putExtra("entry_id", e.id);
-            startActivity(i);
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(context, v);
+            pm.getMenu().add("Buka");
+            pm.getMenu().add("Edit launcher");
+            pm.getMenu().add("Kill");
+            pm.setOnMenuItemClickListener(item -> {
+                String t = item.getTitle().toString();
+                if (t.equals("Edit launcher")) {
+                    Intent i = new Intent(context, LauncherEditActivity.class);
+                    i.putExtra("entry_id", e.id);
+                    startActivity(i);
+                } else if (t.equals("Kill")) {
+                    xMgr.stopEntry(e, (ok, msg) -> {
+                        core.toaster(msg);
+                        refreshXState();
+                    });
+                } else {
+                    v.performClick();
+                }
+                return true;
+            });
+            pm.show();
             return true;
         });
         return cell;
@@ -443,16 +502,33 @@ public class Dashboard extends Fragment {
         return b;
     }
 
+    private boolean dockItemOn(String name) {
+        String key = PREF_DOCK + name;
+        return core.contains(key) ? core.getBoolean(key) : true;
+    }
+
     private void buildDesktopChrome(View view) {
         // Panel XFCE sekarang milik activity (MainActivity.buildPanel)
         // supaya tetap hidup saat tools kebuka sebagai jendela.
         LinearLayout dock = view.findViewById(R.id.xfce_dock);
         if (dock != null) {
             dockBar = dock;
-            dock.addView(dockIconBtn(id.hawx.astro.R.drawable.terminal, v -> openTerminal()));
-            dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
-            dock.addView(dockBtn("\uD83E\uDDFE", v ->
-                    startActivity(new Intent(context, X11PocActivity.class))));
+            dockFixedCount = 0;
+            // Item tetap dock DIPILIH user (System > Desktop): pref
+            // dock_item_<nama>, bawaan tampil semua.
+            if (dockItemOn("terminal")) {
+                dock.addView(dockIconBtn(id.hawx.astro.R.drawable.terminal, v -> openTerminal()));
+                dockFixedCount++;
+            }
+            if (dockItemOn("viewer")) {
+                dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
+                dockFixedCount++;
+            }
+            if (dockItemOn("sessions")) {
+                dock.addView(dockBtn("\uD83E\uDDFE", v ->
+                        startActivity(new Intent(context, X11PocActivity.class))));
+                dockFixedCount++;
+            }
         }
         refreshXState();
     }
@@ -525,8 +601,19 @@ public class Dashboard extends Fragment {
         if (dockBar == null || xMgr == null) return;
         xMgr.listDisplays(list -> {
             if (dockBar == null) return;
-            while (dockBar.getChildCount() > 3)
+            while (dockBar.getChildCount() > dockFixedCount)
                 dockBar.removeViewAt(dockBar.getChildCount() - 1);
+            if (!list.isEmpty()) {
+                // Pemisah antara ikon tetap dan pintasan jendela aktif
+                View sep = new View(context);
+                android.widget.LinearLayout.LayoutParams slp =
+                        new android.widget.LinearLayout.LayoutParams(dp(1), dp(28));
+                slp.setMargins(dp(6), 0, dp(6), 0);
+                slp.gravity = android.view.Gravity.CENTER_VERTICAL;
+                sep.setLayoutParams(slp);
+                sep.setBackgroundColor(0xFF3A4767);
+                dockBar.addView(sep);
+            }
             for (XSessionManager.DisplayInfo di : list)
                 dockBar.addView(dockWinBtn(di));
         });

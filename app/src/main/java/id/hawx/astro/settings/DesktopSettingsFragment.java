@@ -98,7 +98,52 @@ public class DesktopSettingsFragment extends Fragment {
             }
         });
 
+        // ---- Launcher: pintu tambah pintasan dari sini juga ----
+        TextView lh = sectionTitle("Launcher");
+        root.addView(lh);
+        Button addL = new Button(requireContext());
+        addL.setText("+ Add launcher");
+        addL.setTextSize(13);
+        addL.setOnClickListener(v -> startActivity(new android.content.Intent(
+                requireContext(), id.hawx.astro.x11.LauncherEditActivity.class)));
+        root.addView(addL);
+
+        // ---- Dock: pemilihan item tetap yang tampil ----
+        root.addView(sectionTitle("Dock"));
+        TextView dh = new TextView(requireContext());
+        dh.setText("Pilih ikon tetap yang tampil di dock (pintasan jendela aktif selalu ikut). Berlaku pas Dashboard dibuka lagi.");
+        dh.setTextColor(0xFF8B93B8);
+        dh.setTextSize(12);
+        dh.setPadding(0, 0, 0, dp(6));
+        root.addView(dh);
+        id.hawx.astro.utils.Core prefs = new id.hawx.astro.utils.Core(requireContext());
+        root.addView(dockSwitch(prefs, "terminal", "Terminal"));
+        root.addView(dockSwitch(prefs, "viewer", "Layar X (viewer)"));
+        root.addView(dockSwitch(prefs, "sessions", "Sesi & Log"));
+
         return scroll;
+    }
+
+    private TextView sectionTitle(String text) {
+        TextView t = new TextView(requireContext());
+        t.setText(text);
+        t.setTextColor(0xFFE8EBFA);
+        t.setTextSize(15);
+        t.setTypeface(null, android.graphics.Typeface.BOLD);
+        t.setPadding(0, dp(20), 0, dp(4));
+        return t;
+    }
+
+    private View dockSwitch(id.hawx.astro.utils.Core prefs, String name, String label) {
+        com.google.android.material.switchmaterial.SwitchMaterial sw =
+                new com.google.android.material.switchmaterial.SwitchMaterial(requireContext());
+        sw.setText(label);
+        sw.setTextSize(14);
+        String key = "dock_item_" + name;
+        sw.setChecked(!prefs.contains(key) || prefs.getBoolean(key));
+        sw.setPadding(0, dp(8), 0, dp(8));
+        sw.setOnCheckedChangeListener((b, checked) -> prefs.putBoolean(key, checked));
+        return sw;
     }
 
     private void updateDpiLabel() {

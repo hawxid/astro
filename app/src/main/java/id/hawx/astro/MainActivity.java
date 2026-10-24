@@ -615,6 +615,10 @@ public class MainActivity extends AppCompatActivity {
             Fragment f = fragmentManager.findFragmentById(R.id.flContent);
             if (f instanceof Dashboard) ((Dashboard) f).showCustomize();
         });
+        // Pensil PENSIUN (keputusan Hawx): atur ikon desktop sekarang
+        // lewat tahan ruang kosong di desktop; sheet-nya tetap hidup
+        // dari jalur itu.
+        cust.setVisibility(View.GONE);
         panel.addView(cust);
         TextView gear = panelText("\u2699");
         gear.setTextSize(20f);
