@@ -224,6 +224,10 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         private boolean dragArmed;
         private float dragDownX, dragDownY;
         private int dragStartX, dragStartY;
+        // Patokan seret: rect TerminalView foreground (area bg terminal
+        // di atas bar EK). Diambil pas drag mulai; kosong = layar penuh.
+        private int anchorL, anchorT, anchorR, anchorB;
+        private boolean hasAnchor;
 
         OverlayContainer(Context ctx) {
             super(ctx);
@@ -253,6 +257,27 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                     dragDownY = e.getRawY();
                     dragStartX = wlp.x;
                     dragStartY = wlp.y;
+                    // Ikat ke patokan bg terminal (rect TerminalView):
+                    // bar EK ada DI LUAR rect ini (di bawahnya), jadi
+                    // jendela tak mungkin menutupinya — tanpa estimasi
+                    // tinggi bar. Rect ikut menciut pas keyboard buka
+                    // (inset listener NeoTerm), jadi batas ikut naik.
+                    hasAnchor = false;
+                    Activity fg0 = AstroApp.foregroundActivity();
+                    if (fg0 != null
+                            && fg0.getClass().getName().contains("NeoTermActivity")) {
+                        android.view.View tv = findTerminalView(
+                                fg0.getWindow().getDecorView());
+                        if (tv != null && tv.getWidth() > 0 && tv.getHeight() > 0) {
+                            int[] loc = new int[2];
+                            tv.getLocationOnScreen(loc);
+                            anchorL = loc[0];
+                            anchorT = loc[1];
+                            anchorR = loc[0] + tv.getWidth();
+                            anchorB = loc[1] + tv.getHeight();
+                            hasAnchor = true;
+                        }
+                    }
                 }
                 return false;
             }
@@ -277,20 +302,21 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 wm.getDefaultDisplay().getRealMetrics(m);
                 int nx = dragStartX + Math.round(e.getRawX() - dragDownX);
                 int ny = dragStartY + Math.round(e.getRawY() - dragDownY);
-                nx = Math.max(-(wlp.width - dp2(80)),
-                        Math.min(nx, m.widthPixels - dp2(80)));
-                // Jendela overlay (system window) SELALU di atas jendela
-                // aplikasi — tak bisa ditaruh "di belakang" bar terminal.
-                // Jadi batas seretnya yang dijaga: 40px jendela harus
-                // tetap kelihatan DI ATAS zona bar (~104dp = 2 baris EK)
-                // selama terminal di depan, biar bar tak ketutup jendela
-                // (temuan Hawx: "nutup EK pas jendelanya turun").
-                Activity fg = AstroApp.foregroundActivity();
-                boolean termFg = fg != null
-                        && fg.getClass().getName().contains("NeoTermActivity");
-                int reserve = termFg ? dp2(104) : 0;
-                int nyMax = Math.max(0, m.heightPixels - reserve - dp2(40));
-                ny = Math.max(0, Math.min(ny, nyMax));
+                if (hasAnchor) {
+                    // Di dalam rect bg terminal: kiri/kanan boleh
+                    // menyisakan 80px, atas mentok tepi rect, bawah
+                    // mentok tepi rect + 40px kelihatan (bar EK di
+                    // bawah rect tak pernah tertutup).
+                    nx = Math.max(anchorL - (wlp.width - dp2(80)),
+                            Math.min(nx, anchorR - dp2(80)));
+                    ny = Math.max(anchorT,
+                            Math.min(ny, Math.max(anchorT, anchorB - dp2(40))));
+                } else {
+                    nx = Math.max(-(wlp.width - dp2(80)),
+                            Math.min(nx, m.widthPixels - dp2(80)));
+                    ny = Math.max(0,
+                            Math.min(ny, m.heightPixels - dp2(40)));
+                }
                 if (nx != wlp.x || ny != wlp.y) {
                     wlp.x = nx;
                     wlp.y = ny;
