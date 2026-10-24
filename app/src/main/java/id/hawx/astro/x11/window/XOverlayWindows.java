@@ -123,64 +123,88 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             int oldH = lp.height;
             int newTop = oldTop;
             int newH = oldH;
-            boolean potong = false;
-            boolean balik = false;
-            // Koreksi user (ganti bottom-pin geser): top DIAM,
-            // bottom yang lewat anchor DIPOTONG. Geser hanya ke
-            // bawah (top < anchorT -> top = anchorT); geser ke atas
-            // DILARANG karena itulah yang berosilasi dengan cabang
-            // bawah di log 31 (top 76<->221). Setelah potong,
-            // top>=anchorT DAN bottom==anchorB terpenuhi sekaligus
-            // sehingga loop putus. Maximized sudah di-skip di guard
-            // loop di atas (harus tetap penuh, tidak dipotong).
-            if (oldTop < anchorT && anchorT - oldTop >= threshPx) {
-                newTop = anchorT;
-            }
+            // ALGORITMA FINAL (revisi user): dorong sampai mentok,
+            // baru potong bila masih terlalu besar. anchorH = tinggi
+            // TerminalView; "mentok" = anchorT (tepi atasnya).
+            // - Tinggi > anchorH: top=anchorT + height=anchorH, satu
+            //   langkah terminal (top==anchorT, bottom==anchorB).
+            // - Tinggi muat: hanya posisi, tanpa potong — top<anchorT
+            //   -> anchorT; bottom>anchorB -> top=anchorB-height
+            //   (dijamin >= anchorT karena height<=anchorH).
+            // Tiap cabang menghasilkan keadaan yang memenuhi kedua
+            // tepi sekaligus, jadi tidak ada osilasi. Maximized
+            // sudah di-skip di guard loop (tetap penuh, tak dipotong).
+            int anchorH = anchorB - anchorT;
             // Restore OTOMATIS ke tinggi penuh saat anchor muat lagi
             // (keberatan user: tetap pendek pas keyboard nutup
-            // terlihat ga alami). Aturan STRICT potong-vs-muat-penuh
-            // supaya tidak osilasi: hanya dua keadaan — tinggi penuh
-            // atau tinggi potong — tanpa nilai antara. Balik hanya
-            // bila anchor muat PENUH (bukan tumbuh bertahap).
+            // terlihat ga alami). Potong strict (bottom>anchorB) dan
+            // balik strict (muat penuh) saling lepas -> anti-osilasi.
+            boolean restoreDiproses = false;
             if (o.anchorFullH > 0 && oldH == o.anchorCutH
-                    && anchorB - newTop >= o.anchorFullH) {
-                newH = o.anchorFullH;
-                balik = true;
+                    && oldTop + o.anchorFullH <= anchorB) {
+                restoreDiproses = true;
+                if (o.anchorFullH - oldH >= threshPx) {
+                    newH = o.anchorFullH;
+                }
+                // Balik selesai (atau selisihnya sudah < threshold,
+                // dianggap balik): episode dibersihkan apa pun.
                 o.anchorFullH = -1;
                 o.anchorCutH = -1;
             } else if (o.anchorFullH > 0 && oldH != o.anchorCutH) {
                 // Tinggi diubah pihak lain (resize manual grip) —
-                // episode potong batal, tinggi baru jadi normal.
-                // Sekali saja per episode (episode langsung dibersihkan).
+                // episode potong batal, tinggi baru jadi patokan
+                // penuh. Sekali saja per episode (langsung dibersihkan).
+                // Rect maximize disimpan terpisah di XFloatingWindow
+                // dan tidak mencampuri episode ini: un-maximize
+                // mengembalikan tinggi pra-maximize — bila itu tinggi
+                // potong, episode tetap utuh; bila berbeda, cabang
+                // ini yang membersihkannya.
                 X11DebugLog.log("ANCHOR", "d=" + o.display
                         + " episode potong batal: h=" + oldH
                         + " (cut=" + o.anchorCutH + ")");
                 o.anchorFullH = -1;
                 o.anchorCutH = -1;
             }
-            if (!balik && newTop + newH > anchorB) {
-                int hasil = anchorB - newTop;
-                int minH = Math.round(200 * density);
-                if (hasil < minH) {
-                    // Pengaman: hasil di bawah 200dp — biarkan
-                    // jendela apa adanya, catat saja di log.
-                    X11DebugLog.log("ANCHOR", "d=" + o.display
-                            + " anchorT=" + anchorT + " anchorB=" + anchorB
-                            + " potong ditahan: hasil=" + hasil
-                            + "px < 200dp top=" + oldTop + " h=" + oldH);
-                    continue;
-                }
-                if (newH - hasil >= threshPx) {
-                    // Episode baru: ingat tinggi penuh; episode yang
-                    // sudah jalan (potong bertahap) pertahankan
-                    // tinggi penuh asalnya, jangan timpa dengan
-                    // tinggi potong antara.
-                    if (o.anchorFullH <= 0) {
-                        o.anchorFullH = oldH;
+            if (!restoreDiproses && newH == oldH) {
+                // Bukan dari restore: aturan posisi/potong biasa.
+                if (oldH > anchorH) {
+                    int minH = Math.round(200 * density);
+                    if (anchorH < minH) {
+                        // Pengaman: anchor lebih pendek dari 200dp —
+                        // biarkan jendela apa adanya, catat saja.
+                        X11DebugLog.log("ANCHOR", "d=" + o.display
+                                + " anchorT=" + anchorT + " anchorB=" + anchorB
+                                + " potong ditahan: anchorH=" + anchorH
+                                + "px < 200dp top=" + oldTop + " h=" + oldH);
+                        continue;
                     }
-                    newH = hasil;
-                    o.anchorCutH = newH;
-                    potong = true;
+                    int tTop = anchorT;
+                    int tH = anchorH;
+                    // Threshold: abaikan bila kedua perubahan kecil.
+                    if (Math.abs(tTop - oldTop) >= threshPx
+                            || Math.abs(tH - oldH) >= threshPx) {
+                        // Episode baru: ingat tinggi penuh; episode
+                        // yang sudah jalan (potong bertahap)
+                        // pertahankan tinggi penuh asalnya, jangan
+                        // timpa dengan tinggi potong antara.
+                        if (o.anchorFullH <= 0) {
+                            o.anchorFullH = oldH;
+                        }
+                        newTop = tTop;
+                        newH = tH;
+                        o.anchorCutH = tH;
+                    }
+                } else {
+                    if (oldTop < anchorT) {
+                        if (anchorT - oldTop >= threshPx) {
+                            newTop = anchorT;
+                        }
+                    } else if (oldTop + oldH > anchorB) {
+                        int tTop = anchorB - oldH;
+                        if (oldTop - tTop >= threshPx) {
+                            newTop = tTop;
+                        }
+                    }
                 }
             }
             if (newTop == oldTop && newH == oldH) continue;
@@ -188,13 +212,30 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             lp.height = newH;
             o.win.setLayoutParams(lp);
             // Log ANCHOR temporer sampai verdict jitter lulus: satu
-            // baris per perubahan yang benar-benar dieksekusi.
+            // baris per perubahan yang benar-benar dieksekusi,
+            // dengan jenisnya dari apa yang berubah.
+            String kind;
+            boolean topBerubah = newTop != oldTop;
+            boolean hBerubah = newH != oldH;
+            if (topBerubah && hBerubah) {
+                // Balik tidak pernah mengubah top, jadi kombinasi
+                // ini selalu dorong+potong.
+                kind = "dorong+potong";
+            } else if (topBerubah) {
+                kind = "dorong";
+            } else if (o.anchorFullH <= 0 && o.anchorCutH < 0
+                    && newH > oldH) {
+                // Episode baru saja dibersihkan oleh restore dan
+                // tinggi membesar = balik (bukan potong).
+                kind = "balik";
+            } else {
+                kind = "potong";
+            }
             X11DebugLog.log("ANCHOR", "d=" + o.display
                     + " anchorT=" + anchorT + " anchorB=" + anchorB
                     + " top " + oldTop + "->" + newTop
                     + " h=" + oldH + "->" + newH
-                    + (potong ? " potong" : "")
-                    + (balik ? " balik" : ""));
+                    + " " + kind);
         }
     }
 
