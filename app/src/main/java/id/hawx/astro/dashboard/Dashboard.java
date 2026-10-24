@@ -57,6 +57,9 @@ public class Dashboard extends Fragment {
 
     public static final String PREF_TOOL = "dash_tool_";
 
+    /** Path wallpaper kustom (disalin ke /sdcard/Astro); kosong = bawaan. */
+    public static final String PREF_WALLPAPER = "dash_wallpaper_path";
+
     private LinearLayout toolsGrid;
     private LinearLayout dockBar;
     private int dockFixedCount = 0;
@@ -94,6 +97,50 @@ public class Dashboard extends Fragment {
         launcherStore = new LauncherStore(context);
         buildTools();
         buildDesktopChrome(view);
+        applyWallpaper(view);
+    }
+
+    /** Wallpaper kustom (v1): gambar disalin ke /sdcard/Astro, diskala
+     *  center-crop ke ukuran layar pas Dashboard dibuka. Gagal baca =
+     *  diam-diam pakai wallpaper bawaan (drawable di layout). */
+    private void applyWallpaper(View root) {
+        String path = core.getString(PREF_WALLPAPER);
+        if (path == null || path.isEmpty()) return;
+        java.io.File f = new java.io.File(path);
+        if (!f.exists()) return;
+        try {
+            android.util.DisplayMetrics m = getResources().getDisplayMetrics();
+            android.graphics.BitmapFactory.Options o =
+                    new android.graphics.BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeFile(path, o);
+            if (o.outWidth <= 0 || o.outHeight <= 0) return;
+            int sample = 1;
+            while (o.outWidth / sample > m.widthPixels * 2
+                    || o.outHeight / sample > m.heightPixels * 2) sample *= 2;
+            o.inJustDecodeBounds = false;
+            o.inSampleSize = sample;
+            android.graphics.Bitmap raw =
+                    android.graphics.BitmapFactory.decodeFile(path, o);
+            if (raw == null) return;
+            float scale = Math.max((float) m.widthPixels / raw.getWidth(),
+                    (float) m.heightPixels / raw.getHeight());
+            int tw = Math.max(1, Math.round(raw.getWidth() * scale));
+            int th = Math.max(1, Math.round(raw.getHeight() * scale));
+            android.graphics.Bitmap scaled = android.graphics.Bitmap.createScaledBitmap(
+                    raw, tw, th, true);
+            if (scaled != raw) raw.recycle();
+            int x = Math.max(0, (tw - m.widthPixels) / 2);
+            int y = Math.max(0, (th - m.heightPixels) / 2);
+            android.graphics.Bitmap fin = android.graphics.Bitmap.createBitmap(
+                    scaled, x, y,
+                    Math.min(m.widthPixels, tw), Math.min(m.heightPixels, th));
+            if (fin != scaled) scaled.recycle();
+            root.setBackground(new android.graphics.drawable.BitmapDrawable(
+                    getResources(), fin));
+        } catch (Throwable ignored) {
+            // wallpaper rusak/berat — bawaan tetap tampil
+        }
     }
 
     @Override

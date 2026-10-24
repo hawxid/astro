@@ -28,6 +28,41 @@ import id.hawx.astro.x11.XSessionManager;
 public class DesktopSettingsFragment extends Fragment {
 
     private XSessionManager mgr;
+    private TextView wpState;
+
+    private final androidx.activity.result.ActivityResultLauncher<String> pickImage =
+            registerForActivityResult(
+                    new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+                    uri -> {
+                        if (uri == null) return;
+                        try {
+                            java.io.InputStream in = requireContext()
+                                    .getContentResolver().openInputStream(uri);
+                            if (in == null) return;
+                            java.io.File dir = new java.io.File("/sdcard/Astro");
+                            if (!dir.exists()) dir.mkdirs();
+                            java.io.File out =
+                                    new java.io.File(dir, "wallpaper.jpg");
+                            java.io.OutputStream os =
+                                    new java.io.FileOutputStream(out);
+                            byte[] buf = new byte[8192];
+                            int n;
+                            while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                            os.close();
+                            in.close();
+                            new id.hawx.astro.utils.Core(requireContext())
+                                    .putString(id.hawx.astro.dashboard.Dashboard.PREF_WALLPAPER,
+                                            out.getAbsolutePath());
+                            if (wpState != null) wpState.setText(
+                                    "Kustom: wallpaper.jpg (buka Dashboard untuk melihat)");
+                            Toast.makeText(requireContext(),
+                                    "Wallpaper dipasang", Toast.LENGTH_SHORT).show();
+                        } catch (Exception ex) {
+                            Toast.makeText(requireContext(),
+                                    "Gagal memasang: " + ex.getMessage(),
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
 
     private int dp(int v) {
         return (int) (v * getResources().getDisplayMetrics().density);
@@ -198,6 +233,42 @@ public class DesktopSettingsFragment extends Fragment {
         dockSec.addView(dockSwitch(prefs, "terminal", "Terminal"));
         dockSec.addView(dockSwitch(prefs, "viewer", "Layar X (viewer)"));
         dockSec.addView(dockSwitch(prefs, "sessions", "Sesi & Log"));
+
+        // ================= sub: Wallpaper (v1) =================
+        LinearLayout wpSec = section(root, "Wallpaper", false);
+        TextView wpInfo = new TextView(requireContext());
+        wpInfo.setText("Gambar dipilih dari galeri/berkas, disalin ke "
+                + "/sdcard/Astro/wallpaper.jpg, lalu dipakai Dashboard "
+                + "(center-crop, tanpa gepeng).");
+        wpInfo.setTextColor(0xFF8B93B8);
+        wpInfo.setTextSize(12);
+        wpInfo.setPadding(0, 0, 0, dp(6));
+        wpSec.addView(wpInfo);
+        wpState = new TextView(requireContext());
+        String cur = prefs.getString(
+                id.hawx.astro.dashboard.Dashboard.PREF_WALLPAPER);
+        wpState.setText(cur == null || cur.isEmpty()
+                ? "Saat ini: bawaan" : "Kustom: wallpaper.jpg");
+        wpState.setTextColor(0xFF8B93B8);
+        wpState.setTextSize(12);
+        wpState.setPadding(0, 0, 0, dp(6));
+        wpSec.addView(wpState);
+        Button pick = new Button(requireContext());
+        pick.setText("Pilih gambar");
+        pick.setTextSize(13);
+        pick.setOnClickListener(v -> pickImage.launch("image/*"));
+        wpSec.addView(pick);
+        Button reset = new Button(requireContext());
+        reset.setText("Kembalikan default");
+        reset.setTextSize(13);
+        reset.setOnClickListener(v -> {
+            prefs.putString(
+                    id.hawx.astro.dashboard.Dashboard.PREF_WALLPAPER, "");
+            if (wpState != null) wpState.setText("Saat ini: bawaan");
+            Toast.makeText(requireContext(),
+                    "Wallpaper kembali ke bawaan", Toast.LENGTH_SHORT).show();
+        });
+        wpSec.addView(reset);
 
         return scroll;
     }
