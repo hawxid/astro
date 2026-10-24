@@ -652,66 +652,70 @@ public class XSessionManager {
 
     /** Perintah deploy shim xrun ke chroot (idempotent, base64 biar aman
      *  dari quoting): /usr/local/bin/xrun menulis berkas request yang
-     *  diawasi FileObserver di sisi host. */
+     *  dibaca watcher polling di sisi host. */
     private static final String XRUN_DEPLOY =
             "echo IyEvYmluL3NoCmQ9L3RtcC9hc3Ryby14cnVuLXJlcXVlc3RzCm1rZGlyIC1wICIkZCIKZj0iJGQvcmVxLSQkLSQoZGF0ZSArJXMpIgpwcmludGYgIiVzIiAiJCoiID4gIiRmLnRtcCIgJiYgbXYgIiRmLnRtcCIgIiRmIgplY2hvICJ4cnVuOiB0ZXJraXJpbTogJCoiCg== | base64 -d > /usr/local/bin/xrun 2>/dev/null; "
             + "chmod +x /usr/local/bin/xrun 2>/dev/null; "
             + "mkdir -p /tmp/astro-xrun-requests; ";
 
-    private android.os.FileObserver xrunObserver;
+    private java.util.concurrent.ScheduledExecutorService xrunPoller;
 
     private synchronized void syncXrunWatcher() {
         boolean want = getTerminalFloat() && core.isMounted();
-        if (want && xrunObserver == null) {
-            java.io.File dir = new java.io.File(tmp(), "astro-xrun-requests");
-            //noinspection ResultOfMethodCallIgnored
-            dir.mkdirs();
-            xrunObserver = new android.os.FileObserver(dir.getAbsolutePath(),
-                    android.os.FileObserver.CREATE | android.os.FileObserver.MOVED_TO) {
-                @Override public void onEvent(int event, String path) {
-                    if (path != null) handleXrunRequest(new java.io.File(dir, path));
-                }
-            };
-            xrunObserver.startWatching();
-            // Shim harus ada SEKARANG, bukan nunggu start server berikutnya
-            // (celah temuan Hawx: toggle dinyalakan tapi xrun belum dikenal
-            // terminal karena deploy cuma nempel di setup sesi).
+        if (want && xrunPoller == null) {
+            // Polling via shell ROOT, BUKAN FileObserver: direktori
+            // request ada di pohon rootfs milik root — proses aplikasi
+            // (uid aplikasi) tak bisa inotify ke sana, watcher lama
+            // diam-diam tak pernah menembak (bukti log 28: watcher
+            // AKTIF 09:32, request 09:43 tak pernah sampai).
+            xrunPoller = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+            xrunPoller.scheduleWithFixedDelay(this::pollXrunRequests,
+                    400, 1500, java.util.concurrent.TimeUnit.MILLISECONDS);
+            // Shim harus ada SEKARANG, bukan nunggu start server berikutnya.
             core.threadChrootCommand(XRUN_DEPLOY);
-            X11DebugLog.log("XRUN", "watcher AKTIF di " + dir + " + shim dideploy");
-        } else if (!want && xrunObserver != null) {
-            xrunObserver.stopWatching();
-            xrunObserver = null;
+            X11DebugLog.log("XRUN", "watcher AKTIF (polling root) + shim dideploy");
+        } else if (!want && xrunPoller != null) {
+            xrunPoller.shutdownNow();
+            xrunPoller = null;
             X11DebugLog.log("XRUN", "watcher mati");
         }
     }
 
-    private void handleXrunRequest(java.io.File f) {
-        if (f.getName().endsWith(".tmp")) return;
-        String cmd;
+    /** Satu putaran polling: ambil SEMUA berkas request tertua-dulu,
+     *  baca isinya + hapus, lalu luncurkan sebagai entri floating. */
+    private void pollXrunRequests() {
         try {
-            // tunggu tulis selesai (mv atomik harusnya cukup; jaga-jaga)
-            Thread.sleep(60);
-            cmd = new String(java.nio.file.Files.readAllBytes(f.toPath()),
-                    java.nio.charset.StandardCharsets.UTF_8).trim();
-        } catch (Exception e) {
-            return;
-        } finally {
-            //noinspection ResultOfMethodCallIgnored
-            f.delete();
+            java.util.List<String> names = core.customChrootCommand(
+                    "ls /tmp/astro-xrun-requests 2>/dev/null");
+            if (names == null) return;
+            for (String name : names) {
+                name = name.trim();
+                if (!name.matches("req-[A-Za-z0-9-]+")) continue;
+                java.util.List<String> out = core.customChrootCommand(
+                        "cat /tmp/astro-xrun-requests/" + name
+                                + "; rm -f /tmp/astro-xrun-requests/" + name);
+                if (out == null) continue;
+                String cmd = String.join(" ", out).trim();
+                if (!cmd.isEmpty()) handleXrunCommand(cmd);
+            }
+        } catch (Throwable t) {
+            // chroot sibuk/mati di tengah jalan — putaran berikut mencoba lagi
         }
-        if (cmd.isEmpty()) return;
+    }
+
+    private void handleXrunCommand(String cmd) {
         X11DebugLog.log("XRUN", "request: " + cmd);
         LauncherEntry e = new LauncherEntry();
         e.id = "xrun-" + (System.currentTimeMillis() / 1000);
         String fw = cmd.split("\\s+")[0];
-        e.name = "Terminal · " + fw;
+        e.name = "Terminal \u00B7 " + fw;
         e.command = cmd;
         e.type = "gui";
         e.floating = true;
         e.allowMultiple = true;
         launchFloating(e, (ok, d, msg) -> {
             if (ok && d > 0)
-                id.hawx.astro.MainActivity.openXWindowFrom(appCtx, d, e.name + " · :" + d);
+                id.hawx.astro.MainActivity.openXWindowFrom(appCtx, d, e.name + " \u00B7 :" + d);
         });
     }
 
