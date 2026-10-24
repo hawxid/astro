@@ -143,6 +143,12 @@ public class MainActivity extends AppCompatActivity {
         xWindowLayer = findViewById(R.id.x_window_layer);
         xWindowLayer.setKillListener(display ->
                 id.hawx.astro.x11.XSessionManager.get(this).stopDisplay(display, (ok, msg) -> { }));
+        xWindowLayer.setWindowsChangedListener(() -> {
+            androidx.fragment.app.Fragment f =
+                    getSupportFragmentManager().findFragmentById(R.id.flContent);
+            if (f instanceof id.hawx.astro.dashboard.Dashboard)
+                ((id.hawx.astro.dashboard.Dashboard) f).refreshDisplays();
+        });
         handleXWindowIntent(getIntent());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             String NOTIFICATION_PERMISSION = Manifest.permission.POST_NOTIFICATIONS;

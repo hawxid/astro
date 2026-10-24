@@ -37,13 +37,12 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
     }
 
     private final FrameLayout windowsBox;
-    private final LinearLayout chipsBar;
     private final LinearLayout strip;
     private FrameLayout ekBox;
     private final Map<Integer, XFloatingWindow> windows = new HashMap<>();
-    private final Map<Integer, Button> chips = new HashMap<>();
     private XFloatingWindow active;
     private KillListener killListener;
+    private Runnable windowsChangedListener;
 
     public XWindowLayer(Context ctx, AttributeSet attrs) {
         super(ctx, attrs);
@@ -52,15 +51,6 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         windowsBox = new FrameLayout(ctx);
         addView(windowsBox, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
-
-        chipsBar = new LinearLayout(ctx);
-        chipsBar.setOrientation(LinearLayout.HORIZONTAL);
-        LayoutParams chipsLp = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
-        chipsLp.gravity = Gravity.BOTTOM | Gravity.START;
-        chipsLp.leftMargin = dp(8);
-        chipsLp.bottomMargin = dp(48);
-        addView(chipsBar, chipsLp);
 
         strip = buildEkStrip(ctx);
         LayoutParams stripLp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
@@ -72,6 +62,14 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
 
     public void setKillListener(KillListener l) {
         killListener = l;
+    }
+
+    public void setWindowsChangedListener(Runnable r) {
+        windowsChangedListener = r;
+    }
+
+    private void fireWindowsChanged() {
+        if (windowsChangedListener != null) windowsChangedListener.run();
     }
 
     // ---- akses statis buat serah-terima (Spawn membuka display ini) ----
@@ -89,6 +87,29 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
 
     /** Tutup jendela tertanam untuk display ini TANPA membunuh (viewer
      *  fullscreen mengambil alih koneksinya). No-op bila tak ada. */
+    /** Status view jendela buat tasklist/dock di Dashboard. */
+    public static boolean isWindowOpen(int display) {
+        XWindowLayer l = sActive;
+        if (l == null) return false;
+        XFloatingWindow w = l.windows.get(display);
+        return w != null && w.getVisibility() == VISIBLE;
+    }
+
+    public static boolean isWindowMinimized(int display) {
+        XWindowLayer l = sActive;
+        if (l == null) return false;
+        XFloatingWindow w = l.windows.get(display);
+        return w != null && w.getVisibility() != VISIBLE;
+    }
+
+    /** Sembunyikan jendela display ini (dari popup dock). */
+    public static void minimizeForDisplay(int display) {
+        XWindowLayer l = sActive;
+        if (l == null) return;
+        XFloatingWindow w = l.windows.get(display);
+        if (w != null) l.onMinimizeClicked(w);
+    }
+
     public static void closeForDisplay(int display) {
         XWindowLayer l = sActive;
         if (l == null) return;
@@ -106,6 +127,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         XFloatingWindow existing = windows.get(display);
         if (existing != null) {
             restoreWindow(existing);
+            fireWindowsChanged();
             return;
         }
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "openWindow mulai display=" + display);
@@ -131,6 +153,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         windows.put(display, win);
         setActive(win);
         host.attach();
+        fireWindowsChanged();
       } catch (Throwable t) {
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "openWindow GAGAL: "
                 + android.util.Log.getStackTraceString(t));
@@ -142,8 +165,6 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         win.host().detach();
         windowsBox.removeView(win);
         windows.remove(display);
-        Button chip = chips.remove(display);
-        if (chip != null) chipsBar.removeView(chip);
         if (ekBox != null && ekBox.getChildCount() > 0
                 && ekBox.getChildAt(0) == win.host().extraKeysView())
             ekBox.removeAllViews();
@@ -152,20 +173,18 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
             strip.setVisibility(GONE);
         }
         if (kill && killListener != null) killListener.onWindowKillRequested(display);
+        fireWindowsChanged();
     }
 
     private void restoreWindow(XFloatingWindow win) {
         win.setVisibility(VISIBLE);
-        Button chip = chips.remove(win.host().display());
-        if (chip != null) chipsBar.removeView(chip);
         setActive(win);
     }
 
     private void setActive(XFloatingWindow win) {
         active = win;
         win.bringToFront();
-        // strip + chips selalu di atas jendela
-        chipsBar.bringToFront();
+        // strip selalu di atas jendela
         strip.bringToFront();
     }
 
@@ -191,15 +210,11 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
 
     @Override
     public void onMinimizeClicked(XFloatingWindow w) {
+        // Chip restore pojok DIBUANG (tahap tasklist XFCE): jendela
+        // tersembunyi diwakili tab panel atas + pintasan dock.
         w.setVisibility(GONE);
-        int display = w.host().display();
-        Button chip = new Button(getContext());
-        chip.setText("▣ :" + display);
-        chip.setTextSize(11);
-        chip.setOnClickListener(v -> restoreWindow(w));
-        chipsBar.addView(chip);
-        chips.put(display, chip);
         if (active == w) strip.setVisibility(GONE);
+        fireWindowsChanged();
     }
 
     // ---- XWindowHost.Listener ----

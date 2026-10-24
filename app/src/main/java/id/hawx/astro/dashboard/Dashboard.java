@@ -58,7 +58,7 @@ public class Dashboard extends Fragment {
     private static final String PREF_TOOL = "dash_tool_";
 
     private LinearLayout toolsGrid;
-    private LinearLayout displaysBox;
+    private LinearLayout dockBar;
     private XSessionManager xMgr;
     private LauncherStore launcherStore;
     private final java.util.Set<String> xRunning = new java.util.HashSet<>();
@@ -86,7 +86,7 @@ public class Dashboard extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         toolsGrid = view.findViewById(R.id.tools_grid);
-        displaysBox = view.findViewById(R.id.displays_box);
+        dockBar = view.findViewById(R.id.xfce_dock);
         checkPermission();
         xMgr = XSessionManager.get(context);
         launcherStore = new LauncherStore(context);
@@ -428,6 +428,7 @@ public class Dashboard extends Fragment {
         // supaya tetap hidup saat tools kebuka sebagai jendela.
         LinearLayout dock = view.findViewById(R.id.xfce_dock);
         if (dock != null) {
+            dockBar = dock;
             dock.addView(dockBtn("\u2328", v -> openTerminal()));
             dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
             dock.addView(dockBtn("\uD83E\uDDFE", v ->
@@ -436,53 +437,78 @@ public class Dashboard extends Fragment {
         refreshXState();
     }
 
+    /** Pintasan jendela di dock — SATU indikator gaya XFCE (keputusan
+     *  Hawx): jendela aktif & yang tersembunyi sama-sama tinggal di
+     *  sini; tak ada lagi daftar terpisah di atas. Tap = angkat,
+     *  tahan = popup (Sembunyikan / Matikan). */
+    private View dockWinBtn(XSessionManager.DisplayInfo di) {
+        boolean open = id.hawx.astro.x11.window.XWindowLayer.isWindowOpen(di.display);
+        boolean min = id.hawx.astro.x11.window.XWindowLayer.isWindowMinimized(di.display);
+        TextView b = new TextView(context);
+        b.setText(":" + di.display);
+        b.setTextSize(14);
+        b.setTypeface(null, android.graphics.Typeface.BOLD);
+        b.setGravity(android.view.Gravity.CENTER);
+        b.setContentDescription(di.name != null ? di.name : "Display " + di.display);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(min ? 0xFF12182C : 0xFF2A3B6E);
+        b.setTextColor(min ? 0xFF8A93A8 : 0xFFFFFFFF);
+        if (!open && !min) { // server hidup, jendela belum ada
+            g.setStroke(dp(1), 0xFF54628F);
+        }
+        b.setBackground(g);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        b.setLayoutParams(lp);
+        String title = (di.name != null ? di.name : "Display") + " \u00B7 :" + di.display;
+        b.setOnClickListener(v ->
+                id.hawx.astro.MainActivity.openXWindowFrom(context, di.display, title));
+        b.setOnLongClickListener(v -> {
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(context, v);
+            pm.getMenu().add(title + (min ? " \u2014 tersembunyi"
+                    : open ? " \u2014 terbuka" : " \u2014 server saja"));
+            if (open) pm.getMenu().add("Sembunyikan");
+            pm.getMenu().add("Matikan");
+            pm.setOnMenuItemClickListener(item -> {
+                String t = item.getTitle().toString();
+                if (t.equals("Sembunyikan")) {
+                    id.hawx.astro.x11.window.XWindowLayer.minimizeForDisplay(di.display);
+                } else if (t.equals("Matikan")) {
+                    xMgr.stopDisplay(di.display, (ok, msg) -> {
+                        core.toaster(msg);
+                        refreshXState();
+                    });
+                } else {
+                    id.hawx.astro.MainActivity.openXWindowFrom(context, di.display, title);
+                }
+                return true;
+            });
+            pm.show();
+            return true;
+        });
+        return b;
+    }
+
+    /** Dipanggil MainActivity tiap jendela layer berubah (buka /
+     *  tutup / sembunyi / pulih) supaya indikator dock selalu segar. */
+    public void refreshDisplays() {
+        if (isAdded() && getView() != null) rebuildDisplays();
+    }
+
     /** Panel aktivitas: daftar display floating yang servernya hidup —
      *  termasuk yang jendelanya sudah tertutup (buka lagi / matikan). */
     private void rebuildDisplays() {
-        if (displaysBox == null || xMgr == null) return;
+        // Tahap tasklist XFCE: daftar "Jendela Aktif" yang dulu berupa
+        // blok baris di atas DILEBUR jadi indikator dock (satu-satunya
+        // daftar) — rebuildDisplays sekarang mengurus pintasan dock.
+        if (dockBar == null || xMgr == null) return;
         xMgr.listDisplays(list -> {
-            if (displaysBox == null) return;
-            displaysBox.removeAllViews();
-            if (list.isEmpty()) {
-                displaysBox.setVisibility(View.GONE);
-                return;
-            }
-            displaysBox.setVisibility(View.VISIBLE);
-            TextView hdr = new TextView(context);
-            hdr.setText("Jendela Aktif");
-            hdr.setTextColor(0xFF8B93B8);
-            hdr.setTextSize(12);
-            hdr.setPadding(dp(4), dp(2), dp(4), dp(4));
-            displaysBox.addView(hdr);
-            for (XSessionManager.DisplayInfo di : list) {
-                LinearLayout row = new LinearLayout(context);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                row.setPadding(dp(4), dp(2), dp(4), dp(2));
-                TextView label = new TextView(context);
-                label.setText((di.appRunning ? "\u25CF " : "\u25CB ")
-                        + (di.name != null ? di.name : "Display") + " · :" + di.display);
-                label.setTextColor(0xFFE8EBFA);
-                label.setTextSize(13);
-                row.addView(label, new LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                android.widget.Button bOpen = new android.widget.Button(context);
-                bOpen.setText("Buka");
-                bOpen.setTextSize(11);
-                bOpen.setOnClickListener(v ->
-                        id.hawx.astro.MainActivity.openXWindowFrom(context, di.display,
-                                (di.name != null ? di.name : "Display") + " · :" + di.display));
-                row.addView(bOpen);
-                android.widget.Button bKill = new android.widget.Button(context);
-                bKill.setText("Matikan");
-                bKill.setTextSize(11);
-                bKill.setOnClickListener(v -> xMgr.stopDisplay(di.display, (ok, msg) -> {
-                    core.toaster(msg);
-                    refreshXState();
-                }));
-                row.addView(bKill);
-                displaysBox.addView(row);
-            }
+            if (dockBar == null) return;
+            while (dockBar.getChildCount() > 3)
+                dockBar.removeViewAt(dockBar.getChildCount() - 1);
+            for (XSessionManager.DisplayInfo di : list)
+                dockBar.addView(dockWinBtn(di));
         });
     }
 
