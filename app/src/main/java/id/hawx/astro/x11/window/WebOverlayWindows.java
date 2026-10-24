@@ -99,6 +99,21 @@ public class WebOverlayWindows {
         DisplayMetrics m = new DisplayMetrics();
         wm.getDefaultDisplay().getRealMetrics(m);
 
+        // wlp HARUS di-assign sebelum bar/grip dibuat: lambda
+        // tombol maximize membaca wlp, dan javac menolak lambda
+        // yang membaca field final sebelum assignment-nya
+        // (ini yang meruntuhkan 3 build terakhir).
+        int w = (int) (m.widthPixels * 0.88f);
+        int h = (int) (m.heightPixels * 0.55f);
+        wlp = new WindowManager.LayoutParams(w, h,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT);
+        wlp.gravity = Gravity.TOP | Gravity.START;
+        int n = sByPath.size();
+        wlp.x = dp(14) + n * dp(26);
+        wlp.y = dp(70) + n * dp(30);
+
         container = new WebContainer(act);
 
         win = new FrameLayout(act);
@@ -192,8 +207,6 @@ public class WebOverlayWindows {
         win.addView(grip, gripLp);
         grip.setOnTouchListener(new ResizeListener());
 
-        int w = (int) (m.widthPixels * 0.88f);
-        int h = (int) (m.heightPixels * 0.55f);
         // PENTING: win HARUS match-parent kontainer, bukan ukuran
         // fixed — kalau fixed, resize cuma mengubah kontainer dan
         // isi (WebView) tetap di ukuran awal lalu terpotong
@@ -203,14 +216,6 @@ public class WebOverlayWindows {
                 ViewGroup.LayoutParams.MATCH_PARENT));
         container.addView(win);
 
-        wlp = new WindowManager.LayoutParams(w, h,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT);
-        wlp.gravity = Gravity.TOP | Gravity.START;
-        int n = sByPath.size();
-        wlp.x = dp(14) + n * dp(26);
-        wlp.y = dp(70) + n * dp(30);
     }
 
     private Button chromeBtn(String t) {
