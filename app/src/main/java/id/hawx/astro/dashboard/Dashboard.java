@@ -60,6 +60,9 @@ public class Dashboard extends Fragment {
     /** Path wallpaper kustom (disalin ke /sdcard/Astro); kosong = bawaan. */
     public static final String PREF_WALLPAPER = "dash_wallpaper_path";
 
+    /** Redup wallpaper 0-80 (persen hitam di atas gambar). */
+    public static final String PREF_DIM = "dash_wallpaper_dim";
+
     private LinearLayout toolsGrid;
     private LinearLayout dockBar;
     private int dockFixedCount = 0;
@@ -98,6 +101,22 @@ public class Dashboard extends Fragment {
         buildTools();
         buildDesktopChrome(view);
         applyWallpaper(view);
+        applyDim(view);
+    }
+
+    /** Lapisan hitam transparan di atas wallpaper (bawaan maupun
+     *  kustom) — gambar terang diredupkan supaya ikon kebaca. */
+    private void applyDim(View root) {
+        View dim = root.findViewById(R.id.wallpaper_dim);
+        if (dim == null) return;
+        int v = core.getInt(PREF_DIM, 0);
+        if (v <= 0) {
+            dim.setVisibility(View.GONE);
+            return;
+        }
+        if (v > 80) v = 80;
+        dim.setAlpha(v / 100f);
+        dim.setVisibility(View.VISIBLE);
     }
 
     /** Wallpaper kustom (v1): gambar disalin ke /sdcard/Astro, diskala

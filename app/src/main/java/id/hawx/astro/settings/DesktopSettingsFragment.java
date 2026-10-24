@@ -258,6 +258,33 @@ public class DesktopSettingsFragment extends Fragment {
         pick.setTextSize(13);
         pick.setOnClickListener(v -> pickImage.launch("image/*"));
         wpSec.addView(pick);
+        TextView dimLabel = new TextView(requireContext());
+        dimLabel.setTextColor(0xFF8B93B8);
+        dimLabel.setTextSize(12);
+        dimLabel.setPadding(0, dp(8), 0, 0);
+        wpSec.addView(dimLabel);
+        android.widget.SeekBar dimBar = new android.widget.SeekBar(requireContext());
+        dimBar.setMax(80);
+        int curDim = prefs.getInt(
+                id.hawx.astro.dashboard.Dashboard.PREF_DIM, 0);
+        dimBar.setProgress(curDim);
+        dimLabel.setText("Redupkan wallpaper: " + curDim
+                + "% (gambar terang jadi gelap, ikon kebaca)");
+        dimBar.setOnSeekBarChangeListener(
+                new android.widget.SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(
+                            android.widget.SeekBar sb, int v, boolean fromUser) {
+                        prefs.putInt(id.hawx.astro.dashboard.Dashboard.PREF_DIM, v);
+                        dimLabel.setText("Redupkan wallpaper: " + v
+                                + "% (gambar terang jadi gelap, ikon kebaca)");
+                    }
+                    @Override public void onStartTrackingTouch(
+                            android.widget.SeekBar sb) {}
+                    @Override public void onStopTrackingTouch(
+                            android.widget.SeekBar sb) {}
+                });
+        wpSec.addView(dimBar);
         Button reset = new Button(requireContext());
         reset.setText("Kembalikan default");
         reset.setTextSize(13);

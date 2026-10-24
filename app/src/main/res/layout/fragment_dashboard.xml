@@ -9,6 +9,16 @@
     android:background="@drawable/dashboard_wallpaper"
     tools:context=".MainActivity">
 
+    <!-- Lapisan redup wallpaper (pref dash_wallpaper_dim): di atas
+         background, di bawah grid — bikin gambar terang meredup
+         supaya ikon kebaca. -->
+    <View
+        android:id="@+id/wallpaper_dim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:visibility="gone" />
+
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
