@@ -53,6 +53,11 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
     private final XFloatingWindow win;
     private final FrameLayout container;
     private boolean attached;
+    // Episode potong anchor: tinggi penuh sebelum dipotong (-1 =
+    // tidak ada episode) + tinggi hasil potong terakhir. Dipakai
+    // restore otomatis ke tinggi penuh saat anchor muat lagi.
+    private int anchorFullH = -1;
+    private int anchorCutH = -1;
     private final android.os.Handler ui =
             new android.os.Handler(android.os.Looper.getMainLooper());
 
@@ -119,6 +124,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             int newTop = oldTop;
             int newH = oldH;
             boolean potong = false;
+            boolean balik = false;
             // Koreksi user (ganti bottom-pin geser): top DIAM,
             // bottom yang lewat anchor DIPOTONG. Geser hanya ke
             // bawah (top < anchorT -> top = anchorT); geser ke atas
@@ -130,7 +136,29 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             if (oldTop < anchorT && anchorT - oldTop >= threshPx) {
                 newTop = anchorT;
             }
-            if (newTop + newH > anchorB) {
+            // Restore OTOMATIS ke tinggi penuh saat anchor muat lagi
+            // (keberatan user: tetap pendek pas keyboard nutup
+            // terlihat ga alami). Aturan STRICT potong-vs-muat-penuh
+            // supaya tidak osilasi: hanya dua keadaan — tinggi penuh
+            // atau tinggi potong — tanpa nilai antara. Balik hanya
+            // bila anchor muat PENUH (bukan tumbuh bertahap).
+            if (o.anchorFullH > 0 && oldH == o.anchorCutH
+                    && anchorB - newTop >= o.anchorFullH) {
+                newH = o.anchorFullH;
+                balik = true;
+                o.anchorFullH = -1;
+                o.anchorCutH = -1;
+            } else if (o.anchorFullH > 0 && oldH != o.anchorCutH) {
+                // Tinggi diubah pihak lain (resize manual grip) —
+                // episode potong batal, tinggi baru jadi normal.
+                // Sekali saja per episode (episode langsung dibersihkan).
+                X11DebugLog.log("ANCHOR", "d=" + o.display
+                        + " episode potong batal: h=" + oldH
+                        + " (cut=" + o.anchorCutH + ")");
+                o.anchorFullH = -1;
+                o.anchorCutH = -1;
+            }
+            if (!balik && newTop + newH > anchorB) {
                 int hasil = anchorB - newTop;
                 int minH = Math.round(200 * density);
                 if (hasil < minH) {
@@ -143,7 +171,15 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                     continue;
                 }
                 if (newH - hasil >= threshPx) {
+                    // Episode baru: ingat tinggi penuh; episode yang
+                    // sudah jalan (potong bertahap) pertahankan
+                    // tinggi penuh asalnya, jangan timpa dengan
+                    // tinggi potong antara.
+                    if (o.anchorFullH <= 0) {
+                        o.anchorFullH = oldH;
+                    }
                     newH = hasil;
+                    o.anchorCutH = newH;
                     potong = true;
                 }
             }
@@ -157,7 +193,8 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                     + " anchorT=" + anchorT + " anchorB=" + anchorB
                     + " top " + oldTop + "->" + newTop
                     + " h=" + oldH + "->" + newH
-                    + (potong ? " potong" : ""));
+                    + (potong ? " potong" : "")
+                    + (balik ? " balik" : ""));
         }
     }
 
