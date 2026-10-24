@@ -31,7 +31,8 @@ public class AstroApp extends com.termux.x11.LorieApp {
         // Toggle "GUI melayang (xrun)" tinggal di menu Tools terminal
         // bawaan; terminal kirim broadcast, sisi app yang menyalakan
         // watcher + deploy shim lewat XSessionManager.
-        registerReceiver(new android.content.BroadcastReceiver() {
+        androidx.core.content.ContextCompat.registerReceiver(this,
+                new android.content.BroadcastReceiver() {
             @Override
             public void onReceive(android.content.Context c, android.content.Intent i) {
                 boolean en = i.getBooleanExtra("enabled", false);
@@ -39,7 +40,8 @@ public class AstroApp extends com.termux.x11.LorieApp {
                 id.hawx.astro.x11.X11DebugLog.log("XRUN",
                         "toggle dari menu terminal -> " + en);
             }
-        }, new android.content.IntentFilter("id.hawx.astro.TOGGLE_TERMINAL_FLOAT"));
+        }, new android.content.IntentFilter("id.hawx.astro.TOGGLE_TERMINAL_FLOAT"),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         LogStore store = LogStore.init(this);
         store.add(LogEntry.INFO, "session", "==== Astro " + BuildConfig.VERSION_NAME
                 + " session start ====");
