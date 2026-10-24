@@ -188,7 +188,15 @@ public class WebOverlayWindows {
             if (imm != null) imm.showSoftInput(webView, 0);
         }));
         bar.addView(chromeBtn("—", v -> hide()));
-        TextView maxBtn = chromeBtn("▢", v -> {
+        // JANGAN pasang listener di dalam inisialisasi maxBtn:
+        // lambda-nya membaca maxBtn sendiri, padahal assignment
+        // baru selesai setelah chromeBtn() kembali — javac
+        // menolak ("variable maxBtn might not have been
+        // initialized", kesalahan yang sama dengan wlp kemarin,
+        // dan 2 build berikutnya ikut gagal karena file ini
+        // tak berubah). Jadi: buat dulu, listener belakangan.
+        TextView maxBtn = chromeBtn("▢", null);
+        maxBtn.setOnClickListener(v -> {
             if (maximized) {
                 wlp.x = prevX;
                 wlp.y = prevY;
