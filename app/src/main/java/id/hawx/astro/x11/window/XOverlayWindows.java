@@ -524,10 +524,17 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
 
     @Override
     public void onContentTapped(XFloatingWindow w) {
-        // Fokus saja — keyboard hanya dari tombol ⌨. requestFocus
-        // eksplisit: tanpa ini LorieView tak terikat IME/input.
+        // Aturan input overlay (Hawx): mode floating — ketuk isi
+        // memunculkan keyboard, sama kaya terminal di belakangnya;
+        // mode maximize — ketuk CUMA fokus, keyboard hanya dari
+        // tombol ⌨ (biar ga tiap ketuk layar penuh keyboard muncul).
+        // requestFocus eksplisit: tanpa ini LorieView tak terikat
+        // IME/input.
         host.view().requestFocus();
         setActive();
+        if (!w.isMaximized()) {
+            host.view().setKeyboardVisible(true);
+        }
     }
 
     @Override
