@@ -15,7 +15,6 @@ import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -47,6 +46,7 @@ public class WebOverlayWindows {
     private final FrameLayout container;
     private final FrameLayout win;
     private final WebView webView;
+    private TextView dotView;
     private final WindowManager.LayoutParams wlp;
     private boolean attached;
     private boolean maximized;
@@ -131,37 +131,71 @@ public class WebOverlayWindows {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
 
+        webView = new WebView(act);
+        WebSettings ws = webView.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setDomStorageEnabled(true);
+        ws.setAllowFileAccess(true);
+        ws.setMediaPlaybackRequiresUserGesture(false);
+        ws.setBuiltInZoomControls(true);
+        ws.setDisplayZoomControls(false);
+        ws.setSupportZoom(true);
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                if (dotView != null) dotView.setTextColor(0xFF3DDC84);
+            }
+        });
+        webView.addJavascriptInterface(
+                new id.hawx.astro.goose.ToolsBridge(
+                        new id.hawx.astro.utils.Core(act), webView),
+                "AstroBridge");
+
+        // ---- chrome bar: SALIN PERSIS dari XFloatingWindow ----
+        // (temuan Hawx: tombol Button bawaan tema merenggang
+        // berjauhan — X pakai TextView tanpa minWidth bawaan,
+        // jadi tombol merapat. Urutan + ukuran + warna disamakan.)
         LinearLayout bar = new LinearLayout(act);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(10), 0, dp(4), 0);
         GradientDrawable barBg = new GradientDrawable();
         barBg.setColor(0xFF232C4E);
-        barBg.setCornerRadii(new float[]{dp(14), dp(14), dp(14), dp(14), 0, 0, 0, 0});
         bar.setBackground(barBg);
         col.addView(bar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(32)));
 
+        dotView = new TextView(act);
+        dotView.setText("●");
+        dotView.setTextSize(9);
+        dotView.setTextColor(0xFF8B93B8);
+        bar.addView(dotView);
+
         TextView titleView = new TextView(act);
         titleView.setText(title);
         titleView.setTextColor(0xFFE8EBFA);
-        titleView.setTextSize(13);
+        titleView.setTextSize(12);
         titleView.setSingleLine(true);
+        titleView.setPadding(dp(6), 0, 0, 0);
         bar.addView(titleView, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
-        Button minBtn = chromeBtn("—");
-        minBtn.setOnClickListener(v -> hide());
-        bar.addView(minBtn);
-        Button maxBtn = chromeBtn("□");
-        maxBtn.setOnClickListener(v -> {
+        bar.addView(chromeBtn("⌨", v -> {
+            webView.requestFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager)
+                            act.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(webView, 0);
+        }));
+        bar.addView(chromeBtn("—", v -> hide()));
+        TextView maxBtn = chromeBtn("▢", v -> {
             if (maximized) {
                 wlp.x = prevX;
                 wlp.y = prevY;
                 wlp.width = prevW;
                 wlp.height = prevH;
                 maximized = false;
-                maxBtn.setText("□");
+                maxBtn.setText("▢");
             } else {
                 prevX = wlp.x;
                 prevY = wlp.y;
@@ -179,24 +213,8 @@ public class WebOverlayWindows {
             wm.updateViewLayout(container, wlp);
         });
         bar.addView(maxBtn);
-        Button closeBtn = chromeBtn("✕");
-        closeBtn.setOnClickListener(v -> close());
-        bar.addView(closeBtn);
+        bar.addView(chromeBtn("✕", v -> close()));
 
-        webView = new WebView(act);
-        WebSettings ws = webView.getSettings();
-        ws.setJavaScriptEnabled(true);
-        ws.setDomStorageEnabled(true);
-        ws.setAllowFileAccess(true);
-        ws.setMediaPlaybackRequiresUserGesture(false);
-        ws.setBuiltInZoomControls(true);
-        ws.setDisplayZoomControls(false);
-        ws.setSupportZoom(true);
-        webView.setWebViewClient(new WebViewClient());
-        webView.addJavascriptInterface(
-                new id.hawx.astro.goose.ToolsBridge(
-                        new id.hawx.astro.utils.Core(act), webView),
-                "AstroBridge");
         col.addView(webView, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
 
@@ -218,14 +236,17 @@ public class WebOverlayWindows {
 
     }
 
-    private Button chromeBtn(String t) {
-        Button b = new Button(activity);
-        b.setText(t);
-        b.setTextSize(13);
-        b.setTextColor(0xFFC7CCE8);
-        b.setBackgroundColor(0x00000000);
-        b.setPadding(dp(6), 0, dp(6), 0);
-        b.setMinWidth(0);
+    /** Salinan persis chromeButton XFloatingWindow: TextView
+     *  (bukan Button — Button tema bawa minWidth bawaan yang
+     *  bikin tombol merenggang berjauhan). */
+    private TextView chromeBtn(String label, View.OnClickListener onClick) {
+        TextView b = new TextView(activity);
+        b.setText(label);
+        b.setTextColor(0xFFD6DBF5);
+        b.setTextSize(14);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(7), dp(2), dp(7), dp(2));
+        b.setOnClickListener(onClick);
         return b;
     }
 
