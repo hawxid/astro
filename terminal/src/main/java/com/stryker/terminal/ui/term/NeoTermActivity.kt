@@ -30,6 +30,8 @@ import com.stryker.terminal.component.config.NeoPreference
 import com.stryker.terminal.component.config.NeoTermPath
 import com.stryker.terminal.component.profile.ProfileComponent
 import com.stryker.terminal.component.session.ShellParameter
+import com.stryker.terminal.frontend.session.view.TerminalView
+import com.stryker.terminal.frontend.session.view.extrakey.XKeyRouter
 import com.stryker.terminal.component.session.ShellProfile
 import com.stryker.terminal.component.session.XSession
 import com.stryker.terminal.frontend.floating.TerminalDialog
@@ -789,8 +791,34 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
   fun onToggleImeEvent(toggleImeEvent: ToggleImeEvent) {
     if (!tabSwitcher.isSwitcherShown) {
       val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-      imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
+      // Overlay X aktif = IME sedang melayani jendela X. Tombol ⌨
+      // di bar terminal artinya "balik ngetik ke terminal": toggle
+      // biasa cuma on/off buat target yang sedang aktif — makanya
+      // ketikan tetap masuk xterm (temuan Hawx). Jadi: lepas router,
+      // fokuskan TerminalView sesi aktif, tampilkan keyboard UNTUKNYA.
+      if (XKeyRouter.keySink != null) {
+        XKeyRouter.clear()
+        val termView = findVisibleTerminalView(window.decorView)
+        if (termView != null) {
+          termView.requestFocus()
+          imm.showSoftInput(termView, 0)
+        } else {
+          imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
+        }
+      } else {
+        imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
+      }
     }
+  }
+
+  private fun findVisibleTerminalView(v: View): TerminalView? {
+    if (v is TerminalView && v.isShown) return v
+    if (v is ViewGroup) {
+      for (i in 0 until v.childCount) {
+        findVisibleTerminalView(v.getChildAt(i))?.let { return it }
+      }
+    }
+    return null
   }
 
   @Subscribe(threadMode = ThreadMode.MAIN)
