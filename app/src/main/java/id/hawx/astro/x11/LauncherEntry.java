@@ -21,7 +21,7 @@ public class LauncherEntry {
     /** Emoji/teks pendek; kosong -> monogram huruf pertama nama. "file:<nama>" -> PNG di /sdcard/Astro/icons/. */
     public String icon;
     public String command;
-    /** "gui" | "cli" */
+    /** "gui" | "cli" | "webview" */
     public String type;
     public String workdir;
     /** "KUNCI=nilai" per baris; boleh kosong. */
@@ -105,7 +105,12 @@ public class LauncherEntry {
         e.name = o.optString("name", "");
         e.icon = o.optString("icon", "");
         e.command = o.optString("command", "");
-        e.type = "cli".equals(o.optString("type", "gui")) ? "cli" : "gui";
+        // Dulu: semua yang bukan "cli" dipaksa "gui" — tipe "webview"
+        // yang tersimpan BENAR ikut hilang tiap reload (temuan Hawx:
+        // ikon webview selalu fallback ke GUI Layar X). Kini ketiga
+        // tipe dipertahankan; yang tak dikenal tetap jatuh ke "gui".
+        String t = o.optString("type", "gui");
+        e.type = "cli".equals(t) || "webview".equals(t) ? t : "gui";
         e.workdir = o.optString("workdir", "/root");
         e.env = o.optString("env", "");
         e.allowMultiple = o.optBoolean("allowMultiple", false);
