@@ -31,6 +31,12 @@ public class XFloatingWindow extends FrameLayout {
         void onCloseClicked(XFloatingWindow w);
 
         void onMinimizeClicked(XFloatingWindow w);
+
+        /** Rect diubah manual user (drag bar / grip resize). Default
+         *  kosong supaya implementasi lama tak berubah; decor
+         *  menggunakannya untuk menghapus simpanan rect anchor
+         *  (rect manual = keinginan baru). */
+        default void onUserRectChanged(XFloatingWindow w) {}
     }
 
     private final XWindowHost host;
@@ -248,6 +254,9 @@ public class XFloatingWindow extends FrameLayout {
                     lp.leftMargin = nl;
                     lp.topMargin = nt;
                     setLayoutParams(lp);
+                    // Rect manual = keinginan baru: beri tahu
+                    // listener (decor menghapus simpanan rect anchor).
+                    if (listener != null) listener.onUserRectChanged(this);
                     return true;
             }
             return false;
@@ -274,6 +283,8 @@ public class XFloatingWindow extends FrameLayout {
                     lp.width = Math.max(dp(280), startW + Math.round(e.getRawX() - downX));
                     lp.height = Math.max(dp(200), startH + Math.round(e.getRawY() - downY));
                     setLayoutParams(lp);
+                    // Rect manual = keinginan baru (lihat DragListener).
+                    if (listener != null) listener.onUserRectChanged(this);
                     return true;
             }
             return false;

@@ -53,11 +53,13 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
     private final XFloatingWindow win;
     private final FrameLayout container;
     private boolean attached;
-    // Episode potong anchor: tinggi penuh sebelum dipotong (-1 =
-    // tidak ada episode) + tinggi hasil potong terakhir. Dipakai
-    // restore otomatis ke tinggi penuh saat anchor muat lagi.
-    private int anchorFullH = -1;
-    private int anchorCutH = -1;
+    // Rect penuh yang diinginkan selama episode fit anchor
+    // (top + height); -1 = tidak ada episode. Disimpan SEKALI
+    // saat enforceAnchor pertama kali mengubah rect karena anchor
+    // (jangan timpa dengan rect hasil fit). Rect manual user
+    // (drag/resize) menghapus simpanan ini via onUserRectChanged.
+    private int anchorSavedTop = -1;
+    private int anchorSavedH = -1;
     private final android.os.Handler ui =
             new android.os.Handler(android.os.Looper.getMainLooper());
 
@@ -119,122 +121,90 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                     || o.win.getVisibility() != android.view.View.VISIBLE) continue;
             FrameLayout.LayoutParams lp =
                     (FrameLayout.LayoutParams) o.win.getLayoutParams();
-            int oldTop = lp.topMargin;
-            int oldH = lp.height;
-            int newTop = oldTop;
-            int newH = oldH;
-            // ALGORITMA FINAL (revisi user): dorong sampai mentok,
-            // baru potong bila masih terlalu besar. anchorH = tinggi
-            // TerminalView; "mentok" = anchorT (tepi atasnya).
-            // - Tinggi > anchorH: top=anchorT + height=anchorH, satu
-            //   langkah terminal (top==anchorT, bottom==anchorB).
-            // - Tinggi muat: hanya posisi, tanpa potong — top<anchorT
-            //   -> anchorT; bottom>anchorB -> top=anchorB-height
-            //   (dijamin >= anchorT karena height<=anchorH).
-            // Tiap cabang menghasilkan keadaan yang memenuhi kedua
-            // tepi sekaligus, jadi tidak ada osilasi. Maximized
-            // sudah di-skip di guard loop (tetap penuh, tak dipotong).
+            int curTop = lp.topMargin;
+            int curH = lp.height;
             int anchorH = anchorB - anchorT;
-            // Restore OTOMATIS ke tinggi penuh saat anchor muat lagi
-            // (keberatan user: tetap pendek pas keyboard nutup
-            // terlihat ga alami). Potong strict (bottom>anchorB) dan
-            // balik strict (muat penuh) saling lepas -> anti-osilasi.
-            boolean restoreDiproses = false;
-            if (o.anchorFullH > 0 && oldH == o.anchorCutH
-                    && oldTop + o.anchorFullH <= anchorB) {
-                restoreDiproses = true;
-                if (o.anchorFullH - oldH >= threshPx) {
-                    newH = o.anchorFullH;
+            // MEKANISME FINAL (persetujuan user): rect yang diinginkan
+            // vs rect yang ditampilkan, satu mekanisme — bukan dua
+            // restore terpisah. desired = simpanan bila ada, bila
+            // tidak rect saat ini. fitted = fit(desired, anchor):
+            // tinggi > anchorH -> (anchorT, anchorH) — dorong sampai
+            // mentok lalu potong; muat -> top = max(anchorT,
+            // min(desTop, anchorB - desH)), tinggi tetap. fitted
+            // selalu memenuhi kedua tepi sekaligus, jadi tidak ada
+            // osilasi. Maximized sudah di-skip di guard loop.
+            boolean adaSimpanan = o.anchorSavedH > 0;
+            int desTop = adaSimpanan ? o.anchorSavedTop : curTop;
+            int desH = adaSimpanan ? o.anchorSavedH : curH;
+            int fitTop;
+            int fitH;
+            if (desH > anchorH) {
+                // Pengaman: anchor lebih pendek dari 200dp — biarkan
+                // jendela apa adanya, catat saja (tanpa simpan).
+                if (anchorH < Math.round(200 * density)) {
+                    X11DebugLog.log("ANCHOR", "d=" + o.display
+                            + " anchorT=" + anchorT + " anchorB=" + anchorB
+                            + " potong ditahan: anchorH=" + anchorH
+                            + "px < 200dp top=" + curTop + " h=" + curH);
+                    continue;
                 }
-                // Balik selesai (atau selisihnya sudah < threshold,
-                // dianggap balik): episode dibersihkan apa pun.
-                o.anchorFullH = -1;
-                o.anchorCutH = -1;
-            } else if (o.anchorFullH > 0 && oldH != o.anchorCutH) {
-                // Tinggi diubah pihak lain (resize manual grip) —
-                // episode potong batal, tinggi baru jadi patokan
-                // penuh. Sekali saja per episode (langsung dibersihkan).
-                // Rect maximize disimpan terpisah di XFloatingWindow
-                // dan tidak mencampuri episode ini: un-maximize
-                // mengembalikan tinggi pra-maximize — bila itu tinggi
-                // potong, episode tetap utuh; bila berbeda, cabang
-                // ini yang membersihkannya.
-                X11DebugLog.log("ANCHOR", "d=" + o.display
-                        + " episode potong batal: h=" + oldH
-                        + " (cut=" + o.anchorCutH + ")");
-                o.anchorFullH = -1;
-                o.anchorCutH = -1;
+                fitTop = anchorT;
+                fitH = anchorH;
+            } else {
+                fitTop = Math.max(anchorT, Math.min(desTop, anchorB - desH));
+                fitH = desH;
             }
-            if (!restoreDiproses && newH == oldH) {
-                // Bukan dari restore: aturan posisi/potong biasa.
-                if (oldH > anchorH) {
-                    int minH = Math.round(200 * density);
-                    if (anchorH < minH) {
-                        // Pengaman: anchor lebih pendek dari 200dp —
-                        // biarkan jendela apa adanya, catat saja.
-                        X11DebugLog.log("ANCHOR", "d=" + o.display
-                                + " anchorT=" + anchorT + " anchorB=" + anchorB
-                                + " potong ditahan: anchorH=" + anchorH
-                                + "px < 200dp top=" + oldTop + " h=" + oldH);
-                        continue;
-                    }
-                    int tTop = anchorT;
-                    int tH = anchorH;
-                    // Threshold: abaikan bila kedua perubahan kecil.
-                    if (Math.abs(tTop - oldTop) >= threshPx
-                            || Math.abs(tH - oldH) >= threshPx) {
-                        // Episode baru: ingat tinggi penuh; episode
-                        // yang sudah jalan (potong bertahap)
-                        // pertahankan tinggi penuh asalnya, jangan
-                        // timpa dengan tinggi potong antara.
-                        if (o.anchorFullH <= 0) {
-                            o.anchorFullH = oldH;
-                        }
-                        newTop = tTop;
-                        newH = tH;
-                        o.anchorCutH = tH;
-                    }
-                } else {
-                    if (oldTop < anchorT) {
-                        if (anchorT - oldTop >= threshPx) {
-                            newTop = anchorT;
-                        }
-                    } else if (oldTop + oldH > anchorB) {
-                        int tTop = anchorB - oldH;
-                        if (oldTop - tTop >= threshPx) {
-                            newTop = tTop;
-                        }
-                    }
-                }
+            // Kembali ke simpanan? fitted == saved (rect asli muat
+            // penuh di anchor baru) -> tampilkan saved, hapus
+            // simpanan. Perilaku yang user minta: saat keyboard
+            // nutup, jendela TURUN sedikit demi sedikit mengikuti
+            // anchor (fitted.top = anchorB - height membesar seiring
+            // anchorB), lalu top DAN tinggi balik persis ke semula.
+            boolean kembaliKeSaved = adaSimpanan
+                    && fitTop == desTop && fitH == desH;
+            if (kembaliKeSaved) {
+                o.anchorSavedH = -1;
+                o.anchorSavedTop = -1;
             }
-            if (newTop == oldTop && newH == oldH) continue;
+            // Threshold 8dp per dimensi: perubahan kecil diabaikan
+            // (tidak gerak, tidak log).
+            int newTop = fitTop;
+            int newH = fitH;
+            if (Math.abs(newTop - curTop) < threshPx) newTop = curTop;
+            if (Math.abs(newH - curH) < threshPx) newH = curH;
+            if (newTop == curTop && newH == curH) continue;
+            // Simpan SEKALI saat pertama kali mengubah rect karena
+            // anchor (jangan timpa simpanan dengan rect hasil fit).
+            // Rect maximize disimpan terpisah di XFloatingWindow dan
+            // tidak mencampuri simpanan ini: un-maximize
+            // mengembalikan rect pra-maximize — bila itu rect hasil
+            // fit, episode tetap utuh; bila berbeda (manual),
+            // onUserRectChanged yang membersihkannya.
+            if (!adaSimpanan) {
+                o.anchorSavedTop = curTop;
+                o.anchorSavedH = curH;
+            }
             lp.topMargin = newTop;
             lp.height = newH;
             o.win.setLayoutParams(lp);
             // Log ANCHOR temporer sampai verdict jitter lulus: satu
-            // baris per perubahan yang benar-benar dieksekusi,
-            // dengan jenisnya dari apa yang berubah.
+            // baris per perubahan yang benar-benar dieksekusi.
+            // top berubah = dorong, tinggi berubah = potong,
+            // kembali ke saved = balik.
             String kind;
-            boolean topBerubah = newTop != oldTop;
-            boolean hBerubah = newH != oldH;
-            if (topBerubah && hBerubah) {
-                // Balik tidak pernah mengubah top, jadi kombinasi
-                // ini selalu dorong+potong.
-                kind = "dorong+potong";
-            } else if (topBerubah) {
-                kind = "dorong";
-            } else if (o.anchorFullH <= 0 && o.anchorCutH < 0
-                    && newH > oldH) {
-                // Episode baru saja dibersihkan oleh restore dan
-                // tinggi membesar = balik (bukan potong).
+            if (kembaliKeSaved) {
                 kind = "balik";
+            } else if (newTop != curTop && newH != curH) {
+                kind = "dorong+potong";
+            } else if (newTop != curTop) {
+                kind = "dorong";
             } else {
                 kind = "potong";
             }
             X11DebugLog.log("ANCHOR", "d=" + o.display
                     + " anchorT=" + anchorT + " anchorB=" + anchorB
-                    + " top " + oldTop + "->" + newTop
-                    + " h=" + oldH + "->" + newH
+                    + " top " + curTop + "->" + newTop
+                    + " h=" + curH + "->" + newH
                     + " " + kind);
         }
     }
@@ -537,6 +507,20 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
     public void onCloseClicked(XFloatingWindow w) {
         close();
         XSessionManager.get(activity).stopDisplay(display, null);
+    }
+
+    @Override
+    public void onUserRectChanged(XFloatingWindow w) {
+        // Rect manual user = keinginan baru: simpanan rect anchor
+        // dihapus supaya enforceAnchor berikutnya tidak menimpa
+        // posisi manual dengan fitted(saved). Sekali per episode
+        // (log hanya bila simpanan memang ada).
+        if (anchorSavedH > 0) {
+            X11DebugLog.log("ANCHOR", "d=" + display
+                    + " simpanan rect dihapus (drag/resize manual)");
+            anchorSavedH = -1;
+            anchorSavedTop = -1;
+        }
     }
 
     // ---------------- XWindowHost.Listener ----------------
