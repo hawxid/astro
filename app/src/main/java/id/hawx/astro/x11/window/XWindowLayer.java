@@ -182,10 +182,22 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
     }
 
     private void setActive(XFloatingWindow win) {
+        boolean changed = active != win;
         active = win;
         win.bringToFront();
         // strip selalu di atas jendela
         strip.bringToFront();
+        if (changed) {
+            // Permukaan SurfaceView ditumpuk menurut URUTAN LAHIR,
+            // bukan z-order view: bringToFront cuma mengangkat RANGKA
+            // jendela, konten X jendela yang dibuka belakangan tetap
+            // menutupi (temuan Hawx: rangka :1 ke depan, kontennya
+            // ketahan di belakang konten :2). Lahirkan ulang permukaan
+            // jendela aktif supaya ia paling akhir = paling atas.
+            final android.view.View surf = win.host().view();
+            surf.setVisibility(View.INVISIBLE);
+            surf.post(() -> surf.setVisibility(View.VISIBLE));
+        }
     }
 
     // ---- XFloatingWindow.Listener ----
