@@ -439,6 +439,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         hide();
         host.detach();
         sByDisplay.remove(display);
+        if (sByDisplay.isEmpty()) detachAnchorListener();
     }
 
     private void setActive() {
