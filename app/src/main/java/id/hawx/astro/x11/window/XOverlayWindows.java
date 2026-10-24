@@ -121,15 +121,19 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         win = new XFloatingWindow(act, host, title);
         win.setListener(this);
 
-        container = new FrameLayout(act);
+        container = new OverlayContainer(act);
         int w = (int) (m.widthPixels * 0.88f);
         int h = (int) (m.heightPixels * 0.55f);
         win.setLayoutParams(new FrameLayout.LayoutParams(w, h));
         container.addView(win);
 
+        // NOT_FOCUSABLE selagi idle: terminal di bawah tetap pegang
+        // fokus jendela (ketuk terminal = keyboard muncul normal).
+        // Sentuhan pertama di jendela membalik flag ini + fokus.
         wlp = new WindowManager.LayoutParams(w, h,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
         wlp.gravity = Gravity.TOP | Gravity.START;
         wlp.x = dp(14) + (display - 1) * dp(26);
@@ -170,6 +174,126 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             XKeyRouter.clear();
         }
         X11DebugLog.log("OVERLAY", "sembunyi :" + display);
+        refocusTerminalSoon();
+    }
+
+    /**
+     * Setelah overlay turun, terminal utama sering kehilangan
+     * keyboard (fokus IME nyangkut di view yang sudah dilepas).
+     * Kembalikan fokus + keyboard ke TerminalView foreground —
+     * hanya bila activity depan memang NeoTermActivity.
+     */
+    private void refocusTerminalSoon() {
+        ui.postDelayed(() -> {
+            Activity act = AstroApp.foregroundActivity();
+            if (act == null
+                    || !act.getClass().getName().contains("NeoTermActivity")) return;
+            android.view.View term =
+                    findTerminalView(act.getWindow().getDecorView());
+            if (term == null) return;
+            term.requestFocus();
+            android.view.inputmethod.InputMethodManager imm =
+                    (android.view.inputmethod.InputMethodManager)
+                            act.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(term, 0);
+        }, 150);
+    }
+
+    private static android.view.View findTerminalView(android.view.View v) {
+        if (v.getClass().getName().endsWith("TerminalView")) return v;
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                android.view.View f = findTerminalView(g.getChildAt(i));
+                if (f != null) return f;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Kontainer overlay: (a) membalik NOT_FOCUSABLE pada sentuhan
+     * pertama di dalam jendela; (b) MENYERET jendela sendiri lewat
+     * parameter WindowManager (bukan lewat margin internal
+     * XFloatingWindow — model margin kumulatifnya beradu dengan
+     * sinkronisasi kontainer: jendela jatuh 2x kecepatan jari dan
+     * mentok di batas semu). Grip resize tetap milik jendela
+     * (hanya mengubah ukuran, tanpa margin — sinkron lama jalan).
+     */
+    private class OverlayContainer extends FrameLayout {
+        private boolean dragArmed;
+        private float dragDownX, dragDownY;
+        private int dragStartX, dragStartY;
+
+        OverlayContainer(Context ctx) {
+            super(ctx);
+        }
+
+        private int dp2(int v) {
+            return Math.round(v * getResources().getDisplayMetrics().density);
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(android.view.MotionEvent e) {
+            int action = e.getActionMasked();
+            if (action == android.view.MotionEvent.ACTION_DOWN) {
+                // Balik fokus: sentuhan pertama di jendela mana pun.
+                if ((wlp.flags & WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) != 0
+                        && e.getX() >= win.getLeft() && e.getX() <= win.getRight()
+                        && e.getY() >= win.getTop() && e.getY() <= win.getBottom()) {
+                    wlp.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+                    wm.updateViewLayout(container, wlp);
+                    host.view().requestFocus();
+                }
+                // Arm drag hanya dari bar judul (32dp atas jendela).
+                if (e.getY() >= win.getTop() && e.getY() <= win.getTop() + dp2(32)
+                        && e.getX() >= win.getLeft() && e.getX() <= win.getRight()) {
+                    dragArmed = true;
+                    dragDownX = e.getRawX();
+                    dragDownY = e.getRawY();
+                    dragStartX = wlp.x;
+                    dragStartY = wlp.y;
+                }
+                return false;
+            }
+            if (action == android.view.MotionEvent.ACTION_MOVE && dragArmed) {
+                if (Math.abs(e.getRawX() - dragDownX) > dp2(10)
+                        || Math.abs(e.getRawY() - dragDownY) > dp2(10)) {
+                    return true; // ambil alih: jendela tak lagi diseret
+                }
+            }
+            if (action == android.view.MotionEvent.ACTION_UP
+                    || action == android.view.MotionEvent.ACTION_CANCEL) {
+                dragArmed = false;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean onTouchEvent(android.view.MotionEvent e) {
+            int action = e.getActionMasked();
+            if (action == android.view.MotionEvent.ACTION_MOVE && dragArmed) {
+                DisplayMetrics m = new DisplayMetrics();
+                wm.getDefaultDisplay().getRealMetrics(m);
+                int nx = dragStartX + Math.round(e.getRawX() - dragDownX);
+                int ny = dragStartY + Math.round(e.getRawY() - dragDownY);
+                nx = Math.max(-(wlp.width - dp2(80)),
+                        Math.min(nx, m.widthPixels - dp2(80)));
+                ny = Math.max(0, Math.min(ny, m.heightPixels - dp2(40)));
+                if (nx != wlp.x || ny != wlp.y) {
+                    wlp.x = nx;
+                    wlp.y = ny;
+                    wm.updateViewLayout(container, wlp);
+                }
+                return true;
+            }
+            if (action == android.view.MotionEvent.ACTION_UP
+                    || action == android.view.MotionEvent.ACTION_CANCEL) {
+                dragArmed = false;
+                return true;
+            }
+            return false;
+        }
     }
 
     /** ✕ / host minta tutup: lepas total (server diurus pemanggil). */
