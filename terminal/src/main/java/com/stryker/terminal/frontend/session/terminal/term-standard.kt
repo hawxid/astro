@@ -51,10 +51,27 @@ class TermViewClient(val context: Context) :
     // Ketuk di luar jendela overlay = input pindah ke terminal
     // (lebih natural daripada tombol keyboard): bersihkan router
     // bar supaya tombol bar ikut pulang, bukan cuma ketikan.
-    com.stryker.terminal.frontend.session.view.extrakey.XKeyRouter.clear()
+    // Temuan Hawx: EK pindah (router), tapi KEYBOARD cuma bisa
+    // nulis di jendela — karena showSoftInput terminal gagal
+    // selama overlay masih pegang fokus window. Jadi kalau
+    // router sempat aktif (overlay pernah naik), lepas dulu
+    // fokus overlay via broadcast, baru tampilkan keyboard
+    // (tunda 150 md, pola sama kaya tombol keyboard bar).
+    val router = com.stryker.terminal.frontend.session.view.extrakey.XKeyRouter
+    val hadRouter = router.keySink != null
+    router.clear()
     val termView = termSessionData?.termView ?: return
-    (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-      .showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
+    val imm = (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+    if (hadRouter) {
+      context.sendBroadcast(android.content.Intent(
+        "id.hawx.astro.RELEASE_OVERLAY_FOCUS").setPackage(context.packageName))
+      android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        termView.requestFocus()
+        imm.showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
+      }, 150)
+    } else {
+      imm.showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
+    }
   }
 
   override fun shouldBackButtonBeMappedToEscape(): Boolean {

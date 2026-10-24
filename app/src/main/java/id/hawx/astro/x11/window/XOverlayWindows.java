@@ -85,42 +85,79 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         X11DebugLog.log("OVERLAY", "fokus dilepas (tombol keyboard terminal)");
     }
 
-    // ---- Anchor watcher: jendela ngikut rect TerminalView ----
-    // Jendela overlay posisinya koordinat layar mentah: pas keyboard
-    // buka, blok terminal (TerminalView + EK) naik, tapi jendela
-    // diam — akhirnya menimpa bar EK (temuan Hawx: "ga otomatis
-    // naik pas ada keyboard"). Watcher ringan (400 md, hanya selama
-    // ada overlay tampil + depan NeoTerm) mendorong jendela naik
-    // bila bawahnya melewati tepi bawah rect TerminalView.
+    // ---- Patokan TUNGGAL pengunci di atas softkey ----
+    // Patokannya: tepi bawah TerminalView (= tepi atas bar EK,
+    // karena TerminalView layout_above extra_keys). Dulu ada
+    // DUA penegak yang tarik-menarik (koreksi watcher 400 md +
+    // clamp seret dari tangkapan awal + batas keyboard) hingga
+    // jendela jitter (temuan Hawx: "tarik-menarik antara batas
+    // keyboard dan batas softkey"). Kini satu penegak saja:
+    // listener layout TerminalView — sinkron tiap layout pass,
+    // termasuk selama animasi keyboard, jadi jendela bergerak
+    // mulus mengikuti, bukan lompatan 400 md. Watcher 400 md
+    // tinggal bertugas menempelkan ulang listener kalau view
+    // TerminalView-nya berganti (ganti tab/dll), TANPA
+    // menggerakkan jendela.
+    private static android.view.View sAnchorView;
+    private static android.view.ViewTreeObserver.OnGlobalLayoutListener sAnchorListener;
+
+    private static void enforceAnchor() {
+        if (sAnchorView == null || sByDisplay.isEmpty()) return;
+        android.view.View tv = sAnchorView;
+        if (tv.getWidth() <= 0 || tv.getHeight() <= 0) return;
+        int[] loc = new int[2];
+        tv.getLocationOnScreen(loc);
+        int anchorT = loc[1];
+        int anchorB = loc[1] + tv.getHeight();
+        for (XOverlayWindows o : sByDisplay.values()) {
+            if (!o.attached || o.win.isMaximized()) continue;
+            int bottom = o.wlp.y + o.wlp.height;
+            int top = o.wlp.y;
+            if (bottom > anchorB) {
+                o.wlp.y -= (bottom - anchorB);
+                o.wm.updateViewLayout(o.container, o.wlp);
+            } else if (top < anchorT) {
+                o.wlp.y = anchorT;
+                o.wm.updateViewLayout(o.container, o.wlp);
+            }
+        }
+    }
+
+    private static void attachAnchorListener(android.view.View tv) {
+        if (tv == sAnchorView && sAnchorListener != null) return;
+        detachAnchorListener();
+        sAnchorView = tv;
+        sAnchorListener = () -> enforceAnchor();
+        tv.getViewTreeObserver().addOnGlobalLayoutListener(sAnchorListener);
+    }
+
+    private static void detachAnchorListener() {
+        if (sAnchorView != null && sAnchorListener != null) {
+            try {
+                sAnchorView.getViewTreeObserver()
+                        .removeOnGlobalLayoutListener(sAnchorListener);
+            } catch (Throwable ignored) {
+            }
+        }
+        sAnchorView = null;
+        sAnchorListener = null;
+    }
+
     private static final android.os.Handler sWatch =
             new android.os.Handler(android.os.Looper.getMainLooper());
     private static boolean sWatchRunning;
     private static final Runnable sWatchTask = () -> {
         sWatchRunning = false;
-        if (sByDisplay.isEmpty()) return;
-        Activity fg = AstroApp.foregroundActivity();
-        if (fg == null
-                || !fg.getClass().getName().contains("NeoTermActivity")) {
-            startAnchorWatch();
+        if (sByDisplay.isEmpty()) {
+            detachAnchorListener();
             return;
         }
-        android.view.View tv = findTerminalView(fg.getWindow().getDecorView());
-        if (tv != null && tv.getWidth() > 0 && tv.getHeight() > 0) {
-            int[] loc = new int[2];
-            tv.getLocationOnScreen(loc);
-            int anchorT = loc[1];
-            int anchorB = loc[1] + tv.getHeight();
-            for (XOverlayWindows o : sByDisplay.values()) {
-                if (!o.attached || o.win.isMaximized()) continue;
-                int bottom = o.wlp.y + o.wlp.height;
-                int top = o.wlp.y;
-                if (bottom > anchorB) {
-                    o.wlp.y -= (bottom - anchorB);
-                    o.wm.updateViewLayout(o.container, o.wlp);
-                } else if (top < anchorT) {
-                    o.wlp.y = anchorT;
-                    o.wm.updateViewLayout(o.container, o.wlp);
-                }
+        Activity fg = AstroApp.foregroundActivity();
+        if (fg != null
+                && fg.getClass().getName().contains("NeoTermActivity")) {
+            android.view.View tv = findTerminalView(fg.getWindow().getDecorView());
+            if (tv != null && tv.getWidth() > 0 && tv.getHeight() > 0) {
+                attachAnchorListener(tv);
             }
         }
         startAnchorWatch();
@@ -291,10 +328,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         private boolean dragArmed;
         private float dragDownX, dragDownY;
         private int dragStartX, dragStartY;
-        // Patokan seret: rect TerminalView foreground (area bg terminal
-        // di atas bar EK). Diambil pas drag mulai; kosong = layar penuh.
-        private int anchorL, anchorT, anchorR, anchorB;
-        private boolean hasAnchor;
 
         OverlayContainer(Context ctx) {
             super(ctx);
@@ -324,27 +357,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                     dragDownY = e.getRawY();
                     dragStartX = wlp.x;
                     dragStartY = wlp.y;
-                    // Ikat ke patokan bg terminal (rect TerminalView):
-                    // bar EK ada DI LUAR rect ini (di bawahnya), jadi
-                    // jendela tak mungkin menutupinya — tanpa estimasi
-                    // tinggi bar. Rect ikut menciut pas keyboard buka
-                    // (inset listener NeoTerm), jadi batas ikut naik.
-                    hasAnchor = false;
-                    Activity fg0 = AstroApp.foregroundActivity();
-                    if (fg0 != null
-                            && fg0.getClass().getName().contains("NeoTermActivity")) {
-                        android.view.View tv = findTerminalView(
-                                fg0.getWindow().getDecorView());
-                        if (tv != null && tv.getWidth() > 0 && tv.getHeight() > 0) {
-                            int[] loc = new int[2];
-                            tv.getLocationOnScreen(loc);
-                            anchorL = loc[0];
-                            anchorT = loc[1];
-                            anchorR = loc[0] + tv.getWidth();
-                            anchorB = loc[1] + tv.getHeight();
-                            hasAnchor = true;
-                        }
-                    }
                 }
                 return false;
             }
@@ -369,6 +381,28 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 wm.getDefaultDisplay().getRealMetrics(m);
                 int nx = dragStartX + Math.round(e.getRawX() - dragDownX);
                 int ny = dragStartY + Math.round(e.getRawY() - dragDownY);
+                // Patokan dibaca HIDUP tiap MOVE (bukan tangkapan
+                // awal seret): selama animasi keyboard, rect
+                // berubah tiap frame — tangkapan awal + watcher =
+                // dua batas yang tarik-menarik (jitter). Satu
+                // patokan: tepi bawah TerminalView (= atas softkey).
+                boolean hasAnchor = false;
+                int anchorL = 0, anchorT = 0, anchorR = 0, anchorB = 0;
+                Activity fg = AstroApp.foregroundActivity();
+                if (fg != null
+                        && fg.getClass().getName().contains("NeoTermActivity")) {
+                    android.view.View tv = findTerminalView(
+                            fg.getWindow().getDecorView());
+                    if (tv != null && tv.getWidth() > 0 && tv.getHeight() > 0) {
+                        int[] loc = new int[2];
+                        tv.getLocationOnScreen(loc);
+                        anchorL = loc[0];
+                        anchorT = loc[1];
+                        anchorR = loc[0] + tv.getWidth();
+                        anchorB = loc[1] + tv.getHeight();
+                        hasAnchor = true;
+                    }
+                }
                 if (hasAnchor) {
                     // Di dalam rect bg terminal: kiri/kanan boleh
                     // menyisakan 80px, atas mentok tepi rect, bawah
