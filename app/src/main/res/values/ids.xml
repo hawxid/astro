@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Id buat baris menu yang tidak hidup sebagai baris drawer:
+         kategori System di popup Applications. -->
+    <item name="system_setting_item" type="id" />
+    <item name="system_desktop_item" type="id" />
+</resources>

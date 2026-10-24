@@ -621,6 +621,10 @@ public class MainActivity extends AppCompatActivity {
         gear.setOnClickListener(v -> {
             if (settings != null) settings.performClick();
         });
+        // Gerigi panel DISEMBUNYIKAN (keputusan Hawx): pengaturan
+        // aplikasi sekarang masuk lewat kategori System di menu
+        // Applications. View dipertahankan (GONE) buat jalur lama.
+        gear.setVisibility(View.GONE);
         panel.addView(gear);
         panelClock = panelText("");
         panel.addView(panelClock);
@@ -736,6 +740,7 @@ public class MainActivity extends AppCompatActivity {
             {"\uD83C\uDFAF", "Offensive", 0xFFFF6B6B, new int[]{R.id.nuclei_item, R.id.arsenal_item, R.id.metasploit_item}},
             {"\uD83E\uDDF0", "Tools", 0xFFA088F0, new int[]{R.id.wordlists_item, R.id.geomac_item, R.id.vnc_item, R.id.manager_item, R.id.about_item}},
             {"\uD83D\uDEE1\uFE0F", "Root", 0xFF8B93A7, new int[]{R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item}},
+            {"\u2699\uFE0F", "System", 0xFF4CC38A, new int[]{R.id.system_setting_item, R.id.system_desktop_item}},
     };
 
     private android.graphics.drawable.GradientDrawable roundBg(int color, float radiusDp) {
@@ -872,7 +877,8 @@ public class MainActivity extends AppCompatActivity {
                 final int fid = itemId;
                 row.setOnClickListener(v -> {
                     if (appsPopup != null) appsPopup.dismiss();
-                    receiver.changeFragment(fid);
+                    if (fid == R.id.system_setting_item) openSettings();
+                    else receiver.changeFragment(fid);
                 });
                 box.addView(row);
             }
@@ -1241,6 +1247,7 @@ public class MainActivity extends AppCompatActivity {
             if (itemId == R.id.bt_item) return new BluetoothFragment();
             if (itemId == R.id.osint_item) return new OsintFragment();
             if (itemId == R.id.about_item) return new AboutFragment();
+            if (itemId == R.id.system_desktop_item) return new id.hawx.astro.settings.DesktopSettingsFragment();
             if (itemId == R.id.logs_item) return new id.hawx.astro.logger.LoggerFragment();
             if (itemId == R.id.vnc_item) return new VNCFragment();
             if (itemId == R.id.hid_item) return new HidFragment();
@@ -1310,6 +1317,8 @@ public class MainActivity extends AppCompatActivity {
         m.put(R.id.usb_arsenal_item,  new DrawerSpec("USB Arsenal",      R.drawable.usb,         0xFF1565C0));
         m.put(R.id.manager_item,      new DrawerSpec("Core manager",     R.drawable.tune,        0xFF5E35B1));
         m.put(R.id.about_item,        new DrawerSpec("About",            R.drawable.info_outlined, 0xFF1565C0));
+        m.put(R.id.system_setting_item, new DrawerSpec("Setting",        R.drawable.settings,    0xFF4CC38A));
+        m.put(R.id.system_desktop_item, new DrawerSpec("Desktop",        R.drawable.tune,        0xFF4CC38A));
         return m;
     }
 
