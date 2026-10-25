@@ -56,6 +56,12 @@ public class WebOverlayWindows {
     private final FrameLayout win;
     private final WebView webView;
     private TextView dotView;
+    // Tombol kembali web (ronde back webview, 2026-10-25): ← di
+    // chrome, sebelum ⌨. State (redup bila tak ada history)
+    // di-update di onPageFinished — field, bukan lokal, supaya
+    // callback WebViewClient yang dibuat sebelum chrome bisa
+    // membacanya (pola yang sama dengan dotView).
+    private TextView backBtn;
     private final WindowManager.LayoutParams wlp;
     private boolean attached;
     private boolean maximized;
@@ -202,6 +208,14 @@ public class WebOverlayWindows {
             @Override
             public void onPageFinished(WebView v, String url) {
                 if (dotView != null) dotView.setTextColor(0xFF3DDC84);
+                // State tombol ←: redup (bukan hilang) bila tak ada
+                // history; goBack() selalu memicu page finish, jadi
+                // state ini selalu segar tanpa listener baru.
+                if (backBtn != null) {
+                    boolean canBack = v.canGoBack();
+                    backBtn.setAlpha(canBack ? 1.0f : 0.35f);
+                    backBtn.setEnabled(canBack);
+                }
             }
         });
         webView.addJavascriptInterface(
@@ -238,6 +252,22 @@ public class WebOverlayWindows {
         bar.addView(titleView, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
+        // Tombol kembali history webview: SEBELUM ⌨ (urutan baru
+        // ← ⌨ — ▢ ✕). WebView menyimpan history navigasi (termasuk
+        // SPA seperti WebSec0), tapi overlay tak punya back dispatch
+        // sistem — tanpa tombol ini pengguna kejebak sesudah maju
+        // (scan -> laporan) karena satu-satunya jalan keluar adalah
+        // ✕ (yang mematikan server webui). goBack() adalah panggilan
+        // programatik — tak butuh fokus window, jadi jalan di kedua
+        // mode fokus tanpa menyentuh toggle fokus. Guard canGoBack
+        // di handler (tombol redup + disabled saat tak ada history
+        // tetap dijaga onPageFinished di atas).
+        backBtn = chromeBtn("←", v -> {
+            if (webView.canGoBack()) webView.goBack();
+        });
+        backBtn.setAlpha(0.35f);
+        backBtn.setEnabled(false);
+        bar.addView(backBtn);
         bar.addView(chromeBtn("⌨", v -> {
             // Masuk mode ketik webview: window HARUS focusable dulu,
             // baru requestFocus/showSoftInput bisa jalan (urutan ini

@@ -38,6 +38,10 @@ public class GhostVizActivity extends AppCompatActivity {
     }
     public static final String EXTRA_TITLE = "title";
 
+    // WebView halaman — field (bukan lokal onCreate) supaya
+    // onBackPressed bisa memeriksa history-nya.
+    private WebView webView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -56,7 +60,7 @@ public class GhostVizActivity extends AppCompatActivity {
             getSupportActionBar().setTitle(title);
         }
 
-        WebView webView = findViewById(R.id.viz_webview);
+        webView = findViewById(R.id.viz_webview);
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
@@ -106,5 +110,20 @@ public class GhostVizActivity extends AppCompatActivity {
     public boolean onSupportNavigateUp() {
         finish();
         return true;
+    }
+
+    /**
+     * Back sistem di webview fullscreen: mundur satu history bila
+     * ada, kalau tidak berperilaku persis seperti sebelumnya
+     * (finish — untuk webui itu jalur kill server yang sudah ada
+     * di onDestroy; tidak diubah).
+     */
+    @Override
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
+        }
     }
 }
