@@ -124,7 +124,6 @@ public class MainActivity extends AppCompatActivity {
     private static TextView winTitleS;
     private static ImageView winIconS;
     private TextView panelClock;
-    private TextView panelTaskBtn;
     private PopupWindow appsPopup;
 
     private int dp(int v) {
@@ -605,11 +604,6 @@ public class MainActivity extends AppCompatActivity {
         apps.setTypeface(null, android.graphics.Typeface.BOLD);
         apps.setOnClickListener(v -> showAppsMenu(apps));
         panel.addView(apps);
-        panelTaskBtn = panelText("\uD83D\uDDA5 Layar X");
-        panelTaskBtn.setVisibility(View.GONE);
-        panelTaskBtn.setOnClickListener(v ->
-                id.hawx.astro.x11.XSessionManager.get(this).openViewer());
-        panel.addView(panelTaskBtn);
         View spacer = new View(this);
         spacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
         panel.addView(spacer);
@@ -667,18 +661,18 @@ public class MainActivity extends AppCompatActivity {
         refreshPanel();
     }
 
+    // Tombol panel "Layar X" DIHAPUS (ronde dock-pin, 2026-10-25):
+    // redundan — dock sudah punya ikon viewer + entry :0 yang live.
+    // refreshPanel tinggal mengurus jam panel; probe :0 untuk dock
+    // jalan lewat jalur rebuildDisplays sendiri, bukan dari sini.
+    // (Probe XSessionManager dari sini dulu juga meng-set field
+    // state :0, tapi field itu tak punya pembaca — cachedState()
+    // 0 caller — jadi penghapusan ini tanpa efek samping.)
     private void refreshPanel() {
         if (panelClock != null) {
             panelClock.setText(new java.text.SimpleDateFormat(
                     "EEE d MMM \u2022 HH:mm", java.util.Locale.US).format(new java.util.Date()));
         }
-        id.hawx.astro.x11.XSessionManager.get(this).probe((state, detail) -> {
-            if (panelTaskBtn != null) {
-                panelTaskBtn.setVisibility(
-                        state == id.hawx.astro.x11.XServerOps.State.RUNNING
-                                ? View.VISIBLE : View.GONE);
-            }
-        });
     }
 
     private void confirmUnmountMain() {

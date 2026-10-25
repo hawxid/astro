@@ -51,8 +51,11 @@ import id.hawx.astro.x11.XSessionManager;
  *  - tools(): katalog 18 tool bawaan + toggle Customize (pref dash_tool_*)
  *  - buildTools(): grid ikon polos di wallpaper — tool bawaan, lalu
  *    launcher chroot dari LauncherStore, lalu sel Tambah
- *  - panel atas XFCE: Applications (drawer), tombol Layar X, Customize, jam
- *  - dock bawah melayang: Terminal, Layar X, Tambah Launcher, Tambah
+ *  - panel atas XFCE: Applications (drawer), Customize, jam
+ *    (tombol panel "Layar X" dihapus ronde dock-pin: redundan
+ *    dengan ikon viewer + entry :0 di dock)
+ *  - dock bawah melayang: Terminal, Layar X, Tambah Launcher, Tambah,
+ *    + launcher yang di-pin user (pref dock_pinned)
  * Semua kartu status/banner/recent/social/VM lama sudah dihapus;
  * riwayatnya ada di git.
  */
@@ -571,56 +574,64 @@ public class Dashboard extends Fragment {
         return tv;
     }
 
+    /** Jalur launch sel desktop — dipakai tap sel DAN tap ikon dock
+     *  yang di-pin (SATU jalur, jangan duplikasi). Dipindah ke sini
+     *  dari body onClick chrootCell tanpa perubahan isi. */
+    private void launchEntry(LauncherEntry e) {
+        if ("webui".equals(e.type)) {
+            id.hawx.astro.x11.WebUiLauncher.launch(context, e);
+            return;
+        }
+        if ("webview".equals(e.type)) {
+            if (e.floating) {
+                boolean shown = id.hawx.astro.x11.window.WebOverlayWindows
+                        .show(context, e.name, e.command);
+                // Label dock (ikon entry) — no-op bila show()
+                // gagal (tak ada overlay); jalur raise ikut segar.
+                id.hawx.astro.x11.window.WebOverlayWindows.setDockLabelForPath(
+                        e.command,
+                        id.hawx.astro.x11.window.WebOverlayWindows.dockLabelFor(e.icon, e.name));
+                if (shown) return;
+            }
+            Intent i = new Intent(context, id.hawx.astro.goose.GhostVizActivity.class);
+            i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_PATH, e.command);
+            i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_TITLE, e.name);
+            startActivity(i);
+            return;
+        }
+        if (e.floating) {
+            xMgr.launchFloating(e, (ok, d, msg) -> {
+                core.toaster(msg);
+                if (ok && d > 0)
+                    id.hawx.astro.MainActivity.openXWindowFrom(context, d,
+                            e.name + " · :" + d);
+                refreshXState();
+            });
+            return;
+        }
+        xMgr.launch(e, (ok, msg) -> {
+            core.toaster(msg);
+            refreshXState();
+        });
+    }
+
     private View chrootCell(LauncherEntry e) {
         LinearLayout cell = baseCell();
         cell.addView(chrootIconView(e));
         boolean run = xRunning.contains(e.id);
         cell.addView(cellLabel((run ? "\u25CF " : "") + e.name, run));
-        cell.setOnClickListener(v -> {
-            if ("webui".equals(e.type)) {
-                id.hawx.astro.x11.WebUiLauncher.launch(context, e);
-                return;
-            }
-            if ("webview".equals(e.type)) {
-                if (e.floating) {
-                    boolean shown = id.hawx.astro.x11.window.WebOverlayWindows
-                            .show(context, e.name, e.command);
-                    // Label dock (ikon entry) — no-op bila show()
-                    // gagal (tak ada overlay); jalur raise ikut segar.
-                    id.hawx.astro.x11.window.WebOverlayWindows.setDockLabelForPath(
-                            e.command,
-                            id.hawx.astro.x11.window.WebOverlayWindows.dockLabelFor(e.icon, e.name));
-                    if (shown) return;
-                }
-                Intent i = new Intent(context, id.hawx.astro.goose.GhostVizActivity.class);
-                i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_PATH, e.command);
-                i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_TITLE, e.name);
-                startActivity(i);
-                return;
-            }
-            if (e.floating) {
-                xMgr.launchFloating(e, (ok, d, msg) -> {
-                    core.toaster(msg);
-                    if (ok && d > 0)
-                        id.hawx.astro.MainActivity.openXWindowFrom(context, d,
-                                e.name + " · :" + d);
-                    refreshXState();
-                });
-                return;
-            }
-            xMgr.launch(e, (ok, msg) -> {
-                core.toaster(msg);
-                refreshXState();
-            });
-        });
+        cell.setOnClickListener(v -> launchEntry(e));
         cell.setOnLongClickListener(v -> {
             android.widget.PopupMenu pm = new android.widget.PopupMenu(context, v);
             pm.getMenu().add("Buka");
             pm.getMenu().add("Edit launcher");
             pm.getMenu().add("Kill");
+            pm.getMenu().add(isPinned(e.id) ? "Lepas dari dock" : "Pin ke dock");
             pm.setOnMenuItemClickListener(item -> {
                 String t = item.getTitle().toString();
-                if (t.equals("Edit launcher")) {
+                if (t.equals("Pin ke dock") || t.equals("Lepas dari dock")) {
+                    togglePin(e);
+                } else if (t.equals("Edit launcher")) {
                     Intent i = new Intent(context, LauncherEditActivity.class);
                     i.putExtra("entry_id", e.id);
                     startActivity(i);
@@ -705,33 +716,164 @@ public class Dashboard extends Fragment {
         return core.contains(key) ? core.getBoolean(key) : true;
     }
 
+    // ---- Pin launcher ke dock (ronde dock-pin, 2026-10-25) ----
+    // Pref "dock_pinned": daftar ID LauncherEntry dipisah koma, URUT
+    // sesuai urutan pin. V1: hanya lewat long-press sel desktop /
+    // long-press ikon dock; tanpa halaman Settings, tanpa
+    // drag-reorder, tanpa switch penyembunyi entry window (dilarang:
+    // mengulang masalah window hilang tanpa jejak).
+    private static final String PREF_DOCK_PINNED = "dock_pinned";
+
+    private java.util.List<String> pinnedIds() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        String raw = core == null ? "" : core.getString(PREF_DOCK_PINNED);
+        if (raw == null || raw.isEmpty()) return out;
+        for (String s : raw.split(",")) {
+            String id = s.trim();
+            if (!id.isEmpty() && !out.contains(id)) out.add(id);
+        }
+        return out;
+    }
+
+    private void setPinnedIds(java.util.List<String> ids) {
+        if (core == null) return;
+        core.putString(PREF_DOCK_PINNED, android.text.TextUtils.join(",", ids));
+    }
+
+    private boolean isPinned(String id) {
+        return id != null && pinnedIds().contains(id);
+    }
+
+    /** Entry yang di-pin, dalam urutan pin. ID yatim (entry sudah
+     *  dihapus dari LauncherStore) di-prune diam-diam dari pref
+     *  saat render menemukan mereka — tak pernah tampil ikon mati,
+     *  tak pernah crash. Bila launcherStore null (transien),
+     *  kembalikan kosong TANPA prune: jangan hapus pref hanya
+     *  karena data belum siap. */
+    private java.util.List<LauncherEntry> pinnedEntries() {
+        java.util.List<LauncherEntry> out = new java.util.ArrayList<>();
+        if (launcherStore == null) return out;
+        java.util.List<String> ids = pinnedIds();
+        java.util.List<LauncherEntry> all = launcherStore.list();
+        boolean pruned = false;
+        for (String id : ids) {
+            LauncherEntry found = null;
+            for (LauncherEntry e : all) {
+                if (id.equals(e.id)) { found = e; break; }
+            }
+            if (found != null) out.add(found);
+            else pruned = true;
+        }
+        if (pruned) {
+            java.util.List<String> kept = new java.util.ArrayList<>();
+            for (LauncherEntry e : out) kept.add(e.id);
+            setPinnedIds(kept);
+        }
+        return out;
+    }
+
+    private void setPin(LauncherEntry e, boolean pin) {
+        java.util.List<String> ids = pinnedIds();
+        if (pin) {
+            if (!ids.contains(e.id)) ids.add(e.id);
+            core.toaster(e.name + " di-pin ke dock");
+        } else {
+            ids.remove(e.id);
+            core.toaster(e.name + " dilepas dari dock");
+        }
+        setPinnedIds(ids);
+        buildDockFixed();
+        rebuildDisplays();
+    }
+
+    private void togglePin(LauncherEntry e) {
+        setPin(e, !isPinned(e.id));
+    }
+
     private void buildDesktopChrome(View view) {
         // Panel XFCE sekarang milik activity (MainActivity.buildPanel)
         // supaya tetap hidup saat tools kebuka sebagai jendela.
         LinearLayout dock = view.findViewById(R.id.xfce_dock);
         if (dock != null) {
             dockBar = dock;
-            dockFixedCount = 0;
-            // Item tetap dock DIPILIH user (System > Desktop): pref
-            // dock_item_<nama>, bawaan tampil semua.
-            if (dockItemOn("terminal")) {
-                dock.addView(dockIconBtn(id.hawx.astro.R.drawable.terminal, v -> openTerminal()));
-                dockFixedCount++;
-            }
-            if (dockItemOn("viewer")) {
-                dock.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }));
-                dockFixedCount++;
-            }
-            if (dockItemOn("sessions")) {
-                // Dulu: buka halaman PoC (Sesi & Log). Halaman PoC
-                // dipensiunkan — tombol ini jadi pintasan tambah
-                // launcher (editor launcher baru).
-                dock.addView(dockBtn("\uD83E\uDDFE", v ->
-                        startActivity(new Intent(context, LauncherEditActivity.class))));
-                dockFixedCount++;
-            }
+            buildDockFixed();
         }
         refreshXState();
+    }
+
+    /** Wilayah tetap dock: ikon switch (System > Desktop) + launcher
+     *  yang di-pin user, dalam urutan itu. Ikon tetap SELALU N anak
+     *  pertama dockBar — rebuildDisplays memangkas di atas
+     *  dockFixedCount, jadi wilayah ini tak tersentuh trim dinamis.
+     *  Dipakai saat view dibuat DAN tiap toggle pin: hapus N anak
+     *  pertama yang lama, sisip ulang di indeks 0..n lewat
+     *  addView(view, idx) supaya ikon tetap tetap di depan
+     *  pintasan dinamis yang sudah ada (tanpa restart). */
+    private void buildDockFixed() {
+        if (dockBar == null) return;
+        int n = dockFixedCount;
+        for (int i = 0; i < n && dockBar.getChildCount() > 0; i++)
+            dockBar.removeViewAt(0);
+        dockFixedCount = 0;
+        int idx = 0;
+        // Item tetap dock DIPILIH user (System > Desktop): pref
+        // dock_item_<nama>, bawaan tampil semua.
+        if (dockItemOn("terminal")) {
+            dockBar.addView(dockIconBtn(id.hawx.astro.R.drawable.terminal, v -> openTerminal()), idx++);
+            dockFixedCount++;
+        }
+        if (dockItemOn("viewer")) {
+            dockBar.addView(dockBtn("\uD83D\uDDA5", v -> { if (xMgr != null) xMgr.openViewer(); }), idx++);
+            dockFixedCount++;
+        }
+        if (dockItemOn("sessions")) {
+            // Dulu: buka halaman PoC (Sesi & Log). Halaman PoC
+            // dipensiunkan — tombol ini jadi pintasan tambah
+            // launcher (editor launcher baru).
+            dockBar.addView(dockBtn("\uD83E\uDDFE", v ->
+                    startActivity(new Intent(context, LauncherEditActivity.class))), idx++);
+            dockFixedCount++;
+        }
+        // Launcher yang di-pin user — SETELAH ikon switch, SEBELUM
+        // pemisah dinamis. Pinned TIDAK memicu pemisah (pemisah
+        // hanya bila ada entry dinamis: display X ATAU overlay).
+        for (LauncherEntry e : pinnedEntries()) {
+            dockBar.addView(dockPinBtn(e), idx++);
+            dockFixedCount++;
+        }
+    }
+
+    /** Ikon launcher yang di-pin di dock (ronde dock-pin): tampil
+     *  seperti ikon tetap (oval gelap 46dp, label = ikon entry atau
+     *  huruf pertama nama, pola yang sama dengan dockLabelFor).
+     *  Tap = launchEntry yang SAMA dengan tap sel desktop; tahan =
+     *  hanya "Lepas dari dock" (v1, tanpa aksi lain). */
+    private View dockPinBtn(LauncherEntry e) {
+        TextView b = new TextView(context);
+        b.setText(id.hawx.astro.x11.window.WebOverlayWindows.dockLabelFor(e.icon, e.name));
+        b.setTextSize(20);
+        b.setGravity(android.view.Gravity.CENTER);
+        b.setContentDescription(e.name != null ? e.name : "Launcher");
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(0xFF1B2440);
+        b.setBackground(g);
+        b.setTextColor(0xFFFFFFFF);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        b.setLayoutParams(lp);
+        b.setOnClickListener(v -> launchEntry(e));
+        b.setOnLongClickListener(v -> {
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(context, v);
+            pm.getMenu().add("Lepas dari dock");
+            pm.setOnMenuItemClickListener(item -> {
+                setPin(e, false);
+                return true;
+            });
+            pm.show();
+            return true;
+        });
+        return b;
     }
 
     /** Pintasan jendela di dock — SATU indikator gaya XFCE (keputusan
@@ -968,9 +1110,10 @@ public class Dashboard extends Fragment {
     private void refreshXState() {
         if (xMgr == null) return;
         rebuildDisplays();
-        // Jam + tombol Layar X di panel sekarang diurus MainActivity
-        // (panel milik activity); di sini cuma status jalan launcher
-        // buat titik indikator di grid desktop.
+        // Jam panel diurus MainActivity (panel milik activity);
+        // tombol panel "Layar X" sudah dihapus (ronde dock-pin) —
+        // di sini cuma status jalan launcher buat titik indikator
+        // di grid desktop.
         if (launcherStore != null) {
             new Thread(() -> {
                 java.util.Set<String> now = new java.util.HashSet<>();
