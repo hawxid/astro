@@ -19,6 +19,9 @@ import java.io.File;
 public class GhostVizActivity extends AppCompatActivity {
 
     public static final String EXTRA_PATH = "path";
+    /** Port server webui (bila > 0, activity ini milik mode webui:
+     *  finish -> matikan servernya). -1 = halaman web biasa. */
+    public static final String EXTRA_WEBUI_PORT = "webui_port";
 
     // Registry jendela web terbuka (buat "Kill" dari ikon desktop):
     // satu activity per berkas, ditutup lewat closeByPath.
@@ -69,9 +72,15 @@ public class GhostVizActivity extends AppCompatActivity {
                 "AstroBridge");
 
         if (path != null) {
-            File f = new File(path);
-            if (f.exists()) {
-                webView.loadUrl("file://" + f.getAbsolutePath());
+            if (path.startsWith("http://") || path.startsWith("https://")) {
+                // Mode webui: URL server localhost — load langsung,
+                // bukan sebagai path berkas.
+                webView.loadUrl(path);
+            } else {
+                File f = new File(path);
+                if (f.exists()) {
+                    webView.loadUrl("file://" + f.getAbsolutePath());
+                }
             }
         }
     }
@@ -82,6 +91,13 @@ public class GhostVizActivity extends AppCompatActivity {
         if (path != null) {
             java.lang.ref.WeakReference<GhostVizActivity> r = sOpen.get(path);
             if (r != null && r.get() == this) sOpen.remove(path);
+        }
+        // Fullscreen tidak punya hide (—): tutup = kill server.
+        // isFinishing() = back / closeByPath; rotasi (recreate)
+        // TIDAK mematikan server (activity tidak finishing).
+        int webuiPort = getIntent().getIntExtra(EXTRA_WEBUI_PORT, -1);
+        if (webuiPort > 0 && isFinishing()) {
+            id.hawx.astro.x11.WebUiLauncher.killServer(this, webuiPort);
         }
         super.onDestroy();
     }

@@ -21,8 +21,12 @@ public class LauncherEntry {
     /** Emoji/teks pendek; kosong -> monogram huruf pertama nama. "file:<nama>" -> PNG di /sdcard/Astro/icons/. */
     public String icon;
     public String command;
-    /** "gui" | "cli" | "webview" */
+    /** "gui" | "cli" | "webview" | "webui" */
     public String type;
+    /** Port web UI (mode "webui" saja); 0 = belum diatur. Host dikunci 127.0.0.1. */
+    public int port;
+    /** Path URL web UI (mode "webui" saja); default "/". */
+    public String urlPath;
     public String workdir;
     /** "KUNCI=nilai" per baris; boleh kosong. */
     public String env;
@@ -38,6 +42,8 @@ public class LauncherEntry {
         icon = "";
         command = "";
         type = "gui";
+        port = 0;
+        urlPath = "/";
         workdir = "/root";
         env = "";
         allowMultiple = false;
@@ -54,6 +60,8 @@ public class LauncherEntry {
         c.icon = icon;
         c.command = command;
         c.type = type;
+        c.port = port;
+        c.urlPath = urlPath;
         c.workdir = workdir;
         c.env = env;
         c.allowMultiple = allowMultiple;
@@ -90,6 +98,8 @@ public class LauncherEntry {
         o.put("icon", icon);
         o.put("command", command);
         o.put("type", type);
+        o.put("port", port);
+        o.put("urlPath", urlPath);
         o.put("workdir", workdir);
         o.put("env", env);
         o.put("allowMultiple", allowMultiple);
@@ -107,10 +117,15 @@ public class LauncherEntry {
         e.command = o.optString("command", "");
         // Dulu: semua yang bukan "cli" dipaksa "gui" — tipe "webview"
         // yang tersimpan BENAR ikut hilang tiap reload (temuan Hawx:
-        // ikon webview selalu fallback ke GUI Layar X). Kini ketiga
+        // ikon webview selalu fallback ke GUI Layar X). Kini keempat
         // tipe dipertahankan; yang tak dikenal tetap jatuh ke "gui".
+        // "webui" WAJIB ada di daftar ini — kalau tidak, entri webui
+        // yang tersimpan ikut hilang tiap reload (bug webview dulu,
+        // terulang).
         String t = o.optString("type", "gui");
-        e.type = "cli".equals(t) || "webview".equals(t) ? t : "gui";
+        e.type = "cli".equals(t) || "webview".equals(t) || "webui".equals(t) ? t : "gui";
+        e.port = o.optInt("port", 0);
+        e.urlPath = o.optString("urlPath", "/");
         e.workdir = o.optString("workdir", "/root");
         e.env = o.optString("env", "");
         e.allowMultiple = o.optBoolean("allowMultiple", false);

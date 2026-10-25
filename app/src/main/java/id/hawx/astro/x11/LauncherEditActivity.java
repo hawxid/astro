@@ -31,8 +31,10 @@ public class LauncherEditActivity extends AppCompatActivity {
     private LauncherEntry existing;
 
     private EditText fName, fIcon, fCommand, fWorkdir, fEnv;
+    private EditText fPort, fPath;
     private Spinner fType;
     private TextView fCommandLabel;
+    private TextView fPortLabel, fPathLabel;
     private CheckBox fMultiple;
     private CheckBox fFloating;
 
@@ -68,9 +70,19 @@ public class LauncherEditActivity extends AppCompatActivity {
         fType = new Spinner(this);
         ArrayAdapter<String> ad = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
                 new String[]{"GUI — tampil di Layar X", "CLI — jalan di terminal chroot",
-                        "WebView — jendela web kustom (HTML lokal)"});
+                        "WebView — jendela web kustom (HTML lokal)",
+                        "WebUI — server web di chroot (buka di webview)"});
         fType.setAdapter(ad);
         root.addView(fType);
+        // Baris Port/Path dibuat SEBELUM listener dipasang, supaya
+        // listener tidak pernah menyentuh field yang belum di-assign
+        // (aturan definite-assignment: listener jalan belakangan).
+        fPort = field(root, "Port web UI (1–65535; host dikunci 127.0.0.1)", "mis. 8080");
+        fPort.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        fPortLabel = (TextView) root.getChildAt(root.indexOfChild(fPort) - 1);
+        fPath = field(root, "Path URL (kosong = /)", "/");
+        fPathLabel = (TextView) root.getChildAt(root.indexOfChild(fPath) - 1);
+        showWebuiFields(false);
         fType.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent,
                                                  android.view.View view, int pos, long id) {
@@ -79,10 +91,17 @@ public class LauncherEditActivity extends AppCompatActivity {
                     fCommandLabel.setText("Berkas HTML (path lengkap berkas web lokal)");
                     fCommand.setHint("mis. /sdcard/Astro/tools/hitung.html");
                     fFloating.setText("Buka sebagai jendela melayang");
+                    showWebuiFields(false);
+                } else if (pos == 3) {
+                    fCommandLabel.setText("Perintah server chroot (pakai {PORT} untuk port)");
+                    fCommand.setHint("mis. python3 -m http.server {PORT}");
+                    fFloating.setText("Buka sebagai jendela melayang");
+                    showWebuiFields(true);
                 } else {
                     fCommandLabel.setText("Perintah (dijalankan di chroot, apa adanya)");
                     fCommand.setHint("mis. wireshark -i wlan0");
                     fFloating.setText("Buka sebagai jendela floating (display sendiri, bukan layar penuh)");
+                    showWebuiFields(false);
                 }
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
@@ -106,7 +125,10 @@ public class LauncherEditActivity extends AppCompatActivity {
             fIcon.setText(existing.icon);
             fCommand.setText(existing.command);
             fType.setSelection("cli".equals(existing.type) ? 1
-                    : "webview".equals(existing.type) ? 2 : 0);
+                    : "webview".equals(existing.type) ? 2
+                    : "webui".equals(existing.type) ? 3 : 0);
+            fPort.setText(existing.port > 0 ? String.valueOf(existing.port) : "");
+            fPath.setText(existing.urlPath);
             fWorkdir.setText(existing.workdir);
             fEnv.setText(existing.env);
             fMultiple.setChecked(existing.allowMultiple);
@@ -161,6 +183,15 @@ public class LauncherEditActivity extends AppCompatActivity {
         setContentView(outer);
     }
 
+    /** Baris Port/Path hanya relevan untuk tipe webui. */
+    private void showWebuiFields(boolean show) {
+        int v = show ? View.VISIBLE : View.GONE;
+        fPortLabel.setVisibility(v);
+        fPort.setVisibility(v);
+        fPathLabel.setVisibility(v);
+        fPath.setVisibility(v);
+    }
+
     private TextView label(String text) {
         TextView t = new TextView(this);
         t.setText(text);
@@ -196,7 +227,17 @@ public class LauncherEditActivity extends AppCompatActivity {
         e.icon = fIcon.getText().toString().trim();
         e.command = fCommand.getText().toString().trim();
         int tp = fType.getSelectedItemPosition();
-        e.type = tp == 1 ? "cli" : tp == 2 ? "webview" : "gui";
+        e.type = tp == 1 ? "cli" : tp == 2 ? "webview" : tp == 3 ? "webui" : "gui";
+        e.port = 0;
+        e.urlPath = "/";
+        if ("webui".equals(e.type)) {
+            try {
+                e.port = Integer.parseInt(fPort.getText().toString().trim());
+            } catch (NumberFormatException ignored) {
+                e.port = 0;
+            }
+            e.urlPath = WebUiLauncher.normalizePath(fPath.getText().toString());
+        }
         e.workdir = fWorkdir.getText().toString().trim();
         e.env = fEnv.getText().toString();
         e.allowMultiple = fMultiple.isChecked();
@@ -211,6 +252,10 @@ public class LauncherEditActivity extends AppCompatActivity {
         if (e.command.isEmpty()) {
             toast("webview".equals(e.type) ? "Berkas HTML tidak boleh kosong"
                     : "Perintah tidak boleh kosong");
+            return false;
+        }
+        if ("webui".equals(e.type) && !WebUiLauncher.validPort(e.port)) {
+            toast("Port webui harus 1–65535");
             return false;
         }
         return true;
@@ -228,6 +273,12 @@ public class LauncherEditActivity extends AppCompatActivity {
     private void testRun() {
         LauncherEntry e = collect(existing != null ? existing.id : "tes");
         if (!valid(e)) return;
+        if ("webui".equals(e.type)) {
+            // Alur yang sama dengan tap ikon desktop (cek port,
+            // start server bila perlu, buka webview).
+            WebUiLauncher.launch(this, e);
+            return;
+        }
         if ("webview".equals(e.type)) {
             if (e.floating) {
                 boolean shown = id.hawx.astro.x11.window.WebOverlayWindows

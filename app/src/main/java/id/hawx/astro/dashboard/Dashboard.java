@@ -563,6 +563,10 @@ public class Dashboard extends Fragment {
         boolean run = xRunning.contains(e.id);
         cell.addView(cellLabel((run ? "\u25CF " : "") + e.name, run));
         cell.setOnClickListener(v -> {
+            if ("webui".equals(e.type)) {
+                id.hawx.astro.x11.WebUiLauncher.launch(context, e);
+                return;
+            }
             if ("webview".equals(e.type)) {
                 if (e.floating) {
                     boolean shown = id.hawx.astro.x11.window.WebOverlayWindows
@@ -602,7 +606,20 @@ public class Dashboard extends Fragment {
                     i.putExtra("entry_id", e.id);
                     startActivity(i);
                 } else if (t.equals("Kill")) {
-                    if ("webview".equals(e.type)) {
+                    if ("webui".equals(e.type)) {
+                        // Kill webui = tutup window-nya (bila ada) +
+                        // matikan servernya via PID file — jalan juga
+                        // saat tidak ada window (server yatim).
+                        String url = id.hawx.astro.x11.WebUiLauncher.urlFor(e);
+                        boolean closed = id.hawx.astro.x11.window.WebOverlayWindows
+                                .closeByPath(url)
+                                || id.hawx.astro.goose.GhostVizActivity
+                                        .closeByPath(url);
+                        id.hawx.astro.x11.WebUiLauncher.killServer(context, e.port, killed -> {
+                            core.toaster(closed || killed ? e.name + " ditutup"
+                                    : e.name + " tidak sedang berjalan");
+                        });
+                    } else if ("webview".equals(e.type)) {
                         boolean closed = id.hawx.astro.x11.window.WebOverlayWindows
                                 .closeByPath(e.command)
                                 || id.hawx.astro.goose.GhostVizActivity

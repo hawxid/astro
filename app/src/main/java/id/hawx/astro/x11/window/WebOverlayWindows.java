@@ -44,6 +44,14 @@ public class WebOverlayWindows {
     private final Activity activity;
     private final WindowManager wm;
     private final String path;
+    /**
+     * Hook tutup (mode webui): dijalankan di close() saja — ✕ dan
+     * closeByPath. hide() (—) TIDAK menjalankannya (server webui
+     * tetap hidup saat window cuma disembunyikan). null = window
+     * webview biasa, tanpa efek samping. Di-set SETELAH konstruksi
+     * (show 4-arg), bukan dibaca lambda saat ctor berjalan.
+     */
+    private Runnable onClose;
     private final FrameLayout container;
     private final FrameLayout win;
     private final WebView webView;
@@ -69,6 +77,15 @@ public class WebOverlayWindows {
 
     /** @return false bila tak bisa tampil (izin/foreground) — pemanggil jatuh ke GhostViz. */
     public static boolean show(Context ctx, String title, String path) {
+        return show(ctx, title, path, null);
+    }
+
+    /**
+     * Varian dengan hook tutup (mode webui: onClose mematikan server
+     * saat window ditutup — bukan saat disembunyikan).
+     * @return false bila tak bisa tampil (izin/foreground) — pemanggil jatuh ke GhostViz.
+     */
+    public static boolean show(Context ctx, String title, String path, Runnable onClose) {
         if (!Settings.canDrawOverlays(ctx)) {
             Activity act = AstroApp.foregroundActivity();
             if (act != null) {
@@ -87,7 +104,9 @@ public class WebOverlayWindows {
             ex.raise();
             return true;
         }
-        new WebOverlayWindows(act, title, path).attach();
+        WebOverlayWindows w = new WebOverlayWindows(act, title, path);
+        w.onClose = onClose;
+        w.attach();
         return true;
     }
 
@@ -96,6 +115,19 @@ public class WebOverlayWindows {
         if (o == null) return false;
         o.close();
         return true;
+    }
+
+    /** Apakah overlay untuk path/URL ini sudah ada (terbuka atau disembunyikan). */
+    public static boolean isShowing(String path) {
+        return sByPath.containsKey(path);
+    }
+
+    /** Muat ulang halaman overlay yang ada (dipakai webui: server baru
+     *  di-start, window lama masih menampilkan halaman basi). No-op
+     *  bila tidak ada overlay untuk path itu. */
+    public static void reloadByPath(String path) {
+        WebOverlayWindows o = sByPath.get(path);
+        if (o != null) o.webView.reload();
     }
 
     public static void hideForPath(String path) {
@@ -510,6 +542,16 @@ public class WebOverlayWindows {
 
     private void close() {
         hide();
+        // Hook tutup HANYA di sini (✕ / closeByPath) — hide() di atas
+        // tidak menjalankannya, jadi server webui tetap hidup saat
+        // window cuma disembunyikan (—). Gagal hook tidak boleh
+        // menggagalkan hancurnya WebView.
+        if (onClose != null) {
+            try {
+                onClose.run();
+            } catch (Throwable ignored) {
+            }
+        }
         try {
             webView.destroy();
         } catch (Throwable ignored) {
