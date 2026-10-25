@@ -121,6 +121,21 @@ public class LauncherEditActivity extends AppCompatActivity {
         row1.addView(btn("Batal", v -> finish()));
         root.addView(row1);
 
+        // Ekspor/impor pindahan halaman PoC (dipensiunkan): dulu
+        // cuma ada di sana, sekarang tinggal di editor ini.
+        LinearLayout row3 = new LinearLayout(this);
+        row3.setOrientation(LinearLayout.HORIZONTAL);
+        row3.setPadding(0, dp(8), 0, 0);
+        row3.addView(btn("Ekspor ke /sdcard", v -> new Thread(() -> {
+            String msg = store.exportToSdcard();
+            runOnUiThread(() -> toast(msg));
+        }).start()));
+        row3.addView(btn("Impor dari /sdcard", v -> new Thread(() -> {
+            String msg = store.importFromSdcard();
+            runOnUiThread(() -> toast(msg));
+        }).start()));
+        root.addView(row3);
+
         if (existing != null) {
             LinearLayout row2 = new LinearLayout(this);
             row2.setOrientation(LinearLayout.HORIZONTAL);

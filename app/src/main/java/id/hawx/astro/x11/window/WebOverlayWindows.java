@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.provider.Settings;
@@ -11,6 +12,7 @@ import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -51,6 +53,11 @@ public class WebOverlayWindows {
     private boolean attached;
     private boolean maximized;
     private int prevX, prevY, prevW, prevH;
+    // Anchor maximize ke frame kelihatan (atas keyboard) — di-assign
+    // di akhir ctor (bukan di inisialisasi field), supaya tidak ada
+    // lambda yang membaca field selagi ctor berjalan.
+    private ViewTreeObserver.OnGlobalLayoutListener frameListener;
+    private boolean frameListening;
 
     // ---------------- statis ----------------
 
@@ -226,6 +233,10 @@ public class WebOverlayWindows {
                 android.view.WindowInsets in = container.getRootWindowInsets();
                 if (in != null) applyImeResize(in);
             }
+            // Evaluasi anchor frame juga di sini (kasus maximize
+            // dengan keyboard sudah buka: tak ada layout baru yang
+            // memicu listener, tapi frame kelihatan saat ini valid).
+            if (maximized) onVisibleFrame();
         });
         bar.addView(maxBtn);
         bar.addView(chromeBtn("✕", v -> close()));
@@ -268,6 +279,16 @@ public class WebOverlayWindows {
             });
         }
 
+        // Anchor frame kelihatan: listener insets batch kemarin GAGAL
+        // di perangkat (maximize tetap ketutup keyboard) — penyebab
+        // runtime-nya belum diketahui (insets tak sampai / imeH 0 /
+        // resize tak ngefek). Mekanisme kedua ini tidak tergantung
+        // dispatch WindowInsets: tiap layout global, frame kelihatan
+        // pembungkus diukur sendiri — bawah frame = atas keyboard
+        // saat keyboard buka. Didaftar di attach()/raise(), dilepas
+        // di hide() (sebelum removeView, selagi observer masih hidup).
+        frameListener = () -> onVisibleFrame();
+
     }
 
     /** Salinan persis chromeButton XFloatingWindow: TextView
@@ -298,23 +319,60 @@ public class WebOverlayWindows {
      * tetap ke rect floating semula).
      */
     private void applyImeResize(android.view.WindowInsets insets) {
-        if (!maximized || !attached || insets == null) return;
+        if (insets == null) return;
         int imeH = 0;
-        if (insets.isVisible(android.view.WindowInsets.Type.ime())) {
-            imeH = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
-        }
+        boolean vis = insets.isVisible(android.view.WindowInsets.Type.ime());
+        if (vis) imeH = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
         android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
         wm.getDefaultDisplay().getRealMetrics(dm);
         int wantH = dm.heightPixels - imeH;
-        if (wantH <= 0 || wlp.height == wantH) return;
+        // Log tiap evaluasi (termasuk saat tak maximize — volume
+        // rendah, cuma tiap perubahan IME — supaya kelihatan apakah
+        // listener ini jalan sama sekali di perangkat).
+        X11DebugLog.log("WEBOV", "ime: max=" + maximized + " att=" + attached
+                + " vis=" + vis + " imeH=" + imeH + " wantH=" + wantH
+                + " curH=" + wlp.height);
+        setMaxHeight(wantH);
+    }
+
+    /** Satu-satunya penulis tinggi maximize: guard idempotensi +
+     *  prevH tidak pernah disentuh (restore tetap ke rect floating). */
+    private void setMaxHeight(int wantH) {
+        if (!maximized || !attached || wantH <= 0 || wlp.height == wantH) return;
         wlp.height = wantH;
         wm.updateViewLayout(container, wlp);
+    }
+
+    /** Anchor maximize ke frame kelihatan: bawah frame = atas
+     *  keyboard saat keyboard buka, = bawah layar saat tutup.
+     *  Hanya jalan selagi maximize (layout lain tidak di-spam log). */
+    private void onVisibleFrame() {
+        if (!maximized || !attached) return;
+        Rect r = new Rect();
+        container.getWindowVisibleDisplayFrame(r);
+        int wantH = r.bottom - wlp.y;
+        X11DebugLog.log("WEBOV", "frame: fTop=" + r.top + " fBot=" + r.bottom
+                + " wlpY=" + wlp.y + " wantH=" + wantH + " curH=" + wlp.height);
+        setMaxHeight(wantH);
+    }
+
+    private void startFrameListener() {
+        if (frameListening || frameListener == null) return;
+        container.getViewTreeObserver().addOnGlobalLayoutListener(frameListener);
+        frameListening = true;
+    }
+
+    private void stopFrameListener() {
+        if (!frameListening) return;
+        container.getViewTreeObserver().removeOnGlobalLayoutListener(frameListener);
+        frameListening = false;
     }
 
     private void attach() {
         sByPath.put(path, this);
         wm.addView(container, wlp);
         attached = true;
+        startFrameListener();
         File f = new File(path);
         if (f.exists()) {
             webView.loadUrl("file://" + f.getAbsolutePath());
@@ -331,11 +389,16 @@ public class WebOverlayWindows {
         if (!attached) {
             wm.addView(container, wlp);
             attached = true;
+            startFrameListener();
         }
     }
 
     private void hide() {
         if (attached) {
+            // Lepas listener SEBELUM removeView: observer view yang
+            // sudah dilepas mati, dan pendaftaran lamanya tak bisa
+            // dihapus dari observer baru.
+            stopFrameListener();
             wm.removeView(container);
             attached = false;
         }

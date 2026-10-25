@@ -37,7 +37,7 @@ import java.util.Locale;
 import id.hawx.astro.x11.LauncherEditActivity;
 import id.hawx.astro.x11.LauncherEntry;
 import id.hawx.astro.x11.LauncherStore;
-import id.hawx.astro.x11.X11PocActivity;
+import id.hawx.astro.x11.XServerOps;
 import id.hawx.astro.x11.XSessionManager;
 
 /**
@@ -49,7 +49,7 @@ import id.hawx.astro.x11.XSessionManager;
  *  - buildTools(): grid ikon polos di wallpaper — tool bawaan, lalu
  *    launcher chroot dari LauncherStore, lalu sel Tambah
  *  - panel atas XFCE: Applications (drawer), tombol Layar X, Customize, jam
- *  - dock bawah melayang: Terminal, Layar X, Sesi & Log, Tambah
+ *  - dock bawah melayang: Terminal, Layar X, Tambah Launcher, Tambah
  * Semua kartu status/banner/recent/social/VM lama sudah dihapus;
  * riwayatnya ada di git.
  */
@@ -638,8 +638,11 @@ public class Dashboard extends Fragment {
                 dockFixedCount++;
             }
             if (dockItemOn("sessions")) {
+                // Dulu: buka halaman PoC (Sesi & Log). Halaman PoC
+                // dipensiunkan — tombol ini jadi pintasan tambah
+                // launcher (editor launcher baru).
                 dock.addView(dockBtn("\uD83E\uDDFE", v ->
-                        startActivity(new Intent(context, X11PocActivity.class))));
+                        startActivity(new Intent(context, LauncherEditActivity.class))));
                 dockFixedCount++;
             }
         }
@@ -710,6 +713,53 @@ public class Dashboard extends Fragment {
         return b;
     }
 
+    /** Pintasan display :0 di dock — :0 itu fullscreen, bukan
+     *  jendela layer, jadi tidak pakai dockWinBtn (tap layer /
+     *  status layer tak berlaku). Tap = viewer fullscreen lewat
+     *  rute yang sudah ada; tahan = Matikan (stopDisplay).
+     *  Muncul hanya selagi server :0 jalan. */
+    private View dockZeroBtn() {
+        TextView b = new TextView(context);
+        b.setText(":0");
+        b.setTextSize(14);
+        b.setTypeface(null, android.graphics.Typeface.BOLD);
+        b.setGravity(android.view.Gravity.CENTER);
+        b.setContentDescription("Display :0");
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(0xFF2A3B6E);
+        b.setTextColor(0xFFFFFFFF);
+        b.setBackground(g);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        b.setLayoutParams(lp);
+        b.setTag("dock-zero");
+        b.setOnClickListener(v -> {
+            if (xMgr != null) xMgr.openViewerForDisplay(0);
+        });
+        b.setOnLongClickListener(v -> {
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(context, v);
+            pm.getMenu().add("Display · :0");
+            pm.getMenu().add("Matikan");
+            pm.setOnMenuItemClickListener(item -> {
+                if (item.getTitle().toString().equals("Matikan")) {
+                    if (xMgr != null) {
+                        xMgr.stopDisplay(0, (ok, msg) -> {
+                            core.toaster(msg);
+                            refreshXState();
+                        });
+                    }
+                } else {
+                    if (xMgr != null) xMgr.openViewerForDisplay(0);
+                }
+                return true;
+            });
+            pm.show();
+            return true;
+        });
+        return b;
+    }
+
     /** Dipanggil MainActivity tiap jendela layer berubah (buka /
      *  tutup / sembunyi / pulih) supaya indikator dock selalu segar. */
     public void refreshDisplays() {
@@ -740,6 +790,32 @@ public class Dashboard extends Fragment {
             }
             for (XSessionManager.DisplayInfo di : list)
                 dockBar.addView(dockWinBtn(di));
+            // Display :0 TIDAK masuk listDisplays (loop 1..4) —
+            // probe terpisah di sini, tanpa menyentuh loop itu dan
+            // tanpa mutasi state terminal (aturan log 35). Trim di
+            // awal callback sudah menghapus entry :0 lama; probe ini
+            // menambahkannya lagi hanya selagi server :0 jalan.
+            if (xMgr != null) {
+                xMgr.probe((state, detail) -> {
+                    if (dockBar == null) return;
+                    if (state == XServerOps.State.RUNNING
+                            && dockBar.findViewWithTag("dock-zero") == null) {
+                        // Pemisah tetap-vs-dinamis bila belum ada
+                        // (kasus: tak ada :1-:4 jalan, cuma :0).
+                        if (dockBar.getChildCount() == dockFixedCount) {
+                            View sep = new View(context);
+                            android.widget.LinearLayout.LayoutParams slp =
+                                    new android.widget.LinearLayout.LayoutParams(dp(1), dp(28));
+                            slp.setMargins(dp(6), 0, dp(6), 0);
+                            slp.gravity = android.view.Gravity.CENTER_VERTICAL;
+                            sep.setLayoutParams(slp);
+                            sep.setBackgroundColor(0xFF3A4767);
+                            dockBar.addView(sep);
+                        }
+                        dockBar.addView(dockZeroBtn());
+                    }
+                });
+            }
         });
     }
 

@@ -225,14 +225,6 @@
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />
 
-        <!-- Sesi & Launcher X11: sejak integrasi M3 (2026-10-21) ini layar
-             INTERNAL — dibuka dari dock Dashboard (Sesi & Log), tanpa ikon
-             launcher sendiri (keputusan bentuk produk Hawx: satu app). -->
-        <activity
-            android:name=".x11.X11PocActivity"
-            android:exported="false"
-            android:taskAffinity="id.hawx.astro.x11task"
-            android:label="Astro X11" />
         <!-- Editor launcher X11 (internal) -->
         <activity
             android:name=".x11.LauncherEditActivity"

@@ -232,7 +232,11 @@ public class DesktopSettingsFragment extends Fragment {
         dockSec.addView(dh);
         dockSec.addView(dockSwitch(prefs, "terminal", "Terminal"));
         dockSec.addView(dockSwitch(prefs, "viewer", "Layar X (viewer)"));
-        dockSec.addView(dockSwitch(prefs, "sessions", "Sesi & Log"));
+        // Label mengikuti fungsi baru tombol 🧾 (dulu buka halaman
+        // PoC "Sesi & Log", sekarang pintasan tambah launcher);
+        // kunci pref "sessions" dipertahankan supaya pref lama
+        // tidak rusak.
+        dockSec.addView(dockSwitch(prefs, "sessions", "Tambah Launcher"));
 
         // ================= sub: Wallpaper (v1) =================
         LinearLayout wpSec = section(root, "Wallpaper", false);
