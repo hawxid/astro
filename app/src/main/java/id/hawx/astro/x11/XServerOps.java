@@ -155,7 +155,6 @@ public class XServerOps {
         String summary = "d" + disp + " " + p.state + "/sock=" + p.sock + "/zombie=" + p.zombie + " " + p.detail;
         if (!summary.equals(lastProbeSummary)) {
             lastProbeSummary = summary;
-            X11DebugLog.log("PROBE", summary);
         }
         return p;
     }
@@ -260,7 +259,6 @@ public class XServerOps {
         }
         if (p.zombie) {
             report.append("server zombie/banci (listener/socket tak sehat) — dibunuh, start ulang. ");
-            X11DebugLog.log("ZOMBIE", "probe=" + p.detail + " sock=" + p.sock + " — bunuh + start ulang");
             killServerSync(d);
             // tunggu listener lama benar-benar lepas dari /proc/net/unix
             long dl = System.currentTimeMillis() + 3_000L;
@@ -271,7 +269,6 @@ public class XServerOps {
             }
         }
         String out = run(startScript(d));
-        X11DebugLog.log("SPAWN", "hasil startScript: " + out.trim().replace("\n", " | "));
         if (!out.contains("PIDFILE_OK")) {
             report.append("spawn gagal menulis file PID. Log: ").append(tailServerLog(d));
             return false;
@@ -294,13 +291,11 @@ public class XServerOps {
                 } catch (Exception e) {
                     report.append("server jalan (setup sesi: ").append(e).append(')');
                 }
-                X11DebugLog.log("SESI", "server JALAN + socket siap — " + report);
                 return true;
             }
             try { Thread.sleep(200); } catch (InterruptedException ignored) {}
         }
         report.append("timeout 10 detik menunggu socket. Log: ").append(tailServerLog(d));
-        X11DebugLog.log("SPAWN", "TIMEOUT 10s menunggu socket d" + d + ". Log server: " + tailServerLog(d));
         return false;
     }
 
@@ -321,7 +316,6 @@ public class XServerOps {
                 + "if [ -d /proc/$P ] && [ \"$(awk '{print $22}' /proc/$P/stat 2>/dev/null)\" = \"$S\" ]; then "
                 + "kill -KILL $P 2>/dev/null; fi; fi; "
                 + "rm -f " + sockPath(d) + " " + pidPath(d) + " " + tmp() + "/.X" + d + "-lock");
-        X11DebugLog.log("KILL", "server d" + d + " dimatikan (penjaga starttime), socket + file PID dibersihkan");
     }
 
     /** Cek proses entri hidup dari file PID-nya + verifikasi token cmdline (anti PID-reuse). */
@@ -377,9 +371,7 @@ public class XServerOps {
                 + ".log 2>&1 </dev/null &)";
         try {
             core.threadChrootCommand(cmd);
-            X11DebugLog.log("FIT", "fit sekali d=" + d + " " + entryId + " " + w + "x" + h);
         } catch (Exception e) {
-            X11DebugLog.log("FIT", "gagal fit: " + e);
         }
     }
 }

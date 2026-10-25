@@ -94,21 +94,17 @@ public class XWindowHost implements XHost {
     private boolean serverRecoveryTried;
 
     public XWindowHost(Activity activity, int display) {
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "host dibuat display=" + display);
         this.activity = activity;
         this.display = display;
         this.tag = "d" + display;
         LorieApp app = (LorieApp) activity.getApplicationContext();
         this.prefs = app.getPrefs(activity);
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "sebelum LorieView display=" + display);
         this.view = new LorieView(activity, null);
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "LorieView jadi display=" + display);
         view.setHost(this);
         InputEventSender sender = new InputEventSender(this, view);
         this.inputHandler = new TouchInputHandler(this, sender);
         view.setCallback((screenWidth, screenHeight, inputTransform) ->
                 inputHandler.handleInputTransformChanged(screenWidth, screenHeight, inputTransform));
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "handler jadi display=" + display);
         android.view.View.OnKeyListener keyListener =
                 (v, keyCode, e) -> inputHandler.sendKeyEvent(e);
         view.setOnKeyListener(keyListener);
@@ -138,7 +134,6 @@ public class XWindowHost implements XHost {
         view.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
             @Override public void surfaceCreated(android.view.SurfaceHolder h) {
                 surfaceReady = true;
-                id.hawx.astro.x11.X11DebugLog.log("FLOAT", "surface lahir tag=" + tag);
                 tryConnect();
             }
             @Override public void surfaceChanged(android.view.SurfaceHolder h,
@@ -180,7 +175,6 @@ public class XWindowHost implements XHost {
 
     /** Mulai mendengarkan ketukan server + ambil koneksi yang sudah pending. */
     public void attach() {
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "attach mulai tag=" + tag);
         knockReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context ctx, Intent intent) {
@@ -195,11 +189,9 @@ public class XWindowHost implements XHost {
         ContextCompat.registerReceiver(activity, knockReceiver,
                 new IntentFilter(CmdEntryPoint.ACTION_START),
                 ContextCompat.RECEIVER_NOT_EXPORTED);
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "receiver terdaftar tag=" + tag);
 
         LorieApp app = (LorieApp) activity.getApplicationContext();
         IBinder pending = app.pendingConnections.get(tag);
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "attach tag=" + tag + " pending=" + (pending != null));
         if (pending != null) connectToService(pending);
         else tryConnect();
         // SERAH-TERIMA: selama viewer fullscreen hidup, knock diabisin dia
@@ -227,7 +219,6 @@ public class XWindowHost implements XHost {
     private void pollHandoffStep() {
         if (view.connected()) return;
         if (++handoffTries > 24) {
-            id.hawx.astro.x11.X11DebugLog.log("HANDOFF", "poll menyerah tag=" + tag);
             return;
         }
         // Binder tak datang-datang (±6 dtk), tak ada instance fullscreen:
@@ -236,8 +227,6 @@ public class XWindowHost implements XHost {
         if (handoffTries == 12 && !recoveryTried && display > 0) {
             recoveryTried = true;
             handoffTries = 0;
-            id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
-                    "poll: binder macet tag=" + tag + " -> minta pemulihan server");
             if (id.hawx.astro.x11.XTerminalManager.isTerminalDisplay(display))
                 id.hawx.astro.x11.XTerminalManager.get(activity).recoverTerminalDisplay(display);
             else
@@ -245,14 +234,11 @@ public class XWindowHost implements XHost {
         }
         com.termux.x11.MainActivity inst = com.termux.x11.MainActivity.getInstance(tag);
         if (inst != null) {
-            id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
-                    "poll: tutup viewer fullscreen tag=" + tag + " try=" + handoffTries);
             inst.finish();
         } else {
             LorieApp app = (LorieApp) activity.getApplicationContext();
             IBinder pending = app.pendingConnections.get(tag);
             if (pending != null) {
-                id.hawx.astro.x11.X11DebugLog.log("HANDOFF", "poll: pending ketemu tag=" + tag);
                 connectToService(pending);
                 if (view.connected()) return;
             }
@@ -274,15 +260,11 @@ public class XWindowHost implements XHost {
             if (knocksWhileConnected == 3 && !halfOpenStage1Tried) {
                 halfOpenStage1Tried = true;
                 knocksWhileConnected = 0;
-                id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
-                        "koneksi setengah terbuka tag=" + tag + " -> putus + sambung ulang");
                 disconnectService();
                 // jatuh ke bawah: sambung ulang dengan binder segar ini
             } else if (knocksWhileConnected >= 3 && halfOpenStage1Tried
                     && !serverRecoveryTried) {
                 serverRecoveryTried = true;
-                id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
-                        "setengah terbuka bandel tag=" + tag + " -> restart server");
                 if (id.hawx.astro.x11.XTerminalManager.isTerminalDisplay(display))
                     id.hawx.astro.x11.XTerminalManager.get(activity).recoverTerminalDisplay(display);
                 else
@@ -301,12 +283,9 @@ public class XWindowHost implements XHost {
         // dia masih terdaftar = error arbitrase upstream.
         com.termux.x11.MainActivity fsViewer = com.termux.x11.MainActivity.getInstance(tag);
         if (fsViewer != null) {
-            id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
-                    "tutup viewer fullscreen tag=" + tag + ", tunggu knock berikut");
             fsViewer.finish();
             return;
         }
-        id.hawx.astro.x11.X11DebugLog.log("FLOAT", "connectToService tag=" + tag);
         service = ICmdEntryInterface.Stub.asInterface(binder);
         try {
             if (service != null && service.asBinder().isBinderAlive()) {
@@ -343,7 +322,6 @@ public class XWindowHost implements XHost {
         }
         try {
             ParcelFileDescriptor fd = service.getXConnection();
-            id.hawx.astro.x11.X11DebugLog.log("FLOAT", "tryConnect fd=" + (fd != null) + " tag=" + tag);
             if (fd != null) {
                 view.connect(fd.detachFd());
                 view.triggerCallback();
@@ -352,14 +330,6 @@ public class XWindowHost implements XHost {
                 // DIAGNOSTIK render: dump status view/surface 1,5 dtk pasca-koneksi.
                 handler.postDelayed(() -> {
                     android.view.Surface sfc = view.getHolder().getSurface();
-                    id.hawx.astro.x11.X11DebugLog.log("FLOAT",
-                            "dump render d=" + display
-                            + " view=" + view.getWidth() + "x" + view.getHeight()
-                            + " attached=" + view.isAttachedToWindow()
-                            + " visible=" + view.getVisibility()
-                            + " shown=" + view.isShown()
-                            + " surfaceValid=" + (sfc != null && sfc.isValid())
-                            + " connected=" + view.connected());
                 }, 1500);
             } else {
                 scheduleConnect();
@@ -379,8 +349,6 @@ public class XWindowHost implements XHost {
 
     /** Tampilkan keyboard lunak + minta strip softkey naik (satu gerakan). */
     public void showKeyboardAndStrip() {
-        id.hawx.astro.x11.X11DebugLog.log("KB", "showKeyboardAndStrip d=" + display
-                + " focused=" + view.isFocused() + " winFocus=" + view.hasWindowFocus());
         view.setKeyboardVisible(true);
         stripVisible = true;
         if (listener != null) listener.onStripVisibilityRequested(this, true);

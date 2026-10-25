@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import id.hawx.astro.AstroApp;
-import id.hawx.astro.x11.X11DebugLog;
 
 /**
  * Bentuk MELAYANG jendela webview (keputusan Hawx: webview selama
@@ -218,10 +217,34 @@ public class WebOverlayWindows {
                 prevH = wlp.height;
                 DisplayMetrics dm = new DisplayMetrics();
                 wm.getDefaultDisplay().getRealMetrics(dm);
-                wlp.x = 0;
-                wlp.y = 0;
-                wlp.width = dm.widthPixels;
-                wlp.height = dm.heightPixels;
+                // Maximize = TEPAT frame kelihatan, bukan mentah
+                // realMetrics: rect mentah mengabaikan status bar —
+                // window yang diminta setinggi layar penuh nyatanya
+                // dipotong WM di frame konten, dan selisihnya yang
+                // bikin bawah halaman melar dikit (footer kepotong
+                // setengah baris di gulir mentok, tanpa keyboard).
+                // Frame kelihatan = ground truth yang sama dengan
+                // anchor keyboard; kalau frame tak valid, fallback
+                // ke rect lama (tak pernah nol/negatif).
+                Rect fr = new Rect();
+                container.getWindowVisibleDisplayFrame(fr);
+                // Guard: frame harus seukuran layar (bukan seukuran
+                // window floating) — kalau API ternyata mengembalikan
+                // frame window sendiri, fallback ke rect lama (tak ada
+                // regresi; anchor frame sesudahnya tetap mengoreksi).
+                if (fr.bottom > fr.top && fr.right > fr.left
+                        && fr.right - fr.left >= dm.widthPixels * 0.9f
+                        && fr.bottom - fr.top >= dm.heightPixels * 0.9f) {
+                    wlp.x = fr.left;
+                    wlp.y = fr.top;
+                    wlp.width = fr.right - fr.left;
+                    wlp.height = fr.bottom - fr.top;
+                } else {
+                    wlp.x = 0;
+                    wlp.y = 0;
+                    wlp.width = dm.widthPixels;
+                    wlp.height = dm.heightPixels;
+                }
                 maximized = true;
                 maxBtn.setText("❐");
             }
@@ -330,13 +353,12 @@ public class WebOverlayWindows {
         if (vis) imeH = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
         android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
         wm.getDefaultDisplay().getRealMetrics(dm);
-        int wantH = dm.heightPixels - imeH;
-        // Log tiap evaluasi + keputusannya: SKIP = imeH 0 diabaikan
-        // (bukti log berikutnya: baris ime tak lagi mengubah tinggi).
+        // Tinggi = (bawah layar - imeH) - wlp.y: bawah window harus
+        // mendarat tepat di atas keyboard, bukan setinggi itu dari
+        // atas window (maximize kini ber-y = atas frame, bukan 0).
+        int wantH = dm.heightPixels - imeH - wlp.y;
+        // SKIP = imeH 0 diabaikan total (tidak pernah menulis).
         boolean skip = imeH <= 0;
-        X11DebugLog.log("WEBOV", "ime: max=" + maximized + " att=" + attached
-                + " vis=" + vis + " imeH=" + imeH + " wantH=" + wantH
-                + " curH=" + wlp.height + (skip ? " SKIP" : ""));
         if (skip) return;
         setMaxHeight(wantH);
     }
@@ -358,8 +380,6 @@ public class WebOverlayWindows {
         Rect r = new Rect();
         container.getWindowVisibleDisplayFrame(r);
         int wantH = r.bottom - wlp.y;
-        X11DebugLog.log("WEBOV", "frame: fTop=" + r.top + " fBot=" + r.bottom
-                + " wlpY=" + wlp.y + " wantH=" + wantH + " curH=" + wlp.height);
         setMaxHeight(wantH);
     }
 
@@ -389,7 +409,6 @@ public class WebOverlayWindows {
             webView.loadData("<h3>Berkas tidak ditemukan</h3><p>" + path + "</p>",
                     "text/html", "UTF-8");
         }
-        X11DebugLog.log("WEBOV", "tampil: " + path);
     }
 
     private void raise() {

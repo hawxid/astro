@@ -17,16 +17,6 @@ public class AstroApp extends com.termux.x11.LorieApp {
 
     @Override
     public void onCreate() {
-        // DIAGNOSTIK SEMENTARA: tangkap stack trace crash ke log debug X11.
-        final Thread.UncaughtExceptionHandler prevCrash =
-                Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-            try {
-                id.hawx.astro.x11.X11DebugLog.log("CRASH",
-                        t.getName() + ": " + android.util.Log.getStackTraceString(e));
-            } catch (Throwable ignored) {}
-            if (prevCrash != null) prevCrash.uncaughtException(t, e);
-        });
         super.onCreate();
         // Pisah sebagian: watcher gabungan terminal di-bootstrap di
         // sini (get() men-sync watcher-nya sendiri, gate mounted).
@@ -40,8 +30,6 @@ public class AstroApp extends com.termux.x11.LorieApp {
                     public void onReceive(android.content.Context c,
                                           android.content.Intent i) {
                         int pid = i.getIntExtra("pid", 0);
-                        id.hawx.astro.x11.X11DebugLog.log("TAB",
-                                "broadcast TAB_REMOVED diterima pid=" + pid);
                         if (pid > 0) {
                             id.hawx.astro.x11.XTerminalManager.get(c)
                                     .onTabRemoved(pid);

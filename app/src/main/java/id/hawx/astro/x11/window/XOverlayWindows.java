@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import id.hawx.astro.AstroApp;
-import id.hawx.astro.x11.X11DebugLog;
 
 /**
  * Rumah jendela melayang kelahiran terminal (xrun) — METODE SAMA
@@ -79,7 +78,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
      */
     public static void releaseFocus() {
         XKeyRouter.clear();
-        X11DebugLog.log("OVERLAY", "router dilepas (tombol keyboard terminal)");
     }
 
     // ---- Patokan TUNGGAL pengunci di atas softkey ----
@@ -157,9 +155,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 lp.width = maxW;
                 lp.height = maxH;
                 o.win.setLayoutParams(lp);
-                X11DebugLog.log("ANCHOR", "d=" + o.display
-                        + " anchorT=" + anchorT + " anchorB=" + anchorB
-                        + " max top=" + maxT + " h=" + maxH);
                 continue;
             }
             int curTop = lp.topMargin;
@@ -184,10 +179,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 // Pengaman: anchor lebih pendek dari 200dp — biarkan
                 // jendela apa adanya, catat saja (tanpa simpan).
                 if (anchorH < Math.round(200 * density)) {
-                    X11DebugLog.log("ANCHOR", "d=" + o.display
-                            + " anchorT=" + anchorT + " anchorB=" + anchorB
-                            + " potong ditahan: anchorH=" + anchorH
-                            + "px < 200dp top=" + curTop + " h=" + curH);
                     continue;
                 }
                 fitTop = anchorT;
@@ -243,11 +234,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             } else {
                 kind = "potong";
             }
-            X11DebugLog.log("ANCHOR", "d=" + o.display
-                    + " anchorT=" + anchorT + " anchorB=" + anchorB
-                    + " top " + curTop + "->" + newTop
-                    + " h=" + curH + "->" + newH
-                    + " " + kind);
         }
     }
 
@@ -351,7 +337,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             XKeyRouter.clear();
         }
         o.refocusTerminalSoon();
-        X11DebugLog.log("OVERLAY", "tutup (lifecycle) :" + display);
     }
 
     /**
@@ -364,7 +349,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         Activity act = AstroApp.foregroundActivity();
         if (act == null
                 || !act.getClass().getName().contains("NeoTermActivity")) {
-            X11DebugLog.log("OVERLAY", "foreground bukan terminal — jatuh ke desktop");
             return false;
         }
         XOverlayWindows existing = sByDisplay.get(display);
@@ -380,8 +364,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 // HANYA mengulang jebakan setengah-terbuka. Buang
                 // instance lama, jatuh ke jalur instance baru di
                 // bawah (attach ulang + knock baru).
-                X11DebugLog.log("OVERLAY", "d=" + display
-                        + " host putus — instance lama dibuang, buat baru");
                 existing.close();
             } else {
                 existing.raise();
@@ -446,7 +428,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         host.attach();
         setActive();
         startAnchorWatch();
-        X11DebugLog.log("OVERLAY", "tampil (decor) :" + display);
     }
 
     private void raise() {
@@ -465,7 +446,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             sActive = null;
             XKeyRouter.clear();
         }
-        X11DebugLog.log("OVERLAY", "sembunyi :" + display);
         refocusTerminalSoon();
     }
 
@@ -590,8 +570,6 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         // posisi manual dengan fitted(saved). Sekali per episode
         // (log hanya bila simpanan memang ada).
         if (anchorSavedH > 0) {
-            X11DebugLog.log("ANCHOR", "d=" + display
-                    + " simpanan rect dihapus (drag/resize manual)");
             anchorSavedH = -1;
             anchorSavedTop = -1;
         }
@@ -613,6 +591,5 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
     public void onStripVisibilityRequested(XWindowHost h, boolean visible) {
         // Layer terminal TANPA strip: tombol khususnya bar bawaan
         // terminal via XKeyRouter.
-        X11DebugLog.log("OVERLAY", "strip diminta " + visible + " — diabaikan (bar terminal)");
     }
 }

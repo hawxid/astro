@@ -127,11 +127,9 @@ public class XTerminalManager {
             // profile cuma update saat mount — tanpa ini tab baru tak
             // kenal xrun()).
             refreshLiveProfile();
-            X11DebugLog.log("XRUN", "watcher gabung AKTIF (poll 2 detik, gate mounted) + profil hidup disegarkan");
         } else if (!want && watcherPoller != null) {
             watcherPoller.shutdownNow();
             watcherPoller = null;
-            X11DebugLog.log("XRUN", "watcher gabung mati (chroot unmounted)");
         }
     }
 
@@ -145,9 +143,7 @@ public class XTerminalManager {
             if (!core.isMounted()) return;
             core.customCommand("cp /data/data/id.hawx.astro/files/astro_profile.sh "
                     + Core.CHROOT_ROOT + "/etc/astro_profile.sh 2>/dev/null; true");
-            X11DebugLog.log("TAB", "profil hidup disegarkan dari asset");
         } catch (Throwable t) {
-            X11DebugLog.log("TAB", "segarkan profil gagal: " + t);
         }
     }
 
@@ -212,7 +208,6 @@ public class XTerminalManager {
                 if (epoch > 0
                         && System.currentTimeMillis() / 1000 - epoch > STALE_SEC) {
                     core.customChrootCommand("rm -f " + REQ_DIR + "/" + name);
-                    X11DebugLog.log("XRUN", "request basi dibuang: " + name);
                     continue;
                 }
                 reqs.add(new Req(kind, ppid, epoch, name));
@@ -279,7 +274,6 @@ public class XTerminalManager {
         try {
             if (!core.isMounted()) return;
             core.threadChrootCommand("export DISPLAY=:" + d + "; " + XServerOps.openboxReviveCommand(d));
-            X11DebugLog.log("DON", "revive openbox don :" + d);
         } catch (Throwable ignored) {
         }
     }
@@ -295,7 +289,6 @@ public class XTerminalManager {
                     + " && printf '%s' '" + content + "' > "
                     + READY_DIR + "/" + ppid);
         } catch (Throwable t) {
-            X11DebugLog.log("XRUN", "tulis ready pid=" + ppid + " gagal: " + t);
         }
     }
 
@@ -330,12 +323,9 @@ public class XTerminalManager {
                 // Re-show ikut me-revive openbox don: server hidup
                 // tapi WM-nya bisa sudah mati.
                 reviveDonOpenbox(have);
-                X11DebugLog.log("XRUN", "xrun polos pid=" + ppid + " -> :" + have + " (tampil lagi + revive openbox)");
                 return;
             }
             removeBareKeys(have);
-            X11DebugLog.log("XRUN", "xrun polos pid=" + ppid + " peta :" + have
-                    + " server mati — alokasi baru");
         }
         int chosen = -1;
         for (int d = TERM_MIN; d <= TERM_MAX; d++) {
@@ -345,7 +335,6 @@ public class XTerminalManager {
         }
         if (chosen < 0) {
             writeReady(ppid, "POOL_FULL");
-            X11DebugLog.log("XRUN", "xrun polos pid=" + ppid + " ditolak: pool terminal penuh (:1-:2)");
             return;
         }
         bareDisplayByPid.put(ppid, chosen);
@@ -355,11 +344,9 @@ public class XTerminalManager {
         if (!ok) {
             removeBareKeys(chosen);
             writeReady(ppid, "FAILED");
-            X11DebugLog.log("XRUN", "xrun polos pid=" + ppid + " gagal start :" + chosen + ": " + rep);
             return;
         }
         writeReady(ppid, ":" + chosen);
-        X11DebugLog.log("XRUN", "xrun polos pid=" + ppid + " -> :" + chosen + " (server jalan, viewer dibuka)");
         final int disp = chosen;
         main.post(() -> showTermViewer(disp, "Display :" + disp));
     }
@@ -369,7 +356,6 @@ public class XTerminalManager {
      *  LIFE terminal (5a). Fire-and-forget: pool penuh / gagal start
      *  hanya tercatat di log (shell sudah kembali). */
     private void handleCmdXrun(int ppid, String cmd) {
-        X11DebugLog.log("XRUN", "request: " + cmd);
         int chosen = -1;
         for (int d = TERM_MIN; d <= TERM_MAX; d++) {
             if (bareDisplayByPid.containsValue(d)) continue;
@@ -377,7 +363,6 @@ public class XTerminalManager {
             if (ops.probeSync(d).state != XServerOps.State.RUNNING) { chosen = d; break; }
         }
         if (chosen < 0) {
-            X11DebugLog.log("XRUN", "xrun cmd ditolak: pool terminal penuh (:1-:2): " + cmd);
             return;
         }
         String fw = cmd.split("\\s+")[0];
@@ -390,7 +375,6 @@ public class XTerminalManager {
         boolean ok = ensureBare(chosen, rep);
         if (!ok) {
             cmdEntryByDisplay.remove(chosen);
-            X11DebugLog.log("XRUN", "xrun cmd gagal start :" + chosen + ": " + rep);
             return;
         }
         String launchCmd = "export DISPLAY=:" + chosen + "; export TMPDIR=/tmp; "
@@ -403,7 +387,6 @@ public class XTerminalManager {
             core.threadChrootCommand(launchCmd);
             Thread.sleep(500);
         } catch (Exception ex) {
-            X11DebugLog.log("XRUN", "xrun cmd gagal luncur :" + chosen + ": " + ex);
             return;
         }
         final int disp = chosen;
@@ -419,7 +402,6 @@ public class XTerminalManager {
         Integer d = bareDisplayByPid.get(ppid);
         if (d == null && shellPid > 0) d = bareDisplayByPid.get(shellPid);
         if (d == null) {
-            X11DebugLog.log("XRUN", "doff pid=" + ppid + " dilewat: tidak ada display");
             return;
         }
         releaseDisplayInternal(d);
@@ -478,7 +460,6 @@ public class XTerminalManager {
             if (rm.length() > 0) core.customChrootCommand("rm -f " + rm);
         } catch (Throwable ignored) {
         }
-        X11DebugLog.log("XRUN", "display terminal :" + d + " dilepas (release penuh)");
     }
 
     // ------------------------------------------------------------ LIFE terminal
@@ -503,11 +484,9 @@ public class XTerminalManager {
                     .newSingleThreadScheduledExecutor();
             lifePoller.scheduleWithFixedDelay(this::pollXrunLife,
                     1000, 4000, java.util.concurrent.TimeUnit.MILLISECONDS);
-            X11DebugLog.log("LIFE", "watcher term jalan (" + lifeWatched.size() + " display)");
         } else if (lifeWatched.isEmpty() && lifePoller != null) {
             lifePoller.shutdownNow();
             lifePoller = null;
-            X11DebugLog.log("LIFE", "watcher term mati");
         }
     }
 
@@ -530,7 +509,6 @@ public class XTerminalManager {
                         int streak = lifeDeadStreak.get(d) == null
                                 ? 1 : lifeDeadStreak.get(d) + 1;
                         lifeDeadStreak.put(d, streak);
-                        X11DebugLog.log("LIFE", "term d=" + d + " entri MATI streak=" + streak);
                         if (streak >= 2) {
                             lifeWatched.remove(d);
                             lifeSeen.remove(d);
@@ -561,17 +539,14 @@ public class XTerminalManager {
      *  lewat knock segar. */
     public void recoverTerminalDisplay(int d) {
         exec.execute(() -> {
-            X11DebugLog.log("HANDOFF", "pemulihan term d=" + d + ": restart server");
             try {
                 ops.killServerSync(d);
             } catch (Exception e) {
-                X11DebugLog.log("HANDOFF", "pemulihan term d=" + d + " kill gagal: " + e);
             }
             StringBuilder rep = new StringBuilder();
             // Restart pakai setup display itu sendiri: don -> openbox,
             // xrun per-tool -> bare (revisi 2026-10-25).
             boolean ok = cmdEntryByDisplay.containsKey(d) ? ensureBare(d, rep) : ensureDon(d, rep);
-            X11DebugLog.log("HANDOFF", "pemulihan term d=" + d + " restart: " + (ok ? "ok" : rep));
         });
     }
 

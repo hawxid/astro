@@ -175,7 +175,6 @@ public class XSessionManager {
         try {
             if (!core.isMounted()) return;
             core.threadChrootCommand("export DISPLAY=:0; " + XServerOps.openboxReviveCommand(0));
-            X11DebugLog.log("LAUNCH", "wmGuard openbox untuk :0 (server sudah jalan)");
         } catch (Throwable ignored) {
         }
     }
@@ -247,7 +246,6 @@ public class XSessionManager {
     // ------------------------------------------------------------ stop sesi
 
     public void stopSession(Callback cb) {
-        X11DebugLog.log("SESI", "stopSession diminta dari UI");
         exec.execute(() -> {
             // 1) tutup activity penampil dulu (biar tidak memamerkan overlay error)
             try {
@@ -323,9 +321,7 @@ public class XSessionManager {
                 post(cb, false, "Chroot belum jalan — start dulu dari Dashboard Astro");
                 return;
             }
-            X11DebugLog.log("LAUNCH", "GUI " + entry.id + " :: " + entry.command);
             if (!entry.allowMultiple && entryRunningSync(entry.id, entry.firstWord())) {
-                X11DebugLog.log("LAUNCH", entry.id + " sudah jalan — fokus ke viewer");
                 main.post(this::openViewer);
                 post(cb, true, entry.name + " sudah jalan — display dibuka");
                 return;
@@ -365,7 +361,6 @@ public class XSessionManager {
                     + "echo DISTOP; else echo SUDAH_MATI; fi; "
                     + "rm -f " + entryPidPath(entry.id);
             String out = run(script);
-            X11DebugLog.log("STOP-ENTRY", entry.id + " -> " + out.trim());
             post(cb, true, out.contains("DISTOP") ? entry.name + " dihentikan" : entry.name + " sudah tidak jalan");
         });
     }
@@ -502,7 +497,6 @@ public class XSessionManager {
                 out.add(new DisplayInfo(d, e != null ? e.id : null,
                         e != null ? e.name : null, app));
             }
-            X11DebugLog.log("PANEL", "listDisplays -> " + out.size() + " display hidup");
             main.post(() -> cb.onDisplays(out));
         });
     }
@@ -543,11 +537,9 @@ public class XSessionManager {
                     .newSingleThreadScheduledExecutor();
             lifePoller.scheduleWithFixedDelay(this::pollEntryLife,
                     1000, 4000, java.util.concurrent.TimeUnit.MILLISECONDS);
-            X11DebugLog.log("LIFE", "watcher jalan (" + lifeWatched.size() + " display)");
         } else if (lifeWatched.isEmpty() && lifePoller != null) {
             lifePoller.shutdownNow();
             lifePoller = null;
-            X11DebugLog.log("LIFE", "watcher mati");
         }
     }
 
@@ -570,7 +562,6 @@ public class XSessionManager {
                         int streak = lifeDeadStreak.get(d) == null
                                 ? 1 : lifeDeadStreak.get(d) + 1;
                         lifeDeadStreak.put(d, streak);
-                        X11DebugLog.log("LIFE", "d=" + d + " entri MATI streak=" + streak);
                         if (streak >= 2) {
                             lifeWatched.remove(d);
                             lifeSeen.remove(d);
@@ -591,10 +582,8 @@ public class XSessionManager {
         // terminal (guard; LIFE desktop cuma me-watch jendela layer
         // desktop, tapi jangan pernah bunuh terminal dari sini).
         if (XTerminalManager.isTerminalDisplay(d)) {
-            X11DebugLog.log("LIFE", "tutup jendela :" + d + " dilewat: display terminal");
             return;
         }
-        X11DebugLog.log("LIFE", "tutup jendela :" + d + " (entri mati)");
         id.hawx.astro.x11.window.XWindowLayer.closeForDisplay(d);
         stopDisplay(d, (ok, msg) -> { });
     }
@@ -602,8 +591,6 @@ public class XSessionManager {
     public void launchFloating(LauncherEntry entry, FloatingCallback cb) {
         exec.execute(() -> {
             boolean running = entryRunningSync(entry.id, entry.firstWord());
-            X11DebugLog.log("LAUNCH", "launchFloating " + entry.id
-                    + " allowMultiple=" + entry.allowMultiple + " running=" + running);
             if (!entry.allowMultiple && running) {
                 Integer d = floatingDisplays.get(entry.id);
                 if (d != null) postF(cb, true, d, entry.name + " sudah jalan di :" + d);
@@ -627,7 +614,6 @@ public class XSessionManager {
             LauncherEntry use = entry;
             if (entry.allowMultiple && running) {
                 use = entry.copyWithId(entry.id + "-d" + disp);
-                X11DebugLog.log("LAUNCH", "instance baru: " + use.id + " di :" + disp);
             }
             final LauncherEntry fu = use;
             floatingDisplays.put(fu.id, disp);
@@ -655,7 +641,6 @@ public class XSessionManager {
                 post(cb, false, "Chroot belum jalan — start dulu dari Dashboard Astro");
                 return;
             }
-            X11DebugLog.log("LAUNCH", "GUI d" + d + " " + entry.id + " :: " + entry.command);
             if (d > 0) {
                 lastEntryByDisplay.put(d, entry.id);
                 lastEntryObjByDisplay.put(d, entry);
@@ -676,7 +661,6 @@ public class XSessionManager {
                 // jalur launch (bukan cuma setup sesi sekali jalan): kalo
                 // mati di tengah, launch berikutnya yang menghidupkan lagi.
                 wmGuard = XServerOps.openboxReviveCommand(0);
-                X11DebugLog.log("LAUNCH", "wmGuard openbox untuk :0");
             }
             String launchCmd = "export DISPLAY=:" + d + "; export TMPDIR=/tmp; "
                     + wmGuard
@@ -727,20 +711,14 @@ public class XSessionManager {
     public void recoverStuckDisplay(int d) {
         LauncherEntry entry = lastEntryObjByDisplay.get(d);
         if (entry == null) {
-            X11DebugLog.log("HANDOFF", "pemulihan d=" + d + " batal: entri tak dikenal");
             return;
         }
-        X11DebugLog.log("HANDOFF", "pemulihan d=" + d + ": restart server + relaunch "
-                + entry.id);
         exec.execute(() -> {
             try {
                 killServerSync(d);
             } catch (Exception e) {
-                X11DebugLog.log("HANDOFF", "pemulihan d=" + d + " kill gagal: " + e);
             }
             launchOnDisplay(entry, d, (ok, msg) ->
-                    X11DebugLog.log("HANDOFF", "pemulihan d=" + d + " relaunch: " + msg),
-                    false);
         });
     }
 

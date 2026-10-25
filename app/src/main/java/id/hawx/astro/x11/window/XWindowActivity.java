@@ -22,7 +22,6 @@ import android.widget.TextView;
 
 import com.termux.x11.LorieView;
 
-import id.hawx.astro.x11.X11DebugLog;
 import id.hawx.astro.x11.XSessionManager;
 
 /**
@@ -44,7 +43,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     public static void closeForDisplay(int d) {
         XWindowActivity a = OPEN.get(d);
         if (a != null) {
-            X11DebugLog.log("HANDOFF", "tutup jendela floating d=" + d + " (fullscreen ambil alih)");
             a.finish();
         }
     }
@@ -84,7 +82,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         OPEN.put(display, this);
         String title = getIntent().getStringExtra(EXTRA_TITLE);
         if (title == null) title = "XTerm";
-        X11DebugLog.log("FLOAT", "XWindowActivity onCreate d=" + display);
 
         host = new XWindowHost(this, display);
         host.setListener(this);
@@ -168,7 +165,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                     v.requestUnbufferedDispatch(e);
                 // Tap konten = fokus saja. Keyboard HANYA dari tombol ⌨
                 // di bar judul (keputusan Hawx).
-                X11DebugLog.log("KB", "tap konten d=" + display + " (fokus saja)");
             }
             return host.handleTouch(v, e);
         });
@@ -183,9 +179,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             root.setOnApplyWindowInsetsListener((v, insets) -> {
                 boolean imeVisible = insets.isVisible(android.view.WindowInsets.Type.ime());
                 int newBottom = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
-                if (imeVisible != imeWasVisible || newBottom != imeBottomPx)
-                    X11DebugLog.log("KB", "insets ime=" + imeVisible + " bottom=" + newBottom
-                            + " ekReq=" + ekRequested);
                 boolean wasVisible = imeWasVisible;
                 imeWasVisible = imeVisible;
                 imeBottomPx = newBottom;
@@ -320,7 +313,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     }
 
     @Override public void onStripVisibilityRequested(XWindowHost h, boolean visible) {
-        X11DebugLog.log("KB", "stripReq visible=" + visible + " imeBottom=" + imeBottomPx);
         ekRequested = visible;
         if (visible) {
             tryShowStrip();
@@ -330,7 +322,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                 new android.os.Handler(android.os.Looper.getMainLooper())
                         .postDelayed(() -> {
                             if (!ekRequested) return;
-                            X11DebugLog.log("KB", "poll#" + n);
                             tryShowStrip();
                             if (stripShowing()) return;
                         }, 400L * i);
@@ -420,7 +411,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         if (kbTop < 0) {
             new android.os.Handler(android.os.Looper.getMainLooper())
                     .postDelayed(this::tryShowStrip, 150);
-            X11DebugLog.log("KB", "overlay TUNDA (kbTop belum kebaca)");
             return;
         }
         // Rebut strip dari pemilik lama (instance/display lain): satu
@@ -450,10 +440,8 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             sEkOverlayView = ekView;
             sEkOwner = this;
             updateStripInset();
-            X11DebugLog.log("KB", "overlay SHOW y=" + sEkLp.y + " kbTop=" + kbTop);
             startEkOverlayWatchdog();
         } catch (Exception e) {
-            X11DebugLog.log("KB", "overlay GAGAL (" + e.getMessage() + ") -> popup");
             sEkOverlayView = null;
             sEkOwner = null;
             tryShowEkPopup();
@@ -476,10 +464,8 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                                 sEkLp.y = y;
                                 try { sEkWm.updateViewLayout(sEkOverlayView, sEkLp); }
                                 catch (Exception ignored) {}
-                                X11DebugLog.log("KB", "overlay reposisi y=" + y);
                             }
                         } else if (++hiddenStreak >= 3) {
-                            X11DebugLog.log("KB", "watchdog overlay: IME hilang -> tutup");
                             hideKeyboardAndStrip();
                             return;
                         }
@@ -523,13 +509,11 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             ekPopup = null;
             new android.os.Handler(android.os.Looper.getMainLooper())
                     .postDelayed(this::tryShowEkPopup, 150);
-            X11DebugLog.log("KB", "popup TUNDA (frame IME belum siap)");
             return;
         }
         // SELALU gravity TOP + offset yang sama dengan reposisi watchdog.
         ekPopup.showAtLocation(getWindow().getDecorView(),
                 Gravity.TOP | Gravity.START, 0, yLocal);
-        X11DebugLog.log("KB", "popup SHOW hPx=" + hPx + " yLocal=" + yLocal);
         startEkWatchdog();
         updateStripInset();
     }
@@ -576,12 +560,10 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
                             if (y >= 0 && y != lastStripY) {
                                 lastStripY = y;
                                 ekPopup.update(-1, y, -1, -1);
-                                X11DebugLog.log("KB", "popup reposisi y=" + y);
                             }
                         }
                         hiddenStreak = imeVis ? 0 : hiddenStreak + 1;
                         if (hiddenStreak >= 3) {
-                            X11DebugLog.log("KB", "watchdog: IME hilang -> tutup popup");
                             hideKeyboardAndStrip();
                             return;
                         }
@@ -611,7 +593,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         if (sEkOwner == this && stripShowing()) {
             ekRequested = false;
             dismissStrip();
-            X11DebugLog.log("KB", "onStop -> strip ditutup");
         }
         super.onStop();
     }
@@ -665,8 +646,6 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
             // sendiri. (setLaunchWindowingMode = API tersembunyi, tak ada
             // di SDK publik — build CI pertama gagal di sini.)
             opts.setLaunchBounds(new android.graphics.Rect(x, y, x + w, y + h));
-            X11DebugLog.log("FLOAT", "launch freeform d=" + display
-                    + " bounds=" + x + "," + y + " " + w + "x" + h);
             from.startActivity(i, opts.toBundle());
             return;
         }
