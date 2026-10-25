@@ -7,7 +7,10 @@ import id.hawx.astro.utils.Core;
  *
  * Dipakai dua manager (pisah sebagian, ronde terminal 2026-10-25):
  * XSessionManager (desktop :0/:3-:4) dan XTerminalManager (terminal
- * :1-:2). Satu sumber kebenaran buat probe/start/kill/setup/fit —
+ * :1-:2). Kelasnya public karena MainActivity (paket lain) membaca
+ * XServerOps.State buat perbandingan probe — kelas package-private
+ * tak terlihat lintas paket (CI run 40168986458). Satu sumber
+ * kebenaran buat probe/start/kill/setup/fit —
  * policy (range display, map, watcher, revive openbox, DPI prefs)
  * tetap di manager masing-masing, bukan di sini.
  *
@@ -19,7 +22,7 @@ import id.hawx.astro.utils.Core;
  * - update state :0 (dulu di probeSync/ensure/kill) pindah ke wrapper
  *   XSessionManager — helper ini stateless soal state manager.
  */
-class XServerOps {
+public class XServerOps {
 
     public enum State { STOPPED, STARTING, RUNNING }
 
