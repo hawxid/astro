@@ -403,6 +403,17 @@ public class XSessionManager {
         });
     }
 
+    /** Task Manager: viewer fullscreen (Lorie MainActivity) untuk display
+     *  ini masih ada atau tidak — dipakai kolom "viewer" (bersama
+     *  layer/decor). Tag instance = tagFor(d); :0 -> "". */
+    public boolean hasFullscreenViewer(int d) {
+        try {
+            return com.termux.x11.MainActivity.getInstance(tagFor(d)) != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     /** Intent penampil untuk display :d — d>0 lewat jendela bertag
      *  (MainActivityTagged, data URI termux-x11-window://d<d>). */
     public Intent viewerIntentForDisplay(int d) {

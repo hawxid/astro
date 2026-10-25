@@ -4,4 +4,5 @@
          kategori System di popup Applications. -->
     <item name="system_setting_item" type="id" />
     <item name="system_desktop_item" type="id" />
+    <item name="system_taskmgr_item" type="id" />
 </resources>
