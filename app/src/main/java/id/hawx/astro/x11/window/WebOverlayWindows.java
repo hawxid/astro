@@ -228,7 +228,8 @@ public class WebOverlayWindows {
             wm.updateViewLayout(container, wlp);
             // Keyboard mungkin SUDAH buka saat maximize ditekan —
             // tak ada dispatch insets baru, jadi terapkan inset
-            // terakhir yang tercatat (bila ada).
+            // terakhir yang tercatat (bila ada; imeH 0 diabaikan
+            // oleh applyImeResize) + evaluasi frame di bawah.
             if (maximized && android.os.Build.VERSION.SDK_INT >= 30) {
                 android.view.WindowInsets in = container.getRootWindowInsets();
                 if (in != null) applyImeResize(in);
@@ -266,12 +267,13 @@ public class WebOverlayWindows {
         // field bawah mentok di balik keyboard. Mekanisme:
         // listener insets (pola yang sama dengan XWindowActivity,
         // API 30+; dipasang di akhir ctor, setelah semua field
-        // final ter-assign). Overlay TYPE_APPLICATION_OVERLAY
-        // tidak mengandalkan softInputMode ADJUST_RESIZE sistem
-        // (efeknya pada window overlay tak bisa diverifikasi
-        // dari kode, dan berisiko tarik-menarik dengan resize
-        // eksplisit ini) — tinggi diatur eksplisit dari inset
-        // IME. Non-maximize tidak disentuh.
+        // final ter-assign) — SEKARANG HANYA FALLBACK yang boleh
+        // menyempitkan (imeH > 0); otoritas penuh ada di anchor
+        // frame di bawah (log 36: inset vis=true imeH=0 + loop).
+        // Overlay TYPE_APPLICATION_OVERLAY tidak mengandalkan
+        // softInputMode ADJUST_RESIZE sistem (efeknya pada window
+        // overlay tak bisa diverifikasi dari kode).
+        // Non-maximize tidak disentuh.
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             container.setOnApplyWindowInsetsListener((v, insets) -> {
                 applyImeResize(insets);
@@ -279,10 +281,10 @@ public class WebOverlayWindows {
             });
         }
 
-        // Anchor frame kelihatan: listener insets batch kemarin GAGAL
-        // di perangkat (maximize tetap ketutup keyboard) — penyebab
-        // runtime-nya belum diketahui (insets tak sampai / imeH 0 /
-        // resize tak ngefek). Mekanisme kedua ini tidak tergantung
+        // Anchor frame kelihatan = OTORITAS TUNGGAL tinggi maximize
+        // (log 36: frame ngikutin keyboard 2340 -> 1414 dengan benar,
+        // sementara inset baca vis=true imeH=0 terus dan re-dispatch
+        // tiap ganti tinggi -> osilasi). Mekanisme ini tidak tergantung
         // dispatch WindowInsets: tiap layout global, frame kelihatan
         // pembungkus diukur sendiri — bawah frame = atas keyboard
         // saat keyboard buka. Didaftar di attach()/raise(), dilepas
@@ -310,13 +312,16 @@ public class WebOverlayWindows {
     }
 
     /**
-     * Sesuaikan tinggi window maximize dengan inset IME (API 30+).
-     * Dipanggil dari listener insets + dari cabang maximize (untuk
-     * kasus maximize-dengan-keyboard-sudah-buka, di mana tak ada
-     * dispatch insets baru). Bila tak maximize / tak attach / tak
-     * ada perubahan tinggi: no-op. Bila keyboard tutup (inset 0):
-     * tinggi kembali penuh. Tak pernah menyentuh prevH (restore
-     * tetap ke rect floating semula).
+     * Fallback inset IME (API 30+) — BUKAN otoritas tinggi maximize.
+     * Log 36 membuktikan dua hal: (1) inset sampai (vis=true) tapi
+     * imeH selalu 0 di window overlay ini; (2) ganti tinggi memicu
+     * layout -> re-dispatch insets -> loop tarik-menarik dengan
+     * anchor frame tiap ~10-30ms. Karena itu evaluasi inset HANYA
+     * boleh MENYEMPITKAN (imeH > 0, tinggi nyata); imeH == 0
+     * DIABAIKAN total (tidak pernah menulis) — mengembalikan ke
+     * full adalah tugas anchor frame (onVisibleFrame) saja.
+     * Dipanggil dari listener insets + cabang maximize. Tak pernah
+     * menyentuh prevH (restore tetap ke rect floating semula).
      */
     private void applyImeResize(android.view.WindowInsets insets) {
         if (insets == null) return;
@@ -326,12 +331,13 @@ public class WebOverlayWindows {
         android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
         wm.getDefaultDisplay().getRealMetrics(dm);
         int wantH = dm.heightPixels - imeH;
-        // Log tiap evaluasi (termasuk saat tak maximize — volume
-        // rendah, cuma tiap perubahan IME — supaya kelihatan apakah
-        // listener ini jalan sama sekali di perangkat).
+        // Log tiap evaluasi + keputusannya: SKIP = imeH 0 diabaikan
+        // (bukti log berikutnya: baris ime tak lagi mengubah tinggi).
+        boolean skip = imeH <= 0;
         X11DebugLog.log("WEBOV", "ime: max=" + maximized + " att=" + attached
                 + " vis=" + vis + " imeH=" + imeH + " wantH=" + wantH
-                + " curH=" + wlp.height);
+                + " curH=" + wlp.height + (skip ? " SKIP" : ""));
+        if (skip) return;
         setMaxHeight(wantH);
     }
 
@@ -343,8 +349,9 @@ public class WebOverlayWindows {
         wm.updateViewLayout(container, wlp);
     }
 
-    /** Anchor maximize ke frame kelihatan: bawah frame = atas
-     *  keyboard saat keyboard buka, = bawah layar saat tutup.
+    /** Anchor maximize ke frame kelihatan = OTORITAS TUNGGAL tinggi
+     *  maximize: bawah frame = atas keyboard saat keyboard buka,
+     *  = bawah layar saat tutup (termasuk restore ke full).
      *  Hanya jalan selagi maximize (layout lain tidak di-spam log). */
     private void onVisibleFrame() {
         if (!maximized || !attached) return;

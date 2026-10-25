@@ -8,9 +8,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
@@ -65,6 +68,19 @@ public class Dashboard extends Fragment {
 
     private LinearLayout toolsGrid;
     private LinearLayout dockBar;
+
+    /** Titik sentuh terakhir (koordinat layar) — jangkar popup
+     *  long-press desktop, supaya menu muncul di jari, bukan di
+     *  bawah anchor raksasa (grid/parent) sampai kepotong layar. */
+    private float lastTouchRawX = -1;
+    private float lastTouchRawY = -1;
+    private final View.OnTouchListener touchRecorder = (v, ev) -> {
+        if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            lastTouchRawX = ev.getRawX();
+            lastTouchRawY = ev.getRawY();
+        }
+        return false;
+    };
     private int dockFixedCount = 0;
     private static final String PREF_DOCK = "dock_item_";
     private XSessionManager xMgr;
@@ -371,7 +387,31 @@ public class Dashboard extends Fragment {
 
     /** Popup ruang kosong desktop (tahan area kosong grid). */
     private void showDesktopMenu(View anchor) {
-        android.widget.PopupMenu pm = new android.widget.PopupMenu(context, anchor);
+        // Jangkar = titik sentuh, bukan view raksasa: PopupMenu
+        // diposisikan relatif terhadap anchor — kalau anchor =
+        // grid/parent setinggi layar, menu jatuh di bawah layar
+        // dan kepotong (laporan 16:42 WIB). View 1x1 transparan di
+        // titik sentuh membuat helper flip atas/bawah dengan benar.
+        // Tanpa koordinat (long-press non-sentuh): fallback anchor lama.
+        View menuAnchor = anchor;
+        View tempAnchor = null;
+        if (getView() instanceof ViewGroup && lastTouchRawX >= 0 && lastTouchRawY >= 0) {
+            int[] rootLoc = new int[2];
+            getView().getLocationOnScreen(rootLoc);
+            int x = Math.round(lastTouchRawX) - rootLoc[0];
+            int y = Math.round(lastTouchRawY) - rootLoc[1];
+            x = Math.max(0, Math.min(x, getView().getWidth() - 1));
+            y = Math.max(0, Math.min(y, getView().getHeight() - 1));
+            tempAnchor = new View(context);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    1, 1, Gravity.TOP | Gravity.START);
+            lp.leftMargin = x;
+            lp.topMargin = y;
+            tempAnchor.setLayoutParams(lp);
+            ((ViewGroup) getView()).addView(tempAnchor);
+            menuAnchor = tempAnchor;
+        }
+        android.widget.PopupMenu pm = new android.widget.PopupMenu(context, menuAnchor);
         pm.getMenu().add("Add launcher");
         pm.getMenu().add("Atur ikon desktop");
         pm.setOnMenuItemClickListener(item -> {
@@ -382,6 +422,12 @@ public class Dashboard extends Fragment {
             }
             return true;
         });
+        if (tempAnchor != null) {
+            View toRemove = tempAnchor;
+            pm.setOnDismissListener(m -> {
+                if (getView() instanceof ViewGroup) ((ViewGroup) getView()).removeView(toRemove);
+            });
+        }
         pm.show();
     }
 
@@ -389,9 +435,11 @@ public class Dashboard extends Fragment {
         if (toolsGrid == null) return;
         toolsGrid.removeAllViews();
         toolsGrid.setOnLongClickListener(v -> { showDesktopMenu(v); return true; });
+        toolsGrid.setOnTouchListener(touchRecorder);
         if (toolsGrid.getParent() instanceof View) {
             ((View) toolsGrid.getParent()).setOnLongClickListener(
                     v -> { showDesktopMenu(v); return true; });
+            ((View) toolsGrid.getParent()).setOnTouchListener(touchRecorder);
         }
 
         List<View> cells = new ArrayList<>();
@@ -412,6 +460,7 @@ public class Dashboard extends Fragment {
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT));
                 row.setOnLongClickListener(v -> { showDesktopMenu(v); return true; });
+                row.setOnTouchListener(touchRecorder);
                 toolsGrid.addView(row);
             }
             row.addView(cells.get(i));

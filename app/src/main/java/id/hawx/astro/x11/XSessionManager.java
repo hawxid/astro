@@ -165,22 +165,16 @@ public class XSessionManager {
 
     // ------------------------------------------------------------ start
 
-    /** Perintah revive openbox :0 (identik dengan wmGuard lama di
-     *  jalur launch): start bila ter-install dan belum jalan,
-     *  dengan DISPLAY=:0. Dipakai cabang server-sudah-jalan
-     *  (semua jalur masuk :0) dan launchOnDisplay; JANGAN dipakai
-     *  buat d>0 (display floating wajib bare, tanpa WM). */
-    private static String openboxReviveCommand() {
-        return "if command -v openbox >/dev/null 2>&1 && ! pgrep -x openbox >/dev/null 2>&1; then "
-                + "setsid openbox >/tmp/openbox.log 2>&1 </dev/null & sleep 1; fi; ";
-    }
-
     /** Revive openbox :0 fire-and-forget (tak pernah menggagalkan
-     *  pemanggil): hanya bila chroot ter-mount. */
+     *  pemanggil): hanya bila chroot ter-mount. PER DISPLAY via
+     *  XServerOps.openboxReviveCommand(0) — pgrep global SALAH di
+     *  sini: openbox display don (:1/:2) akan menutupi openbox :0
+     *  yang mati. Dipakai semua jalur masuk :0 (ensure-cabang
+     *  sudah-jalan, viewer-open, wmGuard launch). */
     private void reviveOpenboxIfNeeded() {
         try {
             if (!core.isMounted()) return;
-            core.threadChrootCommand("export DISPLAY=:0; " + openboxReviveCommand());
+            core.threadChrootCommand("export DISPLAY=:0; " + XServerOps.openboxReviveCommand(0));
             X11DebugLog.log("LAUNCH", "wmGuard openbox untuk :0 (server sudah jalan)");
         } catch (Throwable ignored) {
         }
@@ -427,6 +421,12 @@ public class XSessionManager {
 
     public void openViewerForDisplay(int d) {
         touchActivity();
+        // REVIVE :0 DI SEMUA JALUR VIEWER-OPEN: viewer dibuka pada
+        // server yang sudah jalan TANPA ensure (ikon viewer, tap
+        // dock :0, relaunch sudah-jalan) — tanpa ini openbox :0
+        // yang mati tidak pernah hidup lagi (layar :0 telanjang).
+        // Fire-and-forget, tak pernah menunda viewer.
+        if (d == 0) reviveOpenboxIfNeeded();
         // SERAH-TERIMA: fullscreen mengambil alih display ini -> jendela
         // floating untuk display yang sama ditutup dulu (satu koneksi).
         if (d > 0) id.hawx.astro.x11.window.XWindowActivity.closeForDisplay(d);
@@ -675,7 +675,7 @@ public class XSessionManager {
                 // Aturan Hawx: fullscreen WAJIB ber-WM. openbox diawasi di
                 // jalur launch (bukan cuma setup sesi sekali jalan): kalo
                 // mati di tengah, launch berikutnya yang menghidupkan lagi.
-                wmGuard = openboxReviveCommand();
+                wmGuard = XServerOps.openboxReviveCommand(0);
                 X11DebugLog.log("LAUNCH", "wmGuard openbox untuk :0");
             }
             String launchCmd = "export DISPLAY=:" + d + "; export TMPDIR=/tmp; "
