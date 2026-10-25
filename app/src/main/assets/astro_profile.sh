@@ -64,9 +64,21 @@ unset __s_rail __s_path __s_dim __s_rst __s_brand __s_tip
 # Penanda __ASTRO_DISPLAY_HOOK bikin instalasi idempotent (aman
 # di-source ulang). PROMPT_COMMAND lama dipertahankan (hook jalan
 # duluan, lalu perintah lama) — bukan ditimpa.
+# Debug 5: marker dicari dengan urutan: (1) $$ (bash ini sendiri),
+# (2) $PPID (pid sesi — kalau su nge-fork, bash adalah anak dari
+# proses sesi, jadi PPID = pid yang dipakai app untuk menulis marker;
+# kalau su exec langsung, $$ yang kena). Keduanya ter-cover, mapping
+# per-tab tetap benar (PPID unik per tab). Kandidat kosong dilewati,
+# test -f (file reguler) supaya direktori kosong tidak lolos "ketemu".
 __astro_display_hook() {
-    _m=/tmp/astro-display/$$
-    if [ -r "$_m" ]; then
+    _m=""
+    for _p in "$$" "$PPID"; do
+        if [ -n "$_p" ] && [ -f "/tmp/astro-display/$_p" ]; then
+            _m="/tmp/astro-display/$_p"
+            break
+        fi
+    done
+    if [ -n "$_m" ]; then
         _d=$(cat "$_m" 2>/dev/null)
         case "$_d" in
             :[0-9]*) export DISPLAY="$_d" ;;
@@ -75,7 +87,7 @@ __astro_display_hook() {
     else
         unset DISPLAY
     fi
-    unset _m _d
+    unset _m _d _p
 }
 if [ -z "$__ASTRO_DISPLAY_HOOK" ]; then
     __ASTRO_DISPLAY_HOOK=1
