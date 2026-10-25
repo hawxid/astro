@@ -120,21 +120,32 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             int anchorH = anchorB - anchorT;
             if (o.win.isMaximized()) {
                 // Maximize ikut anchor (aturan sama kaya floating):
-                // set LANGSUNG ke rect anchor (margin 6dp), TANPA
+                // set LANGSUNG ke rect maximize (margin 6dp), TANPA
                 // lewat logika simpanan/fit — simpanan anchor tidak
                 // disentuh dan tidak boleh mengecilkan window
-                // maximize. Keyboard buka -> anchorB naik -> window
-                // ngalah tiap frame lewat jalur debug 3 ini (tanpa
-                // debounce); keyboard tutup -> window tumbuh balik.
-                if (anchorH < Math.round(200 * density)) continue;
+                // maximize. ATAS = bawah status bar (sumber yang
+                // sama dengan supplier maximize di ctor, lewat
+                // maximizeTopPx); bawah tetap anchorB. Keyboard
+                // buka -> anchorB naik -> window ngalah tiap frame
+                // lewat jalur debug 3 ini (tanpa debounce);
+                // keyboard tutup -> window tumbuh balik. Toolbar
+                // Stryker ketutup saat maximize, balik lewat ❐.
+                // Pengaman 200dp dihitung dari tinggi maximize
+                // sebenarnya (anchorB - atasBaru), bukan anchorH:
+                // dengan atas naik ke status bar, window LEBIH
+                // tinggi dari anchor, jadi guard anchorH akan
+                // menahan kasus yang sebenarnya masih muat.
+                int maxBaseT = maximizeTopPx(anchorT);
+                int maxH0 = anchorB - maxBaseT;
+                if (maxH0 < Math.round(200 * density)) continue;
                 int m = Math.round(6 * density);
                 int anchorL = r[0];
                 int anchorR = r[2];
-                if (anchorR - anchorL <= 2 * m || anchorH <= 2 * m) continue;
+                if (anchorR - anchorL <= 2 * m || maxH0 <= 2 * m) continue;
                 int maxL = anchorL + m;
-                int maxT = anchorT + m;
+                int maxT = maxBaseT + m;
                 int maxW = anchorR - anchorL - 2 * m;
-                int maxH = anchorH - 2 * m;
+                int maxH = maxH0 - 2 * m;
                 if (Math.abs(maxL - lp.leftMargin) < threshPx) maxL = lp.leftMargin;
                 if (Math.abs(maxT - lp.topMargin) < threshPx) maxT = lp.topMargin;
                 if (Math.abs(maxW - lp.width) < threshPx) maxW = lp.width;
@@ -306,6 +317,24 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 tl[0] - dl[0] + tv.getWidth(), tl[1] - dl[1] + tv.getHeight()};
     }
 
+    /** Tinggi status bar px (0 = tak bisa di-resolve). Sumber sama
+     *  dengan desktopUsableRect layer (resource sistem android). */
+    private static int statusBarHeightPx() {
+        if (sAnchorView == null) return 0;
+        android.content.res.Resources res = sAnchorView.getResources();
+        int id = res.getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? res.getDimensionPixelSize(id) : 0;
+    }
+
+    /** Atas maximize decor: bawah status bar; fallback atas anchor
+     *  bila tinggi status bar tak ketemu (tak pernah crash, tak
+     *  pernah negatif). SATU sumber dipakai supplier maximize DAN
+     *  cabang maximize enforceAnchor — dua konsumen, satu nilai. */
+    private static int maximizeTopPx(int anchorT) {
+        int sb = statusBarHeightPx();
+        return sb > 0 ? sb : anchorT;
+    }
+
     /** Sembunyikan jendela terminal display ini (server tetap hidup). */
     public static void hideForDisplay(int display) {
         XOverlayWindows o = sByDisplay.get(display);
@@ -377,9 +406,15 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         // Drag jendela dikunci ke rect TerminalView hidup (satu
         // patokan dengan enforceAnchor, dalam koordinat decor).
         win.setAnchorSupplier(() -> terminalRectInDecor());
-        // Maximize pakai patokan yang sama (supplier terpisah biar
-        // drag clamp tak berubah): batas maximize = rect anchor hidup.
-        win.setMaximizeBoundsSupplier(() -> terminalRectInDecor());
+        // Maximize: sisi + bawah = rect anchor hidup, ATAS = bawah
+        // status bar (bukan atas anchor — atas anchor = bawah
+        // toolbar, gap-nya ketinggian menurut verdict device).
+        // Supplier terpisah biar drag clamp tak berubah.
+        win.setMaximizeBoundsSupplier(() -> {
+            int[] r = terminalRectInDecor();
+            if (r == null) return null;
+            return new int[]{r[0], maximizeTopPx(r[1]), r[2], r[3]};
+        });
 
         // Kontainer selayar di decor: transparan + tak menghalangi
         // sentuhan di luar jendela (jatuh ke terminal di bawahnya).

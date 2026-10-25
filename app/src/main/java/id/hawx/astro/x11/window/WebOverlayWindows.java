@@ -219,6 +219,13 @@ public class WebOverlayWindows {
                 maxBtn.setText("❐");
             }
             wm.updateViewLayout(container, wlp);
+            // Keyboard mungkin SUDAH buka saat maximize ditekan —
+            // tak ada dispatch insets baru, jadi terapkan inset
+            // terakhir yang tercatat (bila ada).
+            if (maximized && android.os.Build.VERSION.SDK_INT >= 30) {
+                android.view.WindowInsets in = container.getRootWindowInsets();
+                if (in != null) applyImeResize(in);
+            }
         });
         bar.addView(maxBtn);
         bar.addView(chromeBtn("✕", v -> close()));
@@ -242,6 +249,25 @@ public class WebOverlayWindows {
                 ViewGroup.LayoutParams.MATCH_PARENT));
         container.addView(win);
 
+        // Maximize + keyboard: viewport harus MENGECIL di atas
+        // keyboard (bukan cuma window digeser) — kalau tidak,
+        // halaman satu layar penuh tak punya sisa scroll dan
+        // field bawah mentok di balik keyboard. Mekanisme:
+        // listener insets (pola yang sama dengan XWindowActivity,
+        // API 30+; dipasang di akhir ctor, setelah semua field
+        // final ter-assign). Overlay TYPE_APPLICATION_OVERLAY
+        // tidak mengandalkan softInputMode ADJUST_RESIZE sistem
+        // (efeknya pada window overlay tak bisa diverifikasi
+        // dari kode, dan berisiko tarik-menarik dengan resize
+        // eksplisit ini) — tinggi diatur eksplisit dari inset
+        // IME. Non-maximize tidak disentuh.
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            container.setOnApplyWindowInsetsListener((v, insets) -> {
+                applyImeResize(insets);
+                return insets;
+            });
+        }
+
     }
 
     /** Salinan persis chromeButton XFloatingWindow: TextView
@@ -260,6 +286,29 @@ public class WebOverlayWindows {
 
     private int dp(int v) {
         return Math.round(v * activity.getResources().getDisplayMetrics().density);
+    }
+
+    /**
+     * Sesuaikan tinggi window maximize dengan inset IME (API 30+).
+     * Dipanggil dari listener insets + dari cabang maximize (untuk
+     * kasus maximize-dengan-keyboard-sudah-buka, di mana tak ada
+     * dispatch insets baru). Bila tak maximize / tak attach / tak
+     * ada perubahan tinggi: no-op. Bila keyboard tutup (inset 0):
+     * tinggi kembali penuh. Tak pernah menyentuh prevH (restore
+     * tetap ke rect floating semula).
+     */
+    private void applyImeResize(android.view.WindowInsets insets) {
+        if (!maximized || !attached || insets == null) return;
+        int imeH = 0;
+        if (insets.isVisible(android.view.WindowInsets.Type.ime())) {
+            imeH = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+        }
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        wm.getDefaultDisplay().getRealMetrics(dm);
+        int wantH = dm.heightPixels - imeH;
+        if (wantH <= 0 || wlp.height == wantH) return;
+        wlp.height = wantH;
+        wm.updateViewLayout(container, wlp);
     }
 
     private void attach() {
