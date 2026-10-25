@@ -61,6 +61,11 @@ public class XSessionManager {
 
     public static synchronized XSessionManager get(Context ctx) {
         if (instance == null) instance = new XSessionManager(ctx.getApplicationContext());
+        // Watcher eksplisit don/doff harus hidup begitu chroot mounted,
+        // tanpa menunggu toggle (alur ini tidak pakai toggle). Sync di
+        // tiap get() itu idempotent + murah (satu baca /proc/mounts);
+        // transisi mount ketahuan saat app menyentuh manager berikutnya.
+        instance.syncExplicitWatcher();
         return instance;
     }
 
@@ -1190,7 +1195,11 @@ public class XSessionManager {
     /** Tab ditutup (broadcast NeoTermActivity) — hanya cleanup server
      *  + marker; cascade jendela/dialog = jatah R4. */
     public void onTerminalTabRemoved(int pid) {
-        exec.execute(() -> releaseTabDisplay(pid));
+        exec.execute(() -> {
+            releaseTabDisplay(pid);
+            Integer d = explicitDisplayByPid.get(pid);
+            if (d != null) releaseExplicitDisplay(d);
+        });
     }
 
     /** Debug ke-4: scan berkala klaim tab (backstop onTabAdded +
@@ -1363,6 +1372,12 @@ public class XSessionManager {
             deleteTabMarker(pidToClear);
         }
         reservedDisplays.remove(d);
+        // Model eksplisit: kill dari dock (stopDisplay) dan server mati
+        // sendiri (listDisplays) harus membebaskan pemetaan eksplisit
+        // juga — kalau tidak, nomor itu terkunci di peta padahal server
+        // sudah mati. Di sini cuma bersih-bersih peta (server dimatikan
+        // pemanggil stopDisplay, bukan dari sini).
+        explicitDisplayByPid.values().removeIf(v -> v != null && v.intValue() == d);
     }
 
     /** Segarkan salinan profil hidup di chroot (best-effort, root sisi
@@ -1383,5 +1398,209 @@ public class XSessionManager {
         } catch (Throwable t) {
             X11DebugLog.log("TAB", "segarkan profil gagal: " + t);
         }
+    }
+
+    // ---- Model eksplisit don/doff (pengganti hook display per-tab) ----
+    // Prinsip: TIDAK ADA toggle, klaim, scan, marker, atau hook prompt.
+    // User ketik don() di tab -> fungsi shell tulis request -> watcher
+    // ini (poll lambat 5 detik, gate mounted SAJA) nyalakan server +
+    // tampilkan viewer decor -> fungsi shell baca ready file -> export
+    // DISPLAY di shell itu sendiri. doff() / tutup tab / kill dock
+    // melepasnya. Kode toggle/klaim/scan R2 DIBIARKAN dormant (cleanup
+    // penuh = ronde terpisah); watcher ini independen dari toggle.
+    // Jebakan deploy (yang membunuh R2): live /etc/astro_profile.sh
+    // hanya ter-update saat mount/bootroot atau toggle-ON. Alur ini
+    // TIDAK pakai toggle, jadi watcher saat start menyegarkan profil
+    // hidup via refreshLiveProfile() (reuse). Tab LAMA yang sudah jalan
+    // tetap pegang hook lama di memori shell -> verdict WAJIB tab baru.
+    private static final String EXPLICIT_REQ_DIR = "/tmp/astro-display-requests";
+    private static final String EXPLICIT_READY_DIR = "/tmp/astro-display-ready";
+    private static final long EXPLICIT_POLL_MS = 5000L;
+    /** PID (sesi dan/atau bash) -> display eksplisitnya. In-memory saja:
+     *  restart proses app membuat server eksplisit jadi yatim (kelihatan
+     *  di dock sebagai server-only, bisa dimatikan dari dock). */
+    private final java.util.Map<Integer, Integer> explicitDisplayByPid =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private java.util.concurrent.ScheduledExecutorService explicitPoller;
+
+    /** Sinkronisasi watcher eksplisit: jalan bila chroot mounted, mati
+     *  bila unmounted. Idempotent; dipanggil tiap get() supaya transisi
+     *  mount ketahuan tanpa hook khusus. */
+    public synchronized void syncExplicitWatcher() {
+        boolean want = core.isMounted();
+        if (want && explicitPoller == null) {
+            explicitPoller = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+            explicitPoller.scheduleWithFixedDelay(this::pollExplicitRequests,
+                    0, EXPLICIT_POLL_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            // Profil hidup HARUS segar SEBELUM tab baru lahir, kalau tidak
+            // tab baru tak kenal don() (live profile cuma update saat mount
+            // atau toggle-ON — keduanya tak terjadi di alur ini).
+            refreshLiveProfile();
+            X11DebugLog.log("DON", "watcher eksplisit AKTIF (poll 5 detik, gate mounted) + profil hidup disegarkan");
+        } else if (!want && explicitPoller != null) {
+            explicitPoller.shutdownNow();
+            explicitPoller = null;
+            X11DebugLog.log("DON", "watcher eksplisit mati (chroot unmounted)");
+        }
+    }
+
+    /** Satu putaran polling request don/off (pola sama dengan xrun:
+     *  FileObserver tak bisa mengawasi pohon rootfs milik root, jadi
+     *  polling root shell adalah satu-satunya jalan). Kerja berat
+     *  dilempar ke thread exec (satu jalur dengan klaim/launch) supaya
+     *  probe + start server tak balapan. */
+    private void pollExplicitRequests() {
+        try {
+            if (!core.isMounted()) {
+                // Berhenti lewat main thread (bukan shutdownNow dari
+                // dalam tugas poller sendiri).
+                main.post(this::syncExplicitWatcher);
+                return;
+            }
+            java.util.List<String> names = core.customChrootCommand(
+                    "ls " + EXPLICIT_REQ_DIR + " 2>/dev/null");
+            if (names == null) return;
+            for (String name : names) {
+                name = name.trim();
+                if (!name.matches("(don|off)-[0-9]+-[0-9]+")) continue;
+                String[] parts = name.split("-");
+                int ppid;
+                long epoch;
+                try {
+                    ppid = Integer.parseInt(parts[1]);
+                    epoch = Long.parseLong(parts[2]);
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+                // Request basi (>120 detik, pola xrun): tab yang menulis
+                // sudah mati / watcher lama tertidur — buang, jangan
+                // nyalakan server yatim buat tab yang tak ada lagi.
+                if (epoch > 0 && System.currentTimeMillis() / 1000 - epoch > 120) {
+                    core.customChrootCommand("rm -f " + EXPLICIT_REQ_DIR + "/" + name);
+                    X11DebugLog.log("DON", "request eksplisit basi dibuang: " + name);
+                    continue;
+                }
+                java.util.List<String> out = core.customChrootCommand(
+                        "cat " + EXPLICIT_REQ_DIR + "/" + name
+                                + "; rm -f " + EXPLICIT_REQ_DIR + "/" + name);
+                if (out == null) continue;
+                String shellPidStr = String.join(" ", out).trim();
+                int shellPid = -1;
+                try {
+                    shellPid = Integer.parseInt(shellPidStr);
+                } catch (NumberFormatException ignored) {
+                }
+                final int fPpid = ppid;
+                final int fShell = shellPid;
+                final boolean fDon = name.startsWith("don-");
+                exec.execute(() -> {
+                    if (fDon) handleExplicitDon(fPpid, fShell);
+                    else handleExplicitOff(fPpid, fShell);
+                });
+            }
+        } catch (Throwable t) {
+            // chroot sibuk/mati di tengah jalan — putaran berikut mencoba lagi
+        }
+    }
+
+    /** Jalankan server display eksplisit buat satu tab (thread exec saja).
+     *  Identitas ganda: ppid (nama berkas request) + shellPid (isi request
+     *  = $$ bash). Fork su -> ppid = pid sesi; exec langsung -> shellPid
+     *  = pid sesi. Keduanya dipetakan, jadi doff/TAB_REMOVED cocok di
+     *  kedua perilaku su. Nomor lowest-free :1-:4, lewati RUNNING +
+     *  reserved + nomor yang sudah dimiliki display eksplisit lain
+     *  (nomor milik tab hidup tak boleh dipakai ulang — shell tab lama
+     *  masih pegang DISPLAY ke nomor itu). */
+    private void handleExplicitDon(int ppid, int shellPid) {
+        Integer have = explicitDisplayByPid.get(ppid);
+        if (have == null && shellPid > 0) have = explicitDisplayByPid.get(shellPid);
+        if (have != null) {
+            writeExplicitReady(ppid, ":" + have);
+            X11DebugLog.log("DON", "don ulang pid=" + ppid + " -> :" + have + " (sudah jalan)");
+            return;
+        }
+        int chosen = -1;
+        for (int d = 1; d <= 4; d++) {
+            if (reservedDisplays.contains(d)) continue;
+            if (explicitDisplayByPid.containsValue(d)) continue;
+            if (probeSync(d).state != State.RUNNING) { chosen = d; break; }
+        }
+        if (chosen < 0) {
+            writeExplicitReady(ppid, "POOL_FULL");
+            X11DebugLog.log("DON", "don pid=" + ppid + " ditolak: pool penuh (:1-:4)");
+            return;
+        }
+        explicitDisplayByPid.put(ppid, chosen);
+        if (shellPid > 0 && shellPid != ppid) explicitDisplayByPid.put(shellPid, chosen);
+        StringBuilder rep = new StringBuilder();
+        boolean ok = ensureRunningSync(chosen, rep);
+        if (!ok) {
+            explicitDisplayByPid.remove(ppid);
+            if (shellPid > 0) explicitDisplayByPid.remove(shellPid);
+            writeExplicitReady(ppid, "FAILED");
+            X11DebugLog.log("DON", "don pid=" + ppid + " gagal start :" + chosen + ": " + rep);
+            return;
+        }
+        writeExplicitReady(ppid, ":" + chosen);
+        X11DebugLog.log("DON", "don pid=" + ppid + " -> :" + chosen + " (server jalan, viewer dibuka)");
+        final int disp = chosen;
+        main.post(() -> {
+            boolean shown = id.hawx.astro.x11.window.XOverlayWindows
+                    .show(appCtx, disp, "Display :" + disp);
+            if (!shown)
+                id.hawx.astro.MainActivity.openXWindowFrom(appCtx, disp,
+                        "Display :" + disp);
+        });
+    }
+
+    /** Tulis jawaban buat don() yang sedang menunggu (root shell chroot,
+     *  karena proses app-uid tak bisa menulis ke pohon rootfs milik root).
+     *  Isi ":N" = siap, "POOL_FULL" / "FAILED" = gagal dengan alasan. */
+    private void writeExplicitReady(int ppid, String content) {
+        try {
+            core.customChrootCommand("mkdir -p " + EXPLICIT_READY_DIR
+                    + " && printf '%s' '" + content + "' > "
+                    + EXPLICIT_READY_DIR + "/" + ppid);
+        } catch (Throwable t) {
+            X11DebugLog.log("DON", "tulis ready pid=" + ppid + " gagal: " + t);
+        }
+    }
+
+    /** Lepas display eksplisit dari request doff (thread exec saja). */
+    private void handleExplicitOff(int ppid, int shellPid) {
+        Integer d = explicitDisplayByPid.get(ppid);
+        if (d == null && shellPid > 0) d = explicitDisplayByPid.get(shellPid);
+        if (d == null) {
+            X11DebugLog.log("DON", "doff pid=" + ppid + " dilewat: tidak ada display");
+            return;
+        }
+        releaseExplicitDisplay(d);
+    }
+
+    /** Lepas display eksplisit: viewer tutup + server mati + nomor bebas
+     *  + ready file bersih. Dipakai doff dan TAB_REMOVED. Idempotent:
+     *  stopDisplay + closeForDisplay aman dipanggil ulang (server yang
+     *  sudah mati = no-op, viewer yang sudah tutup = no-op). */
+    private void releaseExplicitDisplay(int d) {
+        java.util.List<Integer> pids = new java.util.ArrayList<>();
+        for (java.util.Map.Entry<Integer, Integer> e : explicitDisplayByPid.entrySet()) {
+            if (e.getValue() != null && e.getValue().intValue() == d) pids.add(e.getKey());
+        }
+        for (Integer p : pids) explicitDisplayByPid.remove(p);
+        final int disp = d;
+        main.post(() -> {
+            id.hawx.astro.x11.window.XWindowLayer.closeForDisplay(disp);
+            id.hawx.astro.x11.window.XOverlayWindows.closeForDisplay(disp);
+        });
+        stopDisplay(d, (ok, msg) -> { });
+        try {
+            StringBuilder rm = new StringBuilder();
+            for (Integer p : pids) {
+                if (rm.length() > 0) rm.append(' ');
+                rm.append(EXPLICIT_READY_DIR).append('/').append(p);
+            }
+            if (rm.length() > 0) core.customChrootCommand("rm -f " + rm);
+        } catch (Throwable ignored) {}
+        X11DebugLog.log("DON", "display eksplisit :" + d + " dilepas");
     }
 }
