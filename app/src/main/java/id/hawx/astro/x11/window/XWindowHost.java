@@ -76,7 +76,14 @@ public class XWindowHost implements XHost {
     private final Runnable fitNotify = this::fireFitNotify;
 
     private void fireFitNotify() {
-        if (display > 0)
+        if (display <= 0) return;
+        // Pisah sebagian: display terminal (:1-:2) di-fit manager
+        // terminal (cuma jendela xrun ber-entri; display polos skip),
+        // display desktop (:3-:4) tetap jalur XSessionManager.
+        if (id.hawx.astro.x11.XTerminalManager.isTerminalDisplay(display))
+            id.hawx.astro.x11.XTerminalManager.get(activity)
+                    .notifyTerminalResized(display, fitW, fitH);
+        else
             id.hawx.astro.x11.XSessionManager.get(activity)
                     .notifyFloatingResized(display, fitW, fitH);
     }
@@ -231,7 +238,10 @@ public class XWindowHost implements XHost {
             handoffTries = 0;
             id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
                     "poll: binder macet tag=" + tag + " -> minta pemulihan server");
-            id.hawx.astro.x11.XSessionManager.get(activity).recoverStuckDisplay(display);
+            if (id.hawx.astro.x11.XTerminalManager.isTerminalDisplay(display))
+                id.hawx.astro.x11.XTerminalManager.get(activity).recoverTerminalDisplay(display);
+            else
+                id.hawx.astro.x11.XSessionManager.get(activity).recoverStuckDisplay(display);
         }
         com.termux.x11.MainActivity inst = com.termux.x11.MainActivity.getInstance(tag);
         if (inst != null) {
@@ -273,8 +283,11 @@ public class XWindowHost implements XHost {
                 serverRecoveryTried = true;
                 id.hawx.astro.x11.X11DebugLog.log("HANDOFF",
                         "setengah terbuka bandel tag=" + tag + " -> restart server");
-                id.hawx.astro.x11.XSessionManager.get(activity)
-                        .recoverStuckDisplay(display);
+                if (id.hawx.astro.x11.XTerminalManager.isTerminalDisplay(display))
+                    id.hawx.astro.x11.XTerminalManager.get(activity).recoverTerminalDisplay(display);
+                else
+                    id.hawx.astro.x11.XSessionManager.get(activity)
+                            .recoverStuckDisplay(display);
                 return;
             } else {
                 return; // knock sisa / menunggu efek tahap pemulihan

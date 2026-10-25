@@ -684,10 +684,21 @@ public class Dashboard extends Fragment {
                 if (t.equals("Sembunyikan")) {
                     id.hawx.astro.x11.window.XWindowLayer.minimizeForDisplay(di.display);
                 } else if (t.equals("Matikan")) {
-                    xMgr.stopDisplay(di.display, (ok, msg) -> {
-                        core.toaster(msg);
-                        refreshXState();
-                    });
+                    // Pisah sebagian (3b): display terminal ikut boleh
+                    // dibunuh dari dock, TAPI lewat release penuh
+                    // manager terminal (viewer tutup + server mati +
+                    // map bebas) — BUKAN stopDisplay telanjang (log 35).
+                    if (id.hawx.astro.x11.XTerminalManager.isTerminalDisplay(di.display)) {
+                        id.hawx.astro.x11.XTerminalManager.get(context).releaseDisplay(di.display, (ok, msg) -> {
+                            core.toaster(msg);
+                            refreshXState();
+                        });
+                    } else {
+                        xMgr.stopDisplay(di.display, (ok, msg) -> {
+                            core.toaster(msg);
+                            refreshXState();
+                        });
+                    }
                 } else {
                     id.hawx.astro.MainActivity.openXWindowFrom(context, di.display, title);
                 }

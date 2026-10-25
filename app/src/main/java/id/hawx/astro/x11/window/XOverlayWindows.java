@@ -14,7 +14,6 @@ import java.util.Map;
 
 import id.hawx.astro.AstroApp;
 import id.hawx.astro.x11.X11DebugLog;
-import id.hawx.astro.x11.XSessionManager;
 
 /**
  * Rumah jendela melayang kelahiran terminal (xrun) — METODE SAMA
@@ -311,15 +310,22 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
                 // zombie, buat baru (sesi X selamat, posisi reset).
                 existing.host.detach();
                 sByDisplay.remove(display);
+            } else if (!existing.host.connected()) {
+                // Pisah sebagian (log 35): instance lama tapi host
+                // putus / server berganti generasi — raise diam-diam
+                // HANYA mengulang jebakan setengah-terbuka. Buang
+                // instance lama, jatuh ke jalur instance baru di
+                // bawah (attach ulang + knock baru).
+                X11DebugLog.log("OVERLAY", "d=" + display
+                        + " host putus — instance lama dibuang, buat baru");
+                existing.close();
             } else {
                 existing.raise();
-                id.hawx.astro.x11.XSessionManager.get(ctx).watchEntryDisplay(display);
                 return true;
             }
         }
         XWindowLayer.closeForDisplay(display); // rumah lama melepas
         new XOverlayWindows(act, display, title).attach();
-        id.hawx.astro.x11.XSessionManager.get(ctx).watchEntryDisplay(display);
         return true;
     }
 
@@ -433,7 +439,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         attached = false;
         host.detach();
         sByDisplay.remove(display);
-        id.hawx.astro.x11.XSessionManager.get(activity).unwatchEntryDisplay(display);
+        id.hawx.astro.x11.XTerminalManager.get(activity).unwatchXrunDisplay(display);
         if (sByDisplay.isEmpty()) detachAnchorListener();
     }
 
@@ -501,7 +507,7 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
     @Override
     public void onCloseClicked(XFloatingWindow w) {
         close();
-        XSessionManager.get(activity).stopDisplay(display, null);
+        id.hawx.astro.x11.XTerminalManager.get(activity).releaseDisplay(display);
     }
 
     @Override

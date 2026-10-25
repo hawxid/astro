@@ -28,61 +28,12 @@ public class AstroApp extends com.termux.x11.LorieApp {
             if (prevCrash != null) prevCrash.uncaughtException(t, e);
         });
         super.onCreate();
-        // Toggle "GUI melayang (xrun)" tinggal di menu Tools terminal
-        // bawaan; terminal kirim broadcast, sisi app yang menyalakan
-        // watcher + deploy shim lewat XSessionManager.
-        androidx.core.content.ContextCompat.registerReceiver(this,
-                new android.content.BroadcastReceiver() {
-            @Override
-            public void onReceive(android.content.Context c, android.content.Intent i) {
-                boolean en = i.getBooleanExtra("enabled", false);
-                // Ronde perbaikan: daftar PID dibawa pengirim
-                // (NeoTermActivity); bisa absen dari pengirim lama.
-                java.util.ArrayList<Integer> pids =
-                        i.getIntegerArrayListExtra("pids");
-                // Debug ke-2: info tiap tab hidup (format
-                // "title|pid|path") — dicatat hanya saat toggle ON,
-                // volume rendah, supaya log berikutnya langsung
-                // menunjukkan tab mana yang chroot dan mana yang
-                // bukan tanpa tebak-tebakan.
-                if (en) {
-                    java.util.ArrayList<String> tabInfo =
-                            i.getStringArrayListExtra("tabInfo");
-                    if (tabInfo != null) {
-                        for (String t : tabInfo) {
-                            id.hawx.astro.x11.X11DebugLog.log("TAB",
-                                    "tab toggle: " + t);
-                        }
-                    }
-                }
-                id.hawx.astro.x11.XSessionManager.get(c)
-                        .setTerminalFloat(en, pids);
-                id.hawx.astro.x11.X11DebugLog.log("XRUN",
-                        "toggle dari menu terminal -> " + en);
-            }
-        }, new android.content.IntentFilter("id.hawx.astro.TOGGLE_TERMINAL_FLOAT"),
-                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
-        // R2: tab terminal lahir/tutup -> klaim/bersihkan display per-tab
-        // (modul terminal tak boleh merujuk kelas app; sinyal lewat
-        // broadcast paket-lokal, pola yang sama dengan toggle).
-        androidx.core.content.ContextCompat.registerReceiver(this,
-                new android.content.BroadcastReceiver() {
-                    @Override
-                    public void onReceive(android.content.Context c,
-                                          android.content.Intent i) {
-                        int pid = i.getIntExtra("pid", 0);
-                        // Ronde perbaikan: receipt dicatat dulu supaya
-                        // log bisa membedakan "broadcast tak sampai"
-                        // vs "klaim gagal".
-                        id.hawx.astro.x11.X11DebugLog.log("TAB",
-                                "broadcast TAB_ADDED diterima pid=" + pid);
-                        if (pid > 0) {
-                            id.hawx.astro.x11.XSessionManager.get(c)
-                                    .onTerminalTabAdded(pid);
-                        }
-                    }
-                }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_ADDED"),
-                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+        // Pisah sebagian: watcher gabungan terminal di-bootstrap di
+        // sini (get() men-sync watcher-nya sendiri, gate mounted).
+        id.hawx.astro.x11.XTerminalManager.get(this);
+        // Pisah sebagian: tutup tab terminal -> manager terminal
+        // melepas penuh display polos tab itu (modul terminal tak
+        // boleh merujuk kelas app; sinyal lewat broadcast lokal).
         androidx.core.content.ContextCompat.registerReceiver(this,
                 new android.content.BroadcastReceiver() {
                     @Override
@@ -92,8 +43,8 @@ public class AstroApp extends com.termux.x11.LorieApp {
                         id.hawx.astro.x11.X11DebugLog.log("TAB",
                                 "broadcast TAB_REMOVED diterima pid=" + pid);
                         if (pid > 0) {
-                            id.hawx.astro.x11.XSessionManager.get(c)
-                                    .onTerminalTabRemoved(pid);
+                            id.hawx.astro.x11.XTerminalManager.get(c)
+                                    .onTabRemoved(pid);
                         }
                     }
                 }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_REMOVED"),
@@ -101,34 +52,6 @@ public class AstroApp extends com.termux.x11.LorieApp {
         // Ronde perbaikan: penolakan filter onTabAdded (modul
         // terminal) dititipkan lewat broadcast ini dan dicatat
         // sebagai baris TAB — tanpa logger baru di modul terminal.
-        androidx.core.content.ContextCompat.registerReceiver(this,
-                new android.content.BroadcastReceiver() {
-                    @Override
-                    public void onReceive(android.content.Context c,
-                                          android.content.Intent i) {
-                        int pid = i.getIntExtra("pid", 0);
-                        String path = i.getStringExtra("path");
-                        String title = i.getStringExtra("title");
-                        String reason = i.getStringExtra("reason");
-                        // Debug ke-4: "tunda" BUKAN penolakan — tab
-                        // chroot yang pid-nya belum mulai (proses
-                        // mulai sesudah tab ditambah); scan berkala
-                        // akan mengklaimnya begitu pid>0.
-                        if ("tunda".equals(reason)) {
-                            id.hawx.astro.x11.X11DebugLog.log("TAB",
-                                    "tab tunda klaim (menunggu pid mulai): title=" + title
-                                            + " pid=" + pid
-                                            + " path=" + path);
-                        } else {
-                            id.hawx.astro.x11.X11DebugLog.log("TAB",
-                                    "tab ditolak filter: title=" + title
-                                            + " pid=" + pid
-                                            + " path=" + path
-                                            + " reason=" + reason);
-                        }
-                    }
-                }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_DEBUG"),
-                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         androidx.core.content.ContextCompat.registerReceiver(this,
                 new android.content.BroadcastReceiver() {
                     @Override

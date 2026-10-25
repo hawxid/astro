@@ -141,8 +141,12 @@ public class MainActivity extends AppCompatActivity {
 
         // Lapisan jendela X floating (PoC 1) — overlay di atas desktop.
         xWindowLayer = findViewById(R.id.x_window_layer);
-        xWindowLayer.setKillListener(display ->
-                id.hawx.astro.x11.XSessionManager.get(this).stopDisplay(display, (ok, msg) -> { }));
+        xWindowLayer.setKillListener(display -> {
+            if (id.hawx.astro.x11.XTerminalManager.isTerminalDisplay(display))
+                id.hawx.astro.x11.XTerminalManager.get(this).releaseDisplay(display, (ok, msg) -> { });
+            else
+                id.hawx.astro.x11.XSessionManager.get(this).stopDisplay(display, (ok, msg) -> { });
+        });
         xWindowLayer.setWindowsChangedListener(() -> {
             androidx.fragment.app.Fragment f =
                     getSupportFragmentManager().findFragmentById(R.id.flContent);
@@ -671,7 +675,7 @@ public class MainActivity extends AppCompatActivity {
         id.hawx.astro.x11.XSessionManager.get(this).probe((state, detail) -> {
             if (panelTaskBtn != null) {
                 panelTaskBtn.setVisibility(
-                        state == id.hawx.astro.x11.XSessionManager.State.RUNNING
+                        state == id.hawx.astro.x11.XServerOps.State.RUNNING
                                 ? View.VISIBLE : View.GONE);
             }
         });

@@ -88,24 +88,24 @@ public class X11PocActivity extends AppCompatActivity {
         sessRow.addView(actionButton("Buka Layar X", v -> mgr.openViewer()));
         root.addView(sessRow);
 
-        // ---- PoC multi-display (2026-10-22): display :1 = server terpisah ----
+        // ---- PoC multi-display (2026-10-22): display :3 = server terpisah ----
         TextView pocTitle = new TextView(this);
-        pocTitle.setText("PoC Multi-Display — display :1 (server terpisah, tanpa WM)");
+        pocTitle.setText("PoC Multi-Display — display :3 (server terpisah, tanpa WM)");
         pocTitle.setTextSize(13);
         pocTitle.setTypeface(null, Typeface.BOLD);
         pocTitle.setPadding(0, dp(14), 0, dp(2));
         root.addView(pocTitle);
         TextView pocHint = new TextView(this);
-        pocHint.setText("Spawn :1 + XTerm membuktikan dua server X independen jalan bareng. "
+        pocHint.setText("Spawn :3 + XTerm membuktikan dua server X independen jalan bareng. "
                 + "Hasil Probe menampilkan RSS tiap server — dasar plafon jumlah jendela.");
         pocHint.setTextSize(11);
         root.addView(pocHint);
         LinearLayout pocRow = new LinearLayout(this);
         pocRow.setOrientation(LinearLayout.HORIZONTAL);
-        pocRow.addView(actionButton("Spawn :1 + XTerm", v -> doPocSpawn()));
-        pocRow.addView(actionButton("Jendela Floating :1 (PoC 1)", v -> doPocFloating()));
-        pocRow.addView(actionButton("Probe :0 + :1", v -> doPocProbe()));
-        pocRow.addView(actionButton("Matikan :1", v -> doPocStop()));
+        pocRow.addView(actionButton("Spawn :3 + XTerm", v -> doPocSpawn()));
+        pocRow.addView(actionButton("Jendela Floating :3 (PoC 1)", v -> doPocFloating()));
+        pocRow.addView(actionButton("Probe :0 + :3", v -> doPocProbe()));
+        pocRow.addView(actionButton("Matikan :3", v -> doPocStop()));
         root.addView(pocRow);
 
         // ---- chip watchdog idle (bundle: cek malas saat onResume, tanpa polling) ----
@@ -147,25 +147,6 @@ public class X11PocActivity extends AppCompatActivity {
             }
         });
 
-        // ---- toggle GUI terminal melayang (fondasi xrun) ----
-        LinearLayout termRow = new LinearLayout(this);
-        termRow.setOrientation(LinearLayout.HORIZONTAL);
-        termRow.setGravity(Gravity.CENTER_VERTICAL);
-        termRow.setPadding(0, dp(10), 0, 0);
-        TextView termLabel = new TextView(this);
-        termLabel.setText("GUI dari terminal melayang (xrun)");
-        termLabel.setLayoutParams(new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        android.widget.Switch termSwitch = new android.widget.Switch(this);
-        termSwitch.setChecked(mgr.getTerminalFloat());
-        termSwitch.setOnCheckedChangeListener((b, on) -> {
-            mgr.setTerminalFloat(on);
-            toast(on ? "xrun aktif — di terminal bawaan: xrun <perintah GUI>"
-                     : "xrun dimatikan");
-        });
-        termRow.addView(termLabel);
-        termRow.addView(termSwitch);
-        root.addView(termRow);
 
         // ---- header launcher ----
         LinearLayout lh = new LinearLayout(this);
@@ -268,8 +249,8 @@ public class X11PocActivity extends AppCompatActivity {
 
     private LauncherEntry pocEntry() {
         LauncherEntry e = new LauncherEntry();
-        e.id = "poc-d1";
-        e.name = "XTerm (PoC :1)";
+        e.id = "poc-d3";
+        e.name = "XTerm (PoC :3)";
         e.command = "xterm";
         e.type = "gui";
         return e;
@@ -278,37 +259,37 @@ public class X11PocActivity extends AppCompatActivity {
     private void doPocSpawn() {
         if (busy) return;
         busy = true;
-        sessionStatus.setText("⏳ PoC: spawn display :1 + xterm…");
-        mgr.launchOnDisplay(pocEntry(), 1, (ok, msg) -> {
+        sessionStatus.setText("⏳ PoC: spawn display :3 + xterm…");
+        mgr.launchOnDisplay(pocEntry(), 3, (ok, msg) -> {
             busy = false;
             toast(msg);
             refreshAll();
         });
     }
 
-    /** PoC 1: spawn :1 lalu buka jendela floating tertanam di desktop Astro. */
+    /** PoC 1: spawn :3 lalu buka jendela floating tertanam di desktop Astro. */
     private void doPocFloating() {
         if (busy) return;
         busy = true;
-        toast("Menyiapkan display :1 + jendela floating…");
-        mgr.launchOnDisplay(pocEntry(), 1, (ok, msg) -> {
+        toast("Menyiapkan display :3 + jendela floating…");
+        mgr.launchOnDisplay(pocEntry(), 3, (ok, msg) -> {
             busy = false;
-            id.hawx.astro.x11.window.XWindowActivity.launch(this, 1);
+            id.hawx.astro.x11.window.XWindowActivity.launch(this, 3);
         }, false);
     }
 
     private void doPocProbe() {
-        mgr.probe((st0, det0) -> mgr.probeDisplay(1, (st1, det1) ->
+        mgr.probe((st0, det0) -> mgr.probeDisplay(3, (st1, det1) ->
                 sessionStatus.setText("Probe :0 → " + st0 + " (" + det0 + ")\n"
-                        + "Probe :1 → " + st1 + " (" + det1 + ")")));
+                        + "Probe :3 → " + st1 + " (" + det1 + ")")));
     }
 
     private void doPocStop() {
         if (busy) return;
         busy = true;
-        sessionStatus.setText("⏳ PoC: mematikan display :1…");
+        sessionStatus.setText("⏳ PoC: mematikan display :3…");
         mgr.stopEntry(pocEntry(), (ok, msg) ->
-                mgr.stopDisplay(1, (ok2, msg2) -> {
+                mgr.stopDisplay(3, (ok2, msg2) -> {
                     busy = false;
                     toast(msg2);
                     refreshAll();
@@ -365,10 +346,10 @@ public class X11PocActivity extends AppCompatActivity {
     private void refreshAll() {
         mgr.probe((state, detail) -> {
             if (!busy) {
-                sessionStatus.setText("Server: " + (state == XSessionManager.State.RUNNING ? "JALAN" : "BERHENTI")
+                sessionStatus.setText("Server: " + (state == XServerOps.State.RUNNING ? "JALAN" : "BERHENTI")
                         + (detail.isEmpty() ? "" : " • " + detail));
             }
-            boolean idle = state == XSessionManager.State.RUNNING
+            boolean idle = state == XServerOps.State.RUNNING
                     && mgr.idleMillis() >= XSessionManager.IDLE_LIMIT_MS;
             idleChip.setVisibility(idle ? View.VISIBLE : View.GONE);
         });

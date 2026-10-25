@@ -144,9 +144,6 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
 
   override fun onCreateOptionsMenu(menu: Menu?): Boolean {
     menuInflater.inflate(R.menu.menu_main, menu)
-    menu?.findItem(R.id.toggle_terminal_float)?.isChecked =
-      getSharedPreferences("astro_x11", Context.MODE_PRIVATE)
-        .getBoolean("terminal_float", false)
 
     TabSwitcher.setupWithMenu(
       tabSwitcher, toolbar.menu,
@@ -185,25 +182,6 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
       }
       R.id.get_usb_devices -> {
         WirelessDialogs.showUsbDevices(this)
-        true
-      }
-      R.id.toggle_terminal_float -> {
-        // Toggle "GUI melayang (xrun)" — rumahnya di sini (menu Tools
-        // terminal, sesuai permintaan Hawx), BUKAN di panel X11.
-        val now = !item.isChecked
-        item.isChecked = now
-        getSharedPreferences("astro_x11", Context.MODE_PRIVATE)
-          .edit().putBoolean("terminal_float", now).apply()
-        // Ronde perbaikan: pengirim (terminal) yang tahu tab-nya —
-        // daftar PID ikut dibroadcast supaya klaim toggle ON tidak
-        // lagi bergantung pada snapshot foregroundActivity().
-        sendBroadcast(
-          Intent("id.hawx.astro.TOGGLE_TERMINAL_FLOAT")
-            .setPackage(packageName)
-            .putExtra("enabled", now)
-            .putIntegerArrayListExtra("pids", ArrayList(collectTermPids()))
-            .putStringArrayListExtra("tabInfo", ArrayList(collectTermTabInfo()))
-        )
         true
       }
       else -> item.let { super.onOptionsItemSelected(it) }
@@ -248,48 +226,12 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
 
         override fun onTabAdded(tabSwitcher: TabSwitcher, index: Int, tab: Tab, animation: Animation) {
           update_colors()
-          // R2: tab chroot baru lahir saat toggle ON -> klaim displaynya
-          // (broadcast karena modul terminal tak boleh merujuk kelas
-          // modul app langsung). KOREKSI debug ke-4: pid di sini
-          // BELUM tentu valid — proses sesi baru mulai di
-          // TerminalSession.initialize() saat view attach, SESUDAH
-          // tab ditambah — jadi tab baru hampir selalu terbaca
-          // pid=0 di sini. Klaim tak boleh diputuskan sekali saja:
-          // tab chroot yang belum mulai dicatat "tunda", dan scan
-          // berkala sisi app mengklaimnya begitu pid>0.
-          if (tab is TermTab) {
-            val sess = tab.termData.termSession
-            val pid = sess?.pid ?: 0
-            val path = sess?.shellPath
-            val chroot = isChrootTab(sess, tab.title)
-            if (pid > 0 && chroot) {
-              sendBroadcast(Intent("id.hawx.astro.TERMINAL_TAB_ADDED")
-                .setPackage(packageName).putExtra("pid", pid))
-            } else {
-              // Ronde perbaikan: penolakan filter harus bersuara.
-              // Modul terminal tak boleh merujuk logger modul app,
-              // jadi dititipkan lewat broadcast paket-lokal yang
-              // dicatat sisi app sebagai baris TAB. Debug ke-2:
-              // bawa juga title + reason supaya log berikutnya
-              // mengidentifikasi tiap tab tanpa tebak-tebakan.
-              // Debug ke-4: reason "tunda" = tab chroot tapi pid
-              // belum mulai (bukan penolakan — scan akan klaim);
-              // bukan chroot: "pid" bila pid<=0, "path" bila pid>0
-              // (semantik lama).
-              val reason = if (chroot) "tunda" else if (pid <= 0) "pid" else "path"
-              sendBroadcast(Intent("id.hawx.astro.TERMINAL_TAB_DEBUG")
-                .setPackage(packageName).putExtra("pid", pid)
-                .putExtra("path", path)
-                .putExtra("title", tab.title.toString())
-                .putExtra("reason", reason))
-            }
-          }
         }
 
         override fun onTabRemoved(tabSwitcher: TabSwitcher, index: Int, tab: Tab, animation: Animation) {
-          // R2: tab ditutup -> server + marker displaynya dibersihkan
-          // (hanya cleanup; cascade jendela/dialog = jatah R4). Broadcast
-          // dulu selagi termSession masih utuh.
+          // Pisah sebagian: tab ditutup -> manager terminal melepas
+          // penuh display polos tab itu. Broadcast dulu selagi
+          // termSession masih utuh.
           if (tab is TermTab) {
             val pid = tab.termData.termSession?.pid ?: 0
             if (pid > 0) {
@@ -313,76 +255,8 @@ class NeoTermActivity : AppCompatActivity(), ServiceConnection, SharedPreference
 
   }
 
-  /** Debug ke-4: sinyal chroot yang benar — menggantikan cek
-   *  shellPath endsWith "stryker-ch" yang terbukti TAK PERNAH
-   *  cocok (stryker-ch itu script sh, jadi shellPath yang
-   *  tercatat adalah interpreter-nya /system/bin/sh; bukti
-   *  log 32/33). Sinyal 1: argv sesi mengandung "stryker-ch"
-   *  (argv pasca-rewrite ExecPolicy menyertakan path script).
-   *  Sinyal 2 (fallback): judul tab diawali "Stryker"
-   *  (addNewStrykerSession). Dipakai onTabAdded, collectTermPids,
-   *  dan scan klaim sisi app (lewat collectTermPids). */
-  private fun isChrootTab(sess: com.stryker.terminal.backend.TerminalSession?, title: CharSequence?): Boolean {
-    if (sess == null) return false
-    try {
-      val args = sess.getArgs()
-      if (args != null) {
-        for (a in args) {
-          if (a != null && a.contains("stryker-ch")) return true
-        }
-      }
-    } catch (_: Exception) {
-    }
-    return title != null && title.toString().startsWith("Stryker")
-  }
 
-  /** R2: PID shell chroot semua tab hidup (dipakai sisi app saat
-   *  toggle ON untuk mengklaim display tab yang sudah ada, dan
-   *  oleh scan berkala debug ke-4). Filter chroot = isChrootTab
-   *  (argv mengandung stryker-ch ATAU judul "Stryker"): tab
-   *  Android/ssh tak membaca profil chroot, jadi marker buat
-   *  mereka sia-sia + makan slot pool. Hanya pid>0 yang
-   *  dikembalikan (tab yang belum mulai ditangani scan begitu
-   *  pidnya muncul). Dipanggil dari thread utama (menyentuh
-   *  tabSwitcher). */
-  fun collectTermPids(): List<Int> {
-    val out = ArrayList<Int>()
-    try {
-      for (i in 0 until tabSwitcher.count) {
-        val tab = tabSwitcher.getTab(i)
-        if (tab is TermTab) {
-          val sess = tab.termData.termSession
-          val pid = sess?.pid ?: 0
-          if (pid > 0 && isChrootTab(sess, tab.title)) {
-            out.add(pid)
-          }
-        }
-      }
-    } catch (_: Exception) {
-    }
-    return out
-  }
 
-  /** Debug ke-2: info semua tab hidup buat log TAB saat toggle
-   *  (satu string per tab, format "title|pid|path"). Dihitung
-   *  dalam loop yang sama polanya dengan collectTermPids, tanpa
-   *  mengubah fungsi itu (dipakai jalur lain). Volume rendah:
-   *  hanya dicatat sisi app saat toggle, bukan per-poll. */
-  fun collectTermTabInfo(): List<String> {
-    val out = ArrayList<String>()
-    try {
-      for (i in 0 until tabSwitcher.count) {
-        val tab = tabSwitcher.getTab(i)
-        if (tab is TermTab) {
-          val sess = tab.termData.termSession
-          out.add(tab.title.toString() + "|" + (sess?.pid ?: 0)
-              + "|" + (sess?.shellPath ?: ""))
-        }
-      }
-    } catch (_: Exception) {
-    }
-    return out
-  }
 
   override fun onStart() {
     super.onStart()

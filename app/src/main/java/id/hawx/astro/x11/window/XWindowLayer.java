@@ -129,7 +129,9 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         if (existing != null) {
             restoreWindow(existing);
             fireWindowsChanged();
-            id.hawx.astro.x11.XSessionManager.get(activity).watchEntryDisplay(display);
+            // LIFE desktop cuma untuk display desktop (:3-:4); display
+            // terminal (:1-:2) TIDAK di-watch dari layer (pisah sebagian).
+            if (display >= 3) id.hawx.astro.x11.XSessionManager.get(activity).watchEntryDisplay(display);
             return;
         }
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "openWindow mulai display=" + display);
@@ -156,7 +158,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         setActive(win);
         host.attach();
         fireWindowsChanged();
-        id.hawx.astro.x11.XSessionManager.get(activity).watchEntryDisplay(display);
+        if (display >= 3) id.hawx.astro.x11.XSessionManager.get(activity).watchEntryDisplay(display);
       } catch (Throwable t) {
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "openWindow GAGAL: "
                 + android.util.Log.getStackTraceString(t));
