@@ -23,7 +23,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import id.hawx.astro.AstroApp;
@@ -39,11 +39,104 @@ import id.hawx.astro.AstroApp;
  */
 public class WebOverlayWindows {
 
-    private static final Map<String, WebOverlayWindows> sByPath = new HashMap<>();
+    // LinkedHashMap (bukan HashMap): urutan sisip = urutan tampil di
+    // dock, stabil antar rebuild (HashMap bisa mengacak urutan tiap
+    // rehash — taskbar yang loncat-loncat membingungkan).
+    private static final Map<String, WebOverlayWindows> sByPath = new LinkedHashMap<>();
+
+    // Listener perubahan overlay (ronde dock webview, 2026-10-25):
+    // Dashboard mendaftar di onResume, melepas di onPause; tiap
+    // transisi tampil/sembunyi/tutup memicu rebuild dock — tanpa
+    // polling. Dipanggil sinkron dari thread transisi (praktiknya
+    // thread UI: tap chrome/sel/menu); Dashboard sendiri sudah
+    // menjaga isAdded/getView di refreshDisplays().
+    public interface OverlayListener {
+        void onOverlaysChanged();
+    }
+
+    private static final java.util.List<OverlayListener> sListeners =
+            new java.util.ArrayList<>();
+
+    public static void addOverlayListener(OverlayListener l) {
+        if (l != null && !sListeners.contains(l)) sListeners.add(l);
+    }
+
+    public static void removeOverlayListener(OverlayListener l) {
+        sListeners.remove(l);
+    }
+
+    private static void notifyOverlayListeners() {
+        java.util.List<OverlayListener> copy =
+                new java.util.ArrayList<>(sListeners);
+        for (OverlayListener l : copy) {
+            try {
+                l.onOverlaysChanged();
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /** Potret satu overlay untuk dock (sumber kebenaran = registry
+     *  sByPath; visible = attached nyata, bukan pref/mode baru). */
+    public static class OverlayInfo {
+        public final String path;
+        public final String title;
+        public final String dockLabel;
+        public final boolean visible;
+
+        OverlayInfo(String path, String title, String dockLabel, boolean visible) {
+            this.path = path;
+            this.title = title;
+            this.dockLabel = dockLabel;
+            this.visible = visible;
+        }
+    }
+
+    /** Potret semua overlay yang ada (terbuka MAUPUN disembunyikan —
+     *  hide() tidak menghapus dari registry, hanya close()).
+     *  Urutan = urutan dibuat (LinkedHashMap). */
+    public static java.util.List<OverlayInfo> listOverlays() {
+        java.util.List<OverlayInfo> out = new java.util.ArrayList<>();
+        for (WebOverlayWindows o : sByPath.values()) {
+            String dl = o.dockLabel;
+            if (dl == null || dl.isEmpty()) dl = dockLabelFor("", o.title);
+            out.add(new OverlayInfo(o.path, o.title, dl, o.attached));
+        }
+        return out;
+    }
+
+    /** Label dock dari ikon entry launcher: emoji/teks pendek dipakai
+     *  langsung; ikon file: atau kosong -> huruf pertama judul. */
+    public static String dockLabelFor(String icon, String title) {
+        if (icon != null && !icon.trim().isEmpty() && !icon.startsWith("file:")) {
+            return icon.trim();
+        }
+        if (title != null && !title.isEmpty()) {
+            return title.substring(0, 1).toUpperCase();
+        }
+        return "?";
+    }
+
+    /** Set label dock overlay yang sudah ada (dipanggil call site
+     *  show() sesudah tampil — termasuk jalur raise, supaya ikon
+     *  yang diubah di editor ikut segar). No-op bila tak ada overlay
+     *  untuk path itu. Memberi tahu listener (label di-set SESUDAH
+     *  notify attach/raise, jadi rebuild sesudahnya yang memakainya). */
+    public static void setDockLabelForPath(String path, String label) {
+        WebOverlayWindows o = sByPath.get(path);
+        if (o == null) return;
+        o.dockLabel = label;
+        notifyOverlayListeners();
+    }
 
     private final Activity activity;
     private final WindowManager wm;
     private final String path;
+    /** Judul window (disimpan — sebelumnya cuma param ctor untuk
+     *  titleView; dock butuh judul untuk label fallback + menu). */
+    private final String title;
+    /** Label dock (ikon entry); null/kosong -> fallback huruf judul. */
+    private String dockLabel;
     /**
      * Hook tutup (mode webui): dijalankan di close() saja — ✕ dan
      * closeByPath. hide() (—) TIDAK menjalankannya (server webui
@@ -145,6 +238,7 @@ public class WebOverlayWindows {
 
     private WebOverlayWindows(Activity act, String title, String path) {
         this.activity = act;
+        this.title = title;
         this.path = path;
         wm = (WindowManager) act.getSystemService(Context.WINDOW_SERVICE);
         DisplayMetrics m = new DisplayMetrics();
@@ -535,6 +629,7 @@ public class WebOverlayWindows {
         wm.addView(container, wlp);
         attached = true;
         startFrameListener();
+        notifyOverlayListeners();
         File f = new File(path);
         if (f.exists()) {
             webView.loadUrl("file://" + f.getAbsolutePath());
@@ -551,6 +646,7 @@ public class WebOverlayWindows {
             wm.addView(container, wlp);
             attached = true;
             startFrameListener();
+            notifyOverlayListeners();
         }
     }
 
@@ -567,6 +663,7 @@ public class WebOverlayWindows {
             stopFrameListener();
             wm.removeView(container);
             attached = false;
+            notifyOverlayListeners();
         }
     }
 
@@ -587,6 +684,7 @@ public class WebOverlayWindows {
         } catch (Throwable ignored) {
         }
         sByPath.remove(path);
+        notifyOverlayListeners();
     }
 
     /** Seret lewat bar judul — gerakkan parameter WindowManager langsung. */

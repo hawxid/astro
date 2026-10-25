@@ -82,6 +82,13 @@ public class Dashboard extends Fragment {
         return false;
     };
     private int dockFixedCount = 0;
+    /** Ronde dock webview (2026-10-25): overlay webview ikut masuk
+     *  dock (model taskbar desktop Linux) — listener ini memicu
+     *  rebuild tiap overlay tampil/sembunyi/tutup, tanpa polling.
+     *  Didaftar di onResume, dilepas di onPause; refresh penuh
+     *  tetap jalan di onResume (kasus kembali dari app lain). */
+    private final id.hawx.astro.x11.window.WebOverlayWindows.OverlayListener dockOverlayListener =
+            () -> refreshDisplays();
     private static final String PREF_DOCK = "dock_item_";
     private XSessionManager xMgr;
     private LauncherStore launcherStore;
@@ -189,6 +196,13 @@ public class Dashboard extends Fragment {
         if (context != null) launcherStore = new LauncherStore(context);
         buildTools();
         refreshXState();
+        id.hawx.astro.x11.window.WebOverlayWindows.addOverlayListener(dockOverlayListener);
+    }
+
+    @Override
+    public void onPause() {
+        id.hawx.astro.x11.window.WebOverlayWindows.removeOverlayListener(dockOverlayListener);
+        super.onPause();
     }
 
     private void checkPermission() {
@@ -571,6 +585,11 @@ public class Dashboard extends Fragment {
                 if (e.floating) {
                     boolean shown = id.hawx.astro.x11.window.WebOverlayWindows
                             .show(context, e.name, e.command);
+                    // Label dock (ikon entry) — no-op bila show()
+                    // gagal (tak ada overlay); jalur raise ikut segar.
+                    id.hawx.astro.x11.window.WebOverlayWindows.setDockLabelForPath(
+                            e.command,
+                            id.hawx.astro.x11.window.WebOverlayWindows.dockLabelFor(e.icon, e.name));
                     if (shown) return;
                 }
                 Intent i = new Intent(context, id.hawx.astro.goose.GhostVizActivity.class);
@@ -779,6 +798,60 @@ public class Dashboard extends Fragment {
         return b;
     }
 
+    /** Pintasan overlay webview di dock (ronde dock webview):
+     *  label = ikon entry (atau huruf pertama judul); warna ikut
+     *  state kayak display X — terbuka = biru/teks putih,
+     *  tersembunyi = gelap/teks abu. Tap = angkat (show -> raise;
+     *  no-op bila sudah tampil). Tahan = popup (Tampilkan /
+     *  Sembunyikan / Tutup). Tutup lewat closeByPath yang sudah
+     *  ada — untuk webui, hook onClose di close() mematikan server
+     *  (jalur yang sama dengan ✕); tak ada jalur kill baru. */
+    private View dockWebBtn(id.hawx.astro.x11.window.WebOverlayWindows.OverlayInfo info) {
+        TextView b = new TextView(context);
+        b.setText(info.dockLabel);
+        b.setTextSize(20);
+        b.setGravity(android.view.Gravity.CENTER);
+        b.setContentDescription(info.title != null ? info.title : "Webview");
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(info.visible ? 0xFF2A3B6E : 0xFF12182C);
+        b.setTextColor(info.visible ? 0xFFFFFFFF : 0xFF8A93A8);
+        b.setBackground(g);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        b.setLayoutParams(lp);
+        String title = (info.title != null ? info.title : "Webview")
+                + (info.visible ? " \u2014 terbuka" : " \u2014 tersembunyi");
+        b.setOnClickListener(v ->
+                id.hawx.astro.x11.window.WebOverlayWindows.show(context, info.title, info.path));
+        b.setOnLongClickListener(v -> {
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(context, v);
+            pm.getMenu().add(title);
+            if (info.visible) {
+                pm.getMenu().add("Sembunyikan");
+            } else {
+                pm.getMenu().add("Tampilkan");
+            }
+            pm.getMenu().add("Tutup");
+            pm.setOnMenuItemClickListener(item -> {
+                String t = item.getTitle().toString();
+                if (t.equals("Sembunyikan")) {
+                    id.hawx.astro.x11.window.WebOverlayWindows.hideForPath(info.path);
+                } else if (t.equals("Tampilkan")) {
+                    id.hawx.astro.x11.window.WebOverlayWindows.show(context, info.title, info.path);
+                } else if (t.equals("Tutup")) {
+                    id.hawx.astro.x11.window.WebOverlayWindows.closeByPath(info.path);
+                } else {
+                    id.hawx.astro.x11.window.WebOverlayWindows.show(context, info.title, info.path);
+                }
+                return true;
+            });
+            pm.show();
+            return true;
+        });
+        return b;
+    }
+
     /** Pintasan display :0 di dock — :0 itu fullscreen, bukan
      *  jendela layer, jadi tidak pakai dockWinBtn (tap layer /
      *  status layer tak berlaku). Tap = viewer fullscreen lewat
@@ -843,7 +916,12 @@ public class Dashboard extends Fragment {
             if (dockBar == null) return;
             while (dockBar.getChildCount() > dockFixedCount)
                 dockBar.removeViewAt(dockBar.getChildCount() - 1);
-            if (!list.isEmpty()) {
+            // Overlay webview ikut dock (ronde dock webview): sumber
+            // kebenaran = registry overlay; pemisah muncul bila ada
+            // pintasan dinamis apa pun (display X ATAU overlay).
+            java.util.List<id.hawx.astro.x11.window.WebOverlayWindows.OverlayInfo> web =
+                    id.hawx.astro.x11.window.WebOverlayWindows.listOverlays();
+            if (!list.isEmpty() || !web.isEmpty()) {
                 // Pemisah antara ikon tetap dan pintasan jendela aktif
                 View sep = new View(context);
                 android.widget.LinearLayout.LayoutParams slp =
@@ -856,6 +934,8 @@ public class Dashboard extends Fragment {
             }
             for (XSessionManager.DisplayInfo di : list)
                 dockBar.addView(dockWinBtn(di));
+            for (id.hawx.astro.x11.window.WebOverlayWindows.OverlayInfo info : web)
+                dockBar.addView(dockWebBtn(info));
             // Display :0 TIDAK masuk listDisplays (loop 1..4) —
             // probe terpisah di sini, tanpa menyentuh loop itu dan
             // tanpa mutasi state terminal (aturan log 35). Trim di

@@ -229,6 +229,10 @@ public class WebUiLauncher {
             boolean shown = id.hawx.astro.x11.window.WebOverlayWindows.show(
                     ctx, e.name, url, () -> killServer(ctx, e.port));
             if (shown) {
+                // Label dock (ikon entry) — jalur raise ikut segar.
+                id.hawx.astro.x11.window.WebOverlayWindows.setDockLabelForPath(
+                        url,
+                        id.hawx.astro.x11.window.WebOverlayWindows.dockLabelFor(e.icon, e.name));
                 if (didStart && existed) {
                     id.hawx.astro.x11.window.WebOverlayWindows.reloadByPath(url);
                 }
