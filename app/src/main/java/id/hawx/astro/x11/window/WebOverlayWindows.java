@@ -57,6 +57,13 @@ public class WebOverlayWindows {
     // lambda yang membaca field selagi ctor berjalan.
     private ViewTreeObserver.OnGlobalLayoutListener frameListener;
     private boolean frameListening;
+    // Toggle fokus input (ronde beralih ketik, 2026-10-25): default
+    // NOT_FOCUSABLE supaya app di bawah pegang IME; mode focusable
+    // hanya selama ketik di webview (masuk via ⌨, pulang via
+    // tap-luar / keyboard-hide / hide). Boolean primitif, default
+    // false — tidak ada self-reference.
+    private boolean focusInputMode;
+    private boolean kbSeenOpen;
 
     // ---------------- statis ----------------
 
@@ -113,7 +120,20 @@ public class WebOverlayWindows {
         int h = (int) (m.heightPixels * 0.55f);
         wlp = new WindowManager.LayoutParams(w, h,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                // Default NOT_FOCUSABLE (ronde beralih ketik): window
+                // overlay yang focusable merebut/menahan fokus window
+                // sejak ditambahkan — cukup dengan keberadaannya,
+                // app di bawah (WA) jadi tidak bisa memunculkan
+                // keyboard (terbukti perangkat 2026-10-25, bahkan
+                // tanpa overlay pernah disentuh). NOT_FOCUSABLE =
+                // app bawah pegang fokus + IME normal; sentuhan
+                // webview tetap jalan (tombol tidak butuh fokus).
+                // WATCH_OUTSIDE_TOUCH = pemicu pulang: tap di luar
+                // overlay tertangkap sebagai ACTION_OUTSIDE tanpa
+                // di-consume (sentuhan tetap sampai ke app bawah).
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT);
         wlp.gravity = Gravity.TOP | Gravity.START;
         int n = sByPath.size();
@@ -187,6 +207,12 @@ public class WebOverlayWindows {
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
         bar.addView(chromeBtn("⌨", v -> {
+            // Masuk mode ketik webview: window HARUS focusable dulu,
+            // baru requestFocus/showSoftInput bisa jalan (urutan ini
+            // penting — keduanya gagal kalau window masih
+            // NOT_FOCUSABLE).
+            setFocusableInputMode(true);
+            kbSeenOpen = false;
             webView.requestFocus();
             android.view.inputmethod.InputMethodManager imm =
                     (android.view.inputmethod.InputMethodManager)
@@ -371,11 +397,58 @@ public class WebOverlayWindows {
         wm.updateViewLayout(container, wlp);
     }
 
+    /** Toggle fokus input webview. true = window bisa jadi target
+     *  IME (mode ketik webview); false = NOT_FOCUSABLE (app bawah
+     *  pegang fokus + IME). HANYA mengubah bit NOT_FOCUSABLE —
+     *  x/y/w/h, maximize, anchor tidak disentuh. No-op bila flag
+     *  sudah sesuai (tidak memicu layout sia-sia). updateViewLayout
+     *  hanya bila attached (sesudah removeView itu ilegal).
+     *  Sengaja TANPA hideSoftInput eksplisit: saat fokus pindah,
+     *  sistem yang mengikat ulang/menyembunyikan IME — hide
+     *  eksplisit berisiko balapan dengan keyboard app bawah yang
+     *  mau tampil (kasus pulang ke WA). */
+    private void setFocusableInputMode(boolean on) {
+        boolean wantNotFocusable = !on;
+        boolean hasNotFocusable =
+                (wlp.flags & WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) != 0;
+        focusInputMode = on;
+        if (!on) kbSeenOpen = false;
+        if (hasNotFocusable == wantNotFocusable) return;
+        if (wantNotFocusable) {
+            wlp.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        } else {
+            wlp.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        }
+        if (attached) wm.updateViewLayout(container, wlp);
+    }
+
     /** Anchor maximize ke frame kelihatan = OTORITAS TUNGGAL tinggi
      *  maximize: bawah frame = atas keyboard saat keyboard buka,
      *  = bawah layar saat tutup (termasuk restore ke full).
-     *  Hanya jalan selagi maximize (layout lain tidak di-spam log). */
+     *  Hanya jalan selagi maximize (layout lain tidak di-spam log).
+     *  Ditambah deteksi keyboard-hide khusus mode ketik webview
+     *  (pemicu pulang cadangan, di luar tap-luar): frame kembali
+     *  penuh SETELAH sempat menyusut = keyboard sudah nutup ->
+     *  pulang ke NOT_FOCUSABLE. Sengaja TIDAK memakai listener
+     *  insets sebagai detektor: log 36 membuktikan imeH selalu 0
+     *  di window overlay ini, jadi insets tak bisa diandalkan
+     *  untuk hide. Listener frame ini sudah jalan selama attached
+     *  (daftar di attach/raise), jadi tidak ada listener baru.
+     *  Arah gagal aman: frame yang tak pernah kembali penuh (mis.
+     *  nav bar buram) berarti tidak ada restore lewat jalur ini —
+     *  tap-luar tetap menutupi pulangnya, ketik webview tak rusak. */
     private void onVisibleFrame() {
+        if (focusInputMode && attached) {
+            Rect r = new Rect();
+            container.getWindowVisibleDisplayFrame(r);
+            android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+            wm.getDefaultDisplay().getRealMetrics(dm);
+            if (r.bottom < dm.heightPixels) {
+                kbSeenOpen = true;
+            } else if (kbSeenOpen) {
+                setFocusableInputMode(false);
+            }
+        }
         if (!maximized || !attached) return;
         Rect r = new Rect();
         container.getWindowVisibleDisplayFrame(r);
@@ -421,6 +494,11 @@ public class WebOverlayWindows {
 
     private void hide() {
         if (attached) {
+            // Pulang dari mode ketik bila sedang aktif: flag harus
+            // sudah NOT_FOCUSABLE sebelum removeView (removeView
+            // membuang params; updateViewLayout sesudahnya ilegal).
+            // No-op bila sudah NOT_FOCUSABLE.
+            setFocusableInputMode(false);
             // Lepas listener SEBELUM removeView: observer view yang
             // sudah dilepas mati, dan pendaftaran lamanya tak bisa
             // dihapus dari observer baru.
@@ -447,6 +525,21 @@ public class WebOverlayWindows {
 
         WebContainer(Context ctx) {
             super(ctx);
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(android.view.MotionEvent e) {
+            // Pemicu pulang UTAMA: tap di luar overlay (area app
+            // bawah) tertangkap sebagai ACTION_OUTSIDE berkat
+            // FLAG_WATCH_OUTSIDE_TOUCH. Kembalikan NOT_FOCUSABLE
+            // supaya app bawah merebut fokus window + IME.
+            // TIDAK di-consume: super tetap jalan, sentuhan itu
+            // sendiri tetap sampai ke app bawah. No-op bila sudah
+            // NOT_FOCUSABLE (mode default).
+            if (e.getActionMasked() == android.view.MotionEvent.ACTION_OUTSIDE) {
+                WebOverlayWindows.this.setFocusableInputMode(false);
+            }
+            return super.dispatchTouchEvent(e);
         }
 
         @Override
