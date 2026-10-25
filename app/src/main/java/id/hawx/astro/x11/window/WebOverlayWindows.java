@@ -311,6 +311,24 @@ public class WebOverlayWindows {
                     backBtn.setEnabled(canBack);
                 }
             }
+            // Guard navigasi (hardening 2026-10-25): hanya origin lokal /
+            // loopback boleh dimuat di webview ber-bridge; link ke luar
+            // daftar dibuka di browser eksternal. onPageFinished di atas
+            // tidak diubah; helper ini tidak menyentuh field chrome
+            // (dibuat sebelum chrome) maupun logika fokus/maksimal.
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                return shouldOverride(view, request.getUrl().toString());
+            }
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return shouldOverride(view, url);
+            }
+            private boolean shouldOverride(WebView view, String url) {
+                if (id.hawx.astro.goose.ToolsBridge.isAllowedNavigationUrl(url)) return false;
+                id.hawx.astro.goose.ToolsBridge.openExternal(view.getContext(), url);
+                return true;
+            }
         });
         webView.addJavascriptInterface(
                 new id.hawx.astro.goose.ToolsBridge(

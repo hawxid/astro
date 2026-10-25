@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hardening 2026-10-25 (ronde hardening): cleartext HANYA untuk
+     loopback. Mode webui memuat http://127.0.0.1:PORT dari WebView,
+     jadi domain itu (dan localhost) diizinkan; semua host lain wajib
+     HTTPS. Pengecualian ini TIDAK berlaku untuk pemindai Chromecast
+     LAN (CastProbe): ia memakai soket mentah, bukan stack HTTP
+     platform, jadi tidak tunduk pada config ini — IP LAN arbitrary
+     memang tidak bisa ditulis sebagai domain di sini. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

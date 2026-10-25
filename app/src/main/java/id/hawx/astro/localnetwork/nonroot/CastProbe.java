@@ -5,8 +5,9 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Map;
@@ -106,40 +107,94 @@ public final class CastProbe {
         return results;
     }
 
+    // Hardening 2026-10-25: dulunya HttpURLConnection — pindah ke
+    // soket mentah supaya network-security-config (cleartext hanya
+    // loopback) tidak membunuh pemindai Chromecast LAN ini. Perilaku
+    // dipertahankan persis: GET yang sama, timeout sama, hanya status
+    // 200 yang dipakai, body dibatasi MAX_BODY, gagal -> null, tanpa
+    // mengikuti redirect. Soket mentah tidak tunduk pada
+    // network-security-config (yang hanya mengatur stack HTTP
+    // platform); IP target arbitrary hasil scan LAN memang tidak bisa
+    // ditulis sebagai domain di config.
     private static String fetch(String ip) {
-        HttpURLConnection conn = null;
+        Socket socket = null;
         InputStream in = null;
         try {
-            URL url = new URL("http://" + ip + ":" + ScanConfig.CAST_PORT + PATH);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(TIMEOUT_MS);
-            conn.setReadTimeout(TIMEOUT_MS);
-            conn.setUseCaches(false);
-            conn.setDoInput(true);
-            conn.setInstanceFollowRedirects(false);
-            conn.setRequestProperty("User-Agent", "Astro");
-            conn.setRequestProperty("Accept", "application/json");
-            conn.setRequestProperty("Connection", "close");
-
-            int code = conn.getResponseCode();
-            if (code != HttpURLConnection.HTTP_OK) return null;
-
-            in = conn.getInputStream();
-            if (in == null) return null;
-
+            socket = new Socket();
+            socket.connect(new InetSocketAddress(ip, ScanConfig.CAST_PORT), TIMEOUT_MS);
+            socket.setSoTimeout(TIMEOUT_MS);
+            String req = "GET " + PATH + " HTTP/1.1\r\n"
+                    + "Host: " + ip + ":" + ScanConfig.CAST_PORT + "\r\n"
+                    + "User-Agent: Astro\r\n"
+                    + "Accept: application/json\r\n"
+                    + "Connection: close\r\n\r\n";
+            OutputStream out = socket.getOutputStream();
+            out.write(req.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            in = new java.io.BufferedInputStream(socket.getInputStream());
+            String status = readLine(in);
+            if (status == null) return null;
+            String[] parts = status.split(" ", 3);
+            if (parts.length < 2 || !"200".equals(parts[1])) return null;
+            boolean chunked = false;
+            String header;
+            while ((header = readLine(in)) != null) {
+                if (header.isEmpty()) break;
+                String lower = header.toLowerCase(java.util.Locale.ROOT);
+                if (lower.startsWith("transfer-encoding:")
+                        && lower.contains("chunked")) {
+                    chunked = true;
+                }
+            }
+            if (header == null) return null;
             ByteArrayOutputStream sink = new ByteArrayOutputStream(READ_CHUNK);
             byte[] chunk = new byte[READ_CHUNK];
             int total = 0;
-            while (total < MAX_BODY) {
-                int want = Math.min(chunk.length, MAX_BODY - total);
-                int read = in.read(chunk, 0, want);
-                if (read < 0) break;
-                if (read == 0) continue;
-                sink.write(chunk, 0, read);
-                total += read;
+            if (chunked) {
+                while (total < MAX_BODY) {
+                    String sizeLine = readLine(in);
+                    if (sizeLine == null) break;
+                    int semi = sizeLine.indexOf(';');
+                    String sizeStr = (semi >= 0
+                            ? sizeLine.substring(0, semi) : sizeLine).trim();
+                    int size;
+                    try {
+                        size = Integer.parseInt(sizeStr, 16);
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                    if (size == 0) break;
+                    int remaining = size;
+                    while (remaining > 0) {
+                        int want = Math.min(chunk.length,
+                                Math.min(remaining, MAX_BODY - total));
+                        if (want <= 0) break;
+                        int read = in.read(chunk, 0, want);
+                        if (read < 0) break;
+                        if (read == 0) continue;
+                        sink.write(chunk, 0, read);
+                        total += read;
+                        remaining -= read;
+                    }
+                    while (remaining > 0) {
+                        long skipped = in.skip(remaining);
+                        if (skipped <= 0) break;
+                        remaining -= skipped;
+                    }
+                    readLine(in);
+                    if (total >= MAX_BODY) break;
+                }
+            } else {
+                while (total < MAX_BODY) {
+                    int want = Math.min(chunk.length, MAX_BODY - total);
+                    int read = in.read(chunk, 0, want);
+                    if (read < 0) break;
+                    if (read == 0) continue;
+                    sink.write(chunk, 0, read);
+                    total += read;
+                }
             }
-            if (total == 0) return null;
+            if (sink.size() == 0) return null;
             return new String(sink.toByteArray(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             return null;
@@ -152,18 +207,27 @@ public final class CastProbe {
                 } catch (Exception ignored) {
                 }
             }
-            if (conn != null) {
+            if (socket != null) {
                 try {
-                    InputStream err = conn.getErrorStream();
-                    if (err != null) err.close();
-                } catch (Exception ignored) {
-                }
-                try {
-                    conn.disconnect();
+                    socket.close();
                 } catch (Exception ignored) {
                 }
             }
         }
+    }
+
+    // Baca satu baris CRLF/LF dari stream (tanpa BufferedReader
+    // terpisah supaya body tetap terbaca dari stream yang sama).
+    // Mengembalikan null hanya bila stream habis tanpa satu byte pun.
+    private static String readLine(InputStream in) throws java.io.IOException {
+        ByteArrayOutputStream line = new ByteArrayOutputStream(128);
+        int b = -1;
+        while ((b = in.read()) >= 0) {
+            if (b == '\n') break;
+            if (b != '\r') line.write(b);
+        }
+        if (b < 0 && line.size() == 0) return null;
+        return new String(line.toByteArray(), StandardCharsets.UTF_8);
     }
 
     private static String str(JSONObject source, String key) {

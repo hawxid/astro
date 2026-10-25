@@ -69,7 +69,25 @@ public class GhostVizActivity extends AppCompatActivity {
         ws.setBuiltInZoomControls(true);
         ws.setDisplayZoomControls(false);
         ws.setSupportZoom(true);
-        webView.setWebViewClient(new WebViewClient());
+        // Guard navigasi (hardening 2026-10-25): hanya origin lokal /
+        // loopback boleh dimuat di webview ber-bridge; link ke luar
+        // daftar dibuka di browser eksternal. Load awal (loadUrl)
+        // tidak lewat shouldOverrideUrlLoading, jadi tidak terpengaruh.
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                return shouldOverride(view, request.getUrl().toString());
+            }
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return shouldOverride(view, url);
+            }
+            private boolean shouldOverride(WebView view, String url) {
+                if (ToolsBridge.isAllowedNavigationUrl(url)) return false;
+                ToolsBridge.openExternal(view.getContext(), url);
+                return true;
+            }
+        });
         // Fondasi tools WebView: bridge perintah chroot buat halaman lokal.
         webView.addJavascriptInterface(
                 new ToolsBridge(new id.hawx.astro.utils.Core(this), webView),
