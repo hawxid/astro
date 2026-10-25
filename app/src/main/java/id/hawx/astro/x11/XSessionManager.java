@@ -718,7 +718,8 @@ public class XSessionManager {
                 killServerSync(d);
             } catch (Exception e) {
             }
-            launchOnDisplay(entry, d, (ok, msg) ->
+            launchOnDisplay(entry, d, (ok, msg) -> {
+            }, false);
         });
     }
 
