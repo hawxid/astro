@@ -113,13 +113,46 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         float density = sAnchorView.getResources().getDisplayMetrics().density;
         int threshPx = Math.round(1 * density);
         for (XOverlayWindows o : sByDisplay.values()) {
-            if (!o.attached || o.win.isMaximized()
+            if (!o.attached
                     || o.win.getVisibility() != android.view.View.VISIBLE) continue;
             FrameLayout.LayoutParams lp =
                     (FrameLayout.LayoutParams) o.win.getLayoutParams();
+            int anchorH = anchorB - anchorT;
+            if (o.win.isMaximized()) {
+                // Maximize ikut anchor (aturan sama kaya floating):
+                // set LANGSUNG ke rect anchor (margin 6dp), TANPA
+                // lewat logika simpanan/fit — simpanan anchor tidak
+                // disentuh dan tidak boleh mengecilkan window
+                // maximize. Keyboard buka -> anchorB naik -> window
+                // ngalah tiap frame lewat jalur debug 3 ini (tanpa
+                // debounce); keyboard tutup -> window tumbuh balik.
+                if (anchorH < Math.round(200 * density)) continue;
+                int m = Math.round(6 * density);
+                int anchorL = r[0];
+                int anchorR = r[2];
+                if (anchorR - anchorL <= 2 * m || anchorH <= 2 * m) continue;
+                int maxL = anchorL + m;
+                int maxT = anchorT + m;
+                int maxW = anchorR - anchorL - 2 * m;
+                int maxH = anchorH - 2 * m;
+                if (Math.abs(maxL - lp.leftMargin) < threshPx) maxL = lp.leftMargin;
+                if (Math.abs(maxT - lp.topMargin) < threshPx) maxT = lp.topMargin;
+                if (Math.abs(maxW - lp.width) < threshPx) maxW = lp.width;
+                if (Math.abs(maxH - lp.height) < threshPx) maxH = lp.height;
+                if (maxL == lp.leftMargin && maxT == lp.topMargin
+                        && maxW == lp.width && maxH == lp.height) continue;
+                lp.leftMargin = maxL;
+                lp.topMargin = maxT;
+                lp.width = maxW;
+                lp.height = maxH;
+                o.win.setLayoutParams(lp);
+                X11DebugLog.log("ANCHOR", "d=" + o.display
+                        + " anchorT=" + anchorT + " anchorB=" + anchorB
+                        + " max top=" + maxT + " h=" + maxH);
+                continue;
+            }
             int curTop = lp.topMargin;
             int curH = lp.height;
-            int anchorH = anchorB - anchorT;
             // MEKANISME FINAL (persetujuan user): rect yang diinginkan
             // vs rect yang ditampilkan, satu mekanisme — bukan dua
             // restore terpisah. desired = simpanan bila ada, bila
@@ -128,7 +161,9 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
             // mentok lalu potong; muat -> top = max(anchorT,
             // min(desTop, anchorB - desH)), tinggi tetap. fitted
             // selalu memenuhi kedua tepi sekaligus, jadi tidak ada
-            // osilasi. Maximized sudah di-skip di guard loop.
+            // osilasi. Window maximize TIDAK di-skip lagi: cabang
+            // maximize di atas set langsung ke rect anchor (tanpa
+            // simpanan/fit), jadi maximize ikut aturan anchor yang sama.
             boolean adaSimpanan = o.anchorSavedH > 0;
             int desTop = adaSimpanan ? o.anchorSavedTop : curTop;
             int desH = adaSimpanan ? o.anchorSavedH : curH;
@@ -342,6 +377,9 @@ public class XOverlayWindows implements XFloatingWindow.Listener, XWindowHost.Li
         // Drag jendela dikunci ke rect TerminalView hidup (satu
         // patokan dengan enforceAnchor, dalam koordinat decor).
         win.setAnchorSupplier(() -> terminalRectInDecor());
+        // Maximize pakai patokan yang sama (supplier terpisah biar
+        // drag clamp tak berubah): batas maximize = rect anchor hidup.
+        win.setMaximizeBoundsSupplier(() -> terminalRectInDecor());
 
         // Kontainer selayar di decor: transparan + tak menghalangi
         // sentuhan di luar jendela (jatuh ke terminal di bawahnya).

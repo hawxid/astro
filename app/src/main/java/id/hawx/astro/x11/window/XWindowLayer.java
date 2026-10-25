@@ -140,6 +140,9 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
         XFloatingWindow win = new XFloatingWindow(activity, host, title);
         id.hawx.astro.x11.X11DebugLog.log("FLOAT", "window jadi display=" + display);
         win.setListener(this);
+        // Maximize layer = rect usable desktop (supplier terpisah
+        // biar drag clamp tak berubah — drag layer tetap ke parent).
+        win.setMaximizeBoundsSupplier(() -> desktopUsableRect());
         host.setListener(this);
 
         int w = (int) (getWidth() * 0.43f);
@@ -365,6 +368,59 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
                     .getSystemService(Context.INPUT_METHOD_SERVICE);
             if (imm != null) imm.hideSoftInputFromWindow(active.host().view().getWindowToken(), 0);
         }
+    }
+
+    /**
+     * Rect usable desktop dalam koordinat layer ([kiri, atas, kanan,
+     * bawah]) buat batas maximize: atas = bawah chrome atas tetap
+     * (status bar bila layer mentok layar + app_bar/panel/win_bar
+     * bila tampil), bawah = atas dock bila tampil. Semua dari
+     * geometri view hidup, bukan tebakan — bila view tak ada /
+     * tak tampil, tepinya jatuh ke tepi layer (perilaku lama).
+     * Statis (desktop tak punya EK yang bergerak tiap frame);
+     * strip EK layer tetap di atas jendela (bringToFront) seperti
+     * sediakala, bukan bagian dari rect ini.
+     */
+    private int[] desktopUsableRect() {
+        android.view.View root = getRootView();
+        if (root == null) return null;
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) return null;
+        int[] ll = new int[2];
+        getLocationOnScreen(ll);
+        int layerTop = ll[1];
+        int top = 0;
+        int sb = statusBarHeightPx();
+        if (sb > 0 && layerTop < sb) top = Math.max(top, sb - layerTop);
+        top = Math.max(top, fixedTopBottom(root, id.hawx.astro.R.id.app_bar, layerTop));
+        top = Math.max(top, fixedTopBottom(root, id.hawx.astro.R.id.xfce_panel, layerTop));
+        top = Math.max(top, fixedTopBottom(root, id.hawx.astro.R.id.win_bar, layerTop));
+        int bottom = h;
+        android.view.View dock = root.findViewById(id.hawx.astro.R.id.xfce_dock);
+        if (dock != null && dock.getVisibility() == VISIBLE && dock.getHeight() > 0) {
+            int[] dl = new int[2];
+            dock.getLocationOnScreen(dl);
+            int dockTop = dl[1] - layerTop;
+            if (dockTop > top) bottom = Math.min(bottom, dockTop);
+        }
+        if (bottom <= top) return null;
+        return new int[]{0, top, w, bottom};
+    }
+
+    /** Tepi bawah view tetap (dalam koordinat layer), 0 bila tak tampil. */
+    private int fixedTopBottom(android.view.View root, int id, int layerTop) {
+        android.view.View v = root.findViewById(id);
+        if (v == null || v.getVisibility() != VISIBLE || v.getHeight() <= 0) return 0;
+        int[] vl = new int[2];
+        v.getLocationOnScreen(vl);
+        int b = vl[1] + v.getHeight() - layerTop;
+        return Math.max(0, b);
+    }
+
+    private int statusBarHeightPx() {
+        int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return resId > 0 ? getResources().getDimensionPixelSize(resId) : 0;
     }
 
     private int dp(int v) {

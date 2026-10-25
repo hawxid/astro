@@ -182,10 +182,23 @@ public class XFloatingWindow extends FrameLayout {
             savedTop = lp.topMargin;
             savedWidth = lp.width;
             savedHeight = lp.height;
-            lp.leftMargin = dp(6);
-            lp.topMargin = dp(6);
-            lp.width = parent.getWidth() - dp(12);
-            lp.height = parent.getHeight() - dp(12);
+            int m = dp(6);
+            int[] b = maximizeBoundsSupplier != null ? maximizeBoundsSupplier.rect() : null;
+            if (b != null && b[2] - b[0] > 2 * m && b[3] - b[1] > 2 * m) {
+                // Batas dari supplier (anchor decor / usable desktop):
+                // margin 6dp yang sama, tapi tak pernah melanggar
+                // tepi supplier (status bar di atas, EK/dock di bawah).
+                lp.leftMargin = b[0] + m;
+                lp.topMargin = b[1] + m;
+                lp.width = b[2] - b[0] - 2 * m;
+                lp.height = b[3] - b[1] - 2 * m;
+            } else {
+                // Fallback: perilaku lama (parent - margin).
+                lp.leftMargin = m;
+                lp.topMargin = m;
+                lp.width = parent.getWidth() - 2 * m;
+                lp.height = parent.getHeight() - 2 * m;
+            }
             maximized = true;
         } else {
             lp.leftMargin = savedLeft;
@@ -216,6 +229,23 @@ public class XFloatingWindow extends FrameLayout {
 
     public void setAnchorSupplier(AnchorSupplier s) {
         anchorSupplier = s;
+    }
+
+    /**
+     * Patokan batas maximize opsional ([kiri, atas, kanan, bawah]
+     * dalam koordinat parent). Null = perilaku lama (parent -
+     * margin). Decor mengisinya rect anchor hidup, layer mengisinya
+     * rect usable desktop — SATU mekanisme maximize, dua rumah.
+     * Hanya dipakai toggleMaximize; drag/resize/anchor tak berubah.
+     */
+    public interface MaximizeBoundsSupplier {
+        int[] rect();
+    }
+
+    private MaximizeBoundsSupplier maximizeBoundsSupplier;
+
+    public void setMaximizeBoundsSupplier(MaximizeBoundsSupplier s) {
+        maximizeBoundsSupplier = s;
     }
 
     private class DragListener implements OnTouchListener {
