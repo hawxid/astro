@@ -295,6 +295,27 @@ public class XSessionManager {
                 + "} >/tmp/astro-x11-session-d" + d + ".log 2>&1";
     }
 
+    /** Perintah revive openbox :0 (identik dengan wmGuard lama di
+     *  jalur launch): start bila ter-install dan belum jalan,
+     *  dengan DISPLAY=:0. Dipakai cabang server-sudah-jalan
+     *  (semua jalur masuk :0) dan launchOnDisplay; JANGAN dipakai
+     *  buat d>0 (display floating wajib bare, tanpa WM). */
+    private static String openboxReviveCommand() {
+        return "if command -v openbox >/dev/null 2>&1 && ! pgrep -x openbox >/dev/null 2>&1; then "
+                + "setsid openbox >/tmp/openbox.log 2>&1 </dev/null & sleep 1; fi; ";
+    }
+
+    /** Revive openbox :0 fire-and-forget (tak pernah menggagalkan
+     *  pemanggil): hanya bila chroot ter-mount. */
+    private void reviveOpenboxIfNeeded() {
+        try {
+            if (!core.isMounted()) return;
+            core.threadChrootCommand("export DISPLAY=:0; " + openboxReviveCommand());
+            X11DebugLog.log("LAUNCH", "wmGuard openbox untuk :0 (server sudah jalan)");
+        } catch (Throwable ignored) {
+        }
+    }
+
     /** Setup satu-kali per sesi, dijalankan DI DALAM chroot setelah socket siap. */
     private String sessionSetupCommand() {
         String fontDirHost = root() + "/usr/share/fonts/X11/misc";
@@ -307,7 +328,10 @@ public class XSessionManager {
                 + "if command -v xrdb >/dev/null 2>&1; then "
                 + "printf 'Xft.dpi: " + getDpi() + "\\n' | xrdb -merge; echo 'Xft.dpi=" + getDpi() + " diterapkan'; fi; "
                 + "if command -v openbox >/dev/null 2>&1; then "
-                + "pgrep -x openbox >/dev/null 2>&1 || (setsid openbox >/tmp/openbox.log 2>&1 </dev/null &); echo 'openbox siap'; "
+                + "pgrep -x openbox >/dev/null 2>&1 || (setsid openbox >/tmp/openbox.log 2>&1 </dev/null &); sleep 2; "
+                + "OPID=$(pgrep -x openbox | head -1); "
+                + "if [ -n \"$OPID\" ]; then echo \"openbox jalan (pid $OPID)\"; "
+                + "else echo 'openbox GAGAL start (lihat /tmp/openbox.log)'; fi; "
                 + "else echo 'openbox tidak ada (apt install -y openbox)'; fi; "
                 + "} >/tmp/astro-x11-session.log 2>&1";
     }
@@ -322,6 +346,13 @@ public class XSessionManager {
         Probe p = probeSync(d);
         if (p.state == State.RUNNING && p.sock && !p.zombie) {
             report.append("server sudah jalan");
+            // Debug ke-4 (gap revive openbox, :0 SAJA): buka viewer
+            // atau launch entry yang sudah jalan tak pernah sampai
+            // ke wmGuard, jadi openbox yang mati di tengah sesi tak
+            // pernah hidup lagi. Cabang ini dilewati SEMUA jalur
+            // masuk :0 — revive di sini. Display bare :1-:4
+            // sengaja tak disentuh (wajib tanpa WM).
+            if (d == 0) reviveOpenboxIfNeeded();
             return true;
         }
         if (p.zombie) {
@@ -702,7 +733,12 @@ public class XSessionManager {
                 refreshLiveProfile();
                 for (Integer pid : pids) claimTabDisplay(pid);
             });
+            // Debug ke-4: scan berkala mulai di sini (backstop
+            // klaim buat tab yang pid-nya belum mulai + batch
+            // restore yang datang sesudah snapshot toggle).
+            startTabScan();
         } else {
+            stopTabScan();
             exec.execute(this::releaseAllTabDisplays);
         }
     }
@@ -997,8 +1033,7 @@ public class XSessionManager {
                 // Aturan Hawx: fullscreen WAJIB ber-WM. openbox diawasi di
                 // jalur launch (bukan cuma setup sesi sekali jalan): kalo
                 // mati di tengah, launch berikutnya yang menghidupkan lagi.
-                wmGuard = "if command -v openbox >/dev/null 2>&1 && ! pgrep -x openbox >/dev/null 2>&1; then "
-                        + "setsid openbox >/tmp/openbox.log 2>&1 </dev/null & sleep 1; fi; ";
+                wmGuard = openboxReviveCommand();
                 X11DebugLog.log("LAUNCH", "wmGuard openbox untuk :0");
             }
             String launchCmd = "export DISPLAY=:" + d + "; export TMPDIR=/tmp; "
@@ -1156,6 +1191,69 @@ public class XSessionManager {
      *  + marker; cascade jendela/dialog = jatah R4. */
     public void onTerminalTabRemoved(int pid) {
         exec.execute(() -> releaseTabDisplay(pid));
+    }
+
+    /** Debug ke-4: scan berkala klaim tab (backstop onTabAdded +
+     *  snapshot toggle). Alasan: pid tab baru masih 0 saat
+     *  onTabAdded (proses mulai di initialize() saat view attach,
+     *  SESUDAH tab ditambah), dan snapshot toggle bisa jalan
+     *  SEBELUM batch restore tab — jadi klaim tak boleh diputuskan
+     *  sekali saja. Scan jalan selama toggle ON (±5 detik): baca
+     *  tab di thread utama (menyentuh tabSwitcher) + klaim di
+     *  thread exec. Diam untuk tab yang sudah diklaim (cek peta
+     *  dulu, tanpa log) — hanya tab yang BARU layak yang dicatat
+     *  + diklaim. Tab yang ditolak filter (bukan chroot) tidak
+     *  pernah masuk collectTermPids, jadi tidak ikut ter-poll. */
+    private boolean tabScanRunning = false;
+    private Runnable tabScanTask;
+
+    private void startTabScan() {
+        if (tabScanRunning) return;
+        tabScanRunning = true;
+        if (tabScanTask == null) {
+            tabScanTask = new Runnable() {
+                @Override
+                public void run() {
+                    if (!getTerminalFloat()) {
+                        tabScanRunning = false;
+                        return;
+                    }
+                    try {
+                        android.app.Activity fg =
+                                id.hawx.astro.AstroApp.foregroundActivity();
+                        if (fg instanceof com.stryker.terminal.ui.term.NeoTermActivity) {
+                            java.util.List<Integer> pids =
+                                    ((com.stryker.terminal.ui.term.NeoTermActivity) fg)
+                                            .collectTermPids();
+                            if (!pids.isEmpty()) {
+                                final java.util.List<Integer> copy =
+                                        new java.util.ArrayList<>(pids);
+                                exec.execute(() -> {
+                                    for (Integer pid : copy) {
+                                        if (tabDisplayByPid.containsKey(pid)) continue;
+                                        X11DebugLog.log("TAB", "scan klaim tab pid="
+                                                + pid + " (baru layak saat toggle ON)");
+                                        claimTabDisplay(pid);
+                                    }
+                                });
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                    if (getTerminalFloat()) {
+                        main.postDelayed(this, 5000);
+                    } else {
+                        tabScanRunning = false;
+                    }
+                }
+            };
+        }
+        main.post(tabScanTask);
+    }
+
+    private void stopTabScan() {
+        tabScanRunning = false;
+        if (tabScanTask != null) main.removeCallbacks(tabScanTask);
     }
 
     /** Tulis marker display buat satu shell (root shell chroot, karena

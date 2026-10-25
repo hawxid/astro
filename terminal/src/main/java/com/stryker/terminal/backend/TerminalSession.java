@@ -471,11 +471,26 @@ public class TerminalSession extends TerminalOutput {
     return mShellPid;
   }
 
-  /** Jalur executable sesi (mis. .../stryker-ch) — dipakai R2 untuk
-   *  membedakan tab chroot dari tab Android/ssh (yang tak membaca
-   *  profil chroot, jadi tak boleh diklaim display). */
+  /** Jalur executable sesi (SEBELUM rewrite ExecPolicy) — AWAS:
+   *  untuk script, yang TERCATAT di sini adalah interpreter-nya
+   *  (/system/bin/sh), BUKAN path scriptnya, karena ExecPolicy
+   *  me-rewrite eksekusi script lewat shebang. Jadi cek
+   *  "endsWith stryker-ch" atas nilai ini TAK PERNAH cocok
+   *  (bukti log 32/33) — sinyal chroot yang benar adalah getArgs().
+   *  Dipakai R2 untuk membedakan tab chroot dari tab Android/ssh
+   *  (yang tak membaca profil chroot, jadi tak boleh diklaim
+   *  display). */
   public String getShellPath() {
     return mShellPath;
+  }
+
+  /** Argv sesi pasca-rewrite ExecPolicy (debug ke-4, preseden
+   *  getShellPath di R2): untuk script, argv MENYERTAKAN path
+   *  scriptnya (mis. .../stryker-ch) — jadi inilah sinyal chroot
+   *  yang benar. Kembalian disalin supaya pemanggil tak bisa
+   *  mengubah argv sesi. */
+  public String[] getArgs() {
+    return mArgs == null ? null : mArgs.clone();
   }
 
 }

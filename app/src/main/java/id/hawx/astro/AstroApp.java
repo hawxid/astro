@@ -110,11 +110,22 @@ public class AstroApp extends com.termux.x11.LorieApp {
                         String path = i.getStringExtra("path");
                         String title = i.getStringExtra("title");
                         String reason = i.getStringExtra("reason");
-                        id.hawx.astro.x11.X11DebugLog.log("TAB",
-                                "tab ditolak filter: title=" + title
-                                        + " pid=" + pid
-                                        + " path=" + path
-                                        + " reason=" + reason);
+                        // Debug ke-4: "tunda" BUKAN penolakan — tab
+                        // chroot yang pid-nya belum mulai (proses
+                        // mulai sesudah tab ditambah); scan berkala
+                        // akan mengklaimnya begitu pid>0.
+                        if ("tunda".equals(reason)) {
+                            id.hawx.astro.x11.X11DebugLog.log("TAB",
+                                    "tab tunda klaim (menunggu pid mulai): title=" + title
+                                            + " pid=" + pid
+                                            + " path=" + path);
+                        } else {
+                            id.hawx.astro.x11.X11DebugLog.log("TAB",
+                                    "tab ditolak filter: title=" + title
+                                            + " pid=" + pid
+                                            + " path=" + path
+                                            + " reason=" + reason);
+                        }
                     }
                 }, new android.content.IntentFilter("id.hawx.astro.TERMINAL_TAB_DEBUG"),
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
