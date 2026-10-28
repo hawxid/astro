@@ -477,6 +477,21 @@ class HidServer:
         run_quiet("hciconfig %s class 0x002540" % hci)
         run_quiet("hciconfig %s up" % hci)
         self.set_discoverable(True)
+        # Belt and braces: enable page+inquiry scan directly via HCI too,
+        # in case bluetoothd's mgmt path doesn't land scan mode on the
+        # vhci controller. Then log the proof (ISCAN) for diagnosis.
+        run_quiet("hciconfig %s piscan" % hci)
+        r = run_quiet("hciconfig %s" % hci)
+        if r:
+            for line in r.stdout.splitlines():
+                if "UP" in line or "PSCAN" in line or "ISCAN" in line:
+                    log("hci state: %s" % line.strip())
+        r = run_quiet("bluetoothctl show")
+        if r:
+            for line in r.stdout.splitlines():
+                if any(k in line for k in ("Discoverable", "Pairable",
+                                           "Class", "Alias", "Name")):
+                    log("ctl: %s" % line.strip())
 
     # ------------------------------------------------------------ main ---
     def register_objects(self):
