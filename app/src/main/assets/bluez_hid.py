@@ -409,12 +409,37 @@ class HidServer:
             return False
 
     def ensure_stack(self):
-        """Make sure bluetoothd is up, then pick the live adapter."""
+        """Make sure bluetoothd is up, then pick the live adapter.
+
+        bluetoothd's own input plugin (HID host) already owns UUID 0x1124,
+        so our device profile registration is rejected with "UUID already
+        registered" unless bluetoothd runs with --noplugin=input. Restart
+        it with that flag when needed; nothing else in the chroot uses
+        bluetoothd as a HID host, so this is safe here.
+        """
         r = run_quiet("pgrep bluetoothd || true")
-        if not (r and r.stdout.strip()):
-            log("starting bluetoothd")
+        pids = [l.strip() for l in (r.stdout.splitlines() if r else [])
+                if l.strip()]
+        has_noinput = False
+        for pid in pids:
+            try:
+                with open("/proc/%s/cmdline" % pid, "rb") as f:
+                    if b"noplugin=input" in f.read():
+                        has_noinput = True
+            except Exception:
+                pass
+        if pids and not has_noinput:
+            log("bluetoothd running without --noplugin=input; restarting it")
+            run_quiet("pkill bluetoothd")
+            for _ in range(5):
+                time.sleep(1)
+                r2 = run_quiet("pgrep bluetoothd || true")
+                if not (r2 and r2.stdout.strip()):
+                    break
+        if not pids or not has_noinput:
+            log("starting bluetoothd --noplugin=input")
             run_quiet("mkdir -p /var/lib/bluetooth")
-            run_daemon("bluetoothd")
+            run_daemon("bluetoothd --noplugin=input")
             time.sleep(2)
         # Wait for an adapter object to appear; prefer hci0, else first.
         for _ in range(15):
