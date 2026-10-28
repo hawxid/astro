@@ -465,6 +465,12 @@ class HidServer:
     def setup_adapter(self):
         self.set_adapter_prop("Alias", DEVICE_NAME)
         self.set_adapter_prop("Powered", self.dbus.Boolean(True))
+        # No timeouts: the default DiscoverableTimeout is 180s, after
+        # which the phone vanishes from host scans mid-session. Zero
+        # disables the timeout (BlueZ Adapter API); cleanup turns both
+        # off again on disconnect, so visibility stays session-bounded.
+        self.set_adapter_prop("DiscoverableTimeout", self.dbus.UInt32(0))
+        self.set_adapter_prop("PairableTimeout", self.dbus.UInt32(0))
         # Adapter1.Class is read-only over D-Bus (device-proven) — set it
         # via hciconfig only.
         hci = self.adapter_path.split("/")[-1]
