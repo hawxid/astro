@@ -118,6 +118,23 @@ def run_quiet(cmd):
         return None
 
 
+def run_daemon(cmd):
+    """Start a daemon without waiting on its pipes.
+
+    run_quiet() with capture_output would block until the daemon exits
+    (the child inherits the pipes), so daemons must be spawned detached
+    with stdio to DEVNULL instead.
+    """
+    try:
+        subprocess.Popen(cmd, shell=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        return True
+    except Exception as e:
+        log("daemon start failed %r: %s" % (cmd, e))
+        return False
+
+
 def do_check():
     report = {}
     report["python"] = sys.version.split()[0]
@@ -381,7 +398,8 @@ class HidServer:
             if shutil.which("dbus-daemon") is None:
                 log("FATAL: dbus-daemon binary missing (apt install dbus)")
                 return False
-            run_quiet("mkdir -p /run/dbus && dbus-daemon --system --fork")
+            run_quiet("mkdir -p /run/dbus")
+            run_daemon("dbus-daemon --system")
             time.sleep(1)
         try:
             self.bus = self.dbus.SystemBus()
@@ -395,7 +413,8 @@ class HidServer:
         r = run_quiet("pgrep bluetoothd || true")
         if not (r and r.stdout.strip()):
             log("starting bluetoothd")
-            run_quiet("mkdir -p /var/lib/bluetooth && bluetoothd")
+            run_quiet("mkdir -p /var/lib/bluetooth")
+            run_daemon("bluetoothd")
             time.sleep(2)
         # Wait for an adapter object to appear; prefer hci0, else first.
         for _ in range(15):
@@ -421,11 +440,8 @@ class HidServer:
     def setup_adapter(self):
         self.set_adapter_prop("Alias", DEVICE_NAME)
         self.set_adapter_prop("Powered", self.dbus.Boolean(True))
-        try:
-            self.props_iface().Set("org.bluez.Adapter1", "Class",
-                                   self.dbus.UInt32(CLASS_KEYBOARD))
-        except Exception as e:
-            log("D-Bus Class set failed (will try hciconfig): %s" % e)
+        # Adapter1.Class is read-only over D-Bus (device-proven) — set it
+        # via hciconfig only.
         hci = self.adapter_path.split("/")[-1]
         run_quiet("hciconfig %s class 0x002540" % hci)
         run_quiet("hciconfig %s up" % hci)
@@ -467,8 +483,9 @@ class HidServer:
                 log("agent released")
 
             @dbus.service.method("org.bluez.Agent1",
-                                 in_signature="os", out_signature="")
-            def RequestPinCode(self, device, pin):
+                                 in_signature="o", out_signature="s")
+            def RequestPinCode(self, device):
+                # Agent is asked to PROVIDE a PIN; we refuse PIN pairing.
                 raise dbus.exceptions.DBusException(
                     "org.bluez.Error.Rejected")
 
@@ -478,13 +495,14 @@ class HidServer:
                 pass
 
             @dbus.service.method("org.bluez.Agent1",
-                                 in_signature="ou", out_signature="")
-            def RequestPasskey(self, device, passkey):
+                                 in_signature="o", out_signature="u")
+            def RequestPasskey(self, device):
+                # Agent is asked to PROVIDE a passkey; we refuse it.
                 raise dbus.exceptions.DBusException(
                     "org.bluez.Error.Rejected")
 
             @dbus.service.method("org.bluez.Agent1",
-                                 in_signature="ou", out_signature="")
+                                 in_signature="ouu", out_signature="")
             def DisplayPasskey(self, device, passkey, entered):
                 pass
 
