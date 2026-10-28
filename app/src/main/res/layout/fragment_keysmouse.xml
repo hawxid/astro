@@ -59,11 +59,17 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="Aktifkan Bluebinder" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_check_env"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Cek lingkungan" />
             <com.google.android.material.textview.MaterialTextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Transport BlueZ HID menyusul (slice 2). Stop Bluebinder tetap di menu Bluetooth."
+                android:text="Hubungkan, lalu pairing dari host (TV/komputer) ke 'Astro Keys'. Stop Bluebinder tetap di menu Bluetooth."
                 android:textColor="@color/grey"
                 android:textSize="11sp" />
         </LinearLayout>

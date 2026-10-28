@@ -91,6 +91,7 @@ public class KeysMouseFragment extends Fragment {
         v.findViewById(R.id.km_btn_arsenal).setOnClickListener(x ->
                 new MainActivity.Receiver().changeFragment(R.id.usb_arsenal_item));
         v.findViewById(R.id.km_btn_activate_bluebinder).setOnClickListener(x -> activateBluebinder());
+        v.findViewById(R.id.km_btn_check_env).setOnClickListener(x -> checkEnvironment());
         v.findViewById(R.id.km_btn_show_keyboard).setOnClickListener(x -> showKeyboard());
 
         bindMouseButton(v, R.id.km_btn_left, MouseReport.BTN_LEFT);
@@ -176,7 +177,8 @@ public class KeysMouseFragment extends Fragment {
         });
 
         setMode(MODE_USB);
-        setStatus("Pilih transport, lalu Hubungkan. USB: colok kabel ke host dulu.");
+        setStatus("Pilih transport, lalu Hubungkan. USB: colok kabel ke host dulu. "
+                + "Bluetooth: pairing dari host ke 'Astro Keys'.");
         return v;
     }
 
@@ -230,12 +232,12 @@ public class KeysMouseFragment extends Fragment {
     }
 
     private void connect() {
-        if (mode != MODE_USB) {
-            setStatus("Transport BlueZ HID menyusul (slice 2) — pakai USB dulu.");
-            return;
-        }
         if (isConnected()) return;
         connectBtn.setEnabled(false);
+        if (mode == MODE_BLUEZ) {
+            connectBluez();
+            return;
+        }
         setStatus("Menghubungkan USB...");
         Context appCtx = requireContext().getApplicationContext();
         io.execute(() -> {
@@ -259,6 +261,40 @@ public class KeysMouseFragment extends Fragment {
         });
     }
 
+    private void connectBluez() {
+        setStatus("Mengaktifkan Bluebinder + memulai skrip BlueZ...");
+        Context appCtx = requireContext().getApplicationContext();
+        BluezKeysMouseTransport.StatusListener listener = (text, hostConnected) -> {
+            setStatus(text);
+            updateButtons();
+        };
+        io.execute(() -> {
+            try {
+                BluezKeysMouseTransport transport =
+                        new BluezKeysMouseTransport(appCtx, listener);
+                transport.open();
+                active = transport;
+                main.post(() -> {
+                    setStatus("Bluetooth siap — pairing dari host ke 'Astro Keys'.");
+                    updateButtons();
+                });
+            } catch (IOException e) {
+                main.post(() -> {
+                    setStatus("Gagal: " + e.getMessage());
+                    updateButtons();
+                });
+            }
+        });
+    }
+
+    private void checkEnvironment() {
+        setStatus("Memeriksa lingkungan BlueZ...");
+        BluezKeysMouseTransport probe = new BluezKeysMouseTransport(
+                requireContext().getApplicationContext(),
+                (text, hostConnected) -> { });
+        probe.checkEnvironment(report -> setStatus(report));
+    }
+
     private void disconnect() {
         KeysMouseTransport t = active;
         active = null;
@@ -275,7 +311,7 @@ public class KeysMouseFragment extends Fragment {
 
     private void updateButtons() {
         boolean connected = isConnected();
-        connectBtn.setEnabled(!connected && mode == MODE_USB);
+        connectBtn.setEnabled(!connected);
         disconnectBtn.setEnabled(connected);
     }
 
