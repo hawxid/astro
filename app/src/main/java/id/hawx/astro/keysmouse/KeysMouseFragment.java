@@ -205,7 +205,7 @@ public class KeysMouseFragment extends Fragment {
         bluebinder.checkStatus((running, hciUp, detail) -> {
             String text;
             if (running && hciUp) {
-                text = "Bluebinder aktif, hci0 UP. Transport BlueZ HID menyusul (slice 2).";
+                text = "Bluebinder aktif, hci0 UP. Siap Hubungkan via Bluetooth.";
             } else if (running) {
                 text = "Bluebinder jalan, hci0 DOWN — pencet Aktifkan untuk menaikkan hci0.";
             } else {

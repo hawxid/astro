@@ -162,7 +162,10 @@ class HidServer:
         import dbus.mainloop.glib
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self.dbus = dbus
-        self.bus = dbus.SystemBus()
+        # NOTE: do NOT connect the bus here. The system daemon may not be
+        # running yet; serve() starts dbus-daemon first, then connects.
+        self.bus = None
+        self.adapter_path = ADAPTER_PATH
         self.loop = None
         self.state = "waiting"  # waiting | connected
         self.host = None
@@ -351,12 +354,12 @@ class HidServer:
     # --------------------------------------------------------- adapter ---
     def adapter_iface(self):
         return self.dbus.Interface(
-            self.bus.get_object("org.bluez", ADAPTER_PATH),
+            self.bus.get_object("org.bluez", self.adapter_path),
             "org.bluez.Adapter1")
 
     def props_iface(self):
         return self.dbus.Interface(
-            self.bus.get_object("org.bluez", ADAPTER_PATH),
+            self.bus.get_object("org.bluez", self.adapter_path),
             "org.freedesktop.DBus.Properties")
 
     def set_adapter_prop(self, name, value):
@@ -369,29 +372,46 @@ class HidServer:
         self.set_adapter_prop("Discoverable", self.dbus.Boolean(on))
         self.set_adapter_prop("Pairable", self.dbus.Boolean(True))
 
-    def ensure_stack(self):
-        """Make sure dbus system bus + bluetoothd are up, then hci0 exists."""
-        for sock_path in ("/run/dbus/system_bus_socket",
-                          "/var/run/dbus/system_bus_socket"):
-            if os.path.exists(sock_path):
-                break
-        else:
+    def ensure_bus(self):
+        """Start dbus-daemon if needed, then connect the system bus."""
+        sock_paths = ("/run/dbus/system_bus_socket",
+                      "/var/run/dbus/system_bus_socket")
+        if not any(os.path.exists(p) for p in sock_paths):
             log("no dbus system socket; trying to start dbus-daemon")
+            if shutil.which("dbus-daemon") is None:
+                log("FATAL: dbus-daemon binary missing (apt install dbus)")
+                return False
             run_quiet("mkdir -p /run/dbus && dbus-daemon --system --fork")
             time.sleep(1)
+        try:
+            self.bus = self.dbus.SystemBus()
+            return True
+        except Exception as e:
+            log("FATAL: SystemBus connect failed: %s" % e)
+            return False
+
+    def ensure_stack(self):
+        """Make sure bluetoothd is up, then pick the live adapter."""
         r = run_quiet("pgrep bluetoothd || true")
         if not (r and r.stdout.strip()):
             log("starting bluetoothd")
             run_quiet("mkdir -p /var/lib/bluetooth && bluetoothd")
             time.sleep(2)
-        # Wait for the adapter object to appear.
+        # Wait for an adapter object to appear; prefer hci0, else first.
         for _ in range(15):
             try:
                 om = self.dbus.Interface(
                     self.bus.get_object("org.bluez", "/"),
                     "org.freedesktop.DBus.ObjectManager")
                 objects = om.GetManagedObjects()
-                if ADAPTER_PATH in objects:
+                adapters = sorted(p for p in objects
+                                  if p.startswith("/org/bluez/hci"))
+                if adapters:
+                    if len(adapters) > 1:
+                        log("WARNING: multiple adapters %s" % adapters)
+                    self.adapter_path = (ADAPTER_PATH if ADAPTER_PATH in adapters
+                                         else adapters[0])
+                    log("using adapter %s" % self.adapter_path)
                     return True
             except Exception as e:
                 log("object manager wait: %s" % e)
@@ -406,8 +426,9 @@ class HidServer:
                                    self.dbus.UInt32(CLASS_KEYBOARD))
         except Exception as e:
             log("D-Bus Class set failed (will try hciconfig): %s" % e)
-        run_quiet("hciconfig hci0 class 0x002540")
-        run_quiet("hciconfig hci0 up")
+        hci = self.adapter_path.split("/")[-1]
+        run_quiet("hciconfig %s class 0x002540" % hci)
+        run_quiet("hciconfig %s up" % hci)
         self.set_discoverable(True)
 
     # ------------------------------------------------------------ main ---
@@ -605,8 +626,10 @@ class HidServer:
                 return
 
     def serve(self):
+        if not self.ensure_bus():
+            return 2
         if not self.ensure_stack():
-            log("FATAL: adapter /org/bluez/hci0 not found "
+            log("FATAL: no bluetooth adapter found "
                 "(aktifkan Bluebinder dulu, lalu coba lagi)")
             return 2
         self.setup_adapter()
