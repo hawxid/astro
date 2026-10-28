@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
 
 public class BluetoothFragment extends Fragment {
     private Core core;
+    private BluebinderController bluebinder;
     private TextView output;
     private RecyclerView deviceList;
     private BtDeviceAdapter adapter;
@@ -36,13 +37,14 @@ public class BluetoothFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_bluetooth, container, false);
         core = new Core(requireContext());
+        bluebinder = new BluebinderController(requireContext());
         output = v.findViewById(R.id.bt_output);
         deviceList = v.findViewById(R.id.bt_device_list);
         deviceList.setLayoutManager(new LinearLayoutManager(requireContext()));
         adapter = new BtDeviceAdapter(devices, this::onDeviceTap);
         deviceList.setAdapter(adapter);
 
-        updateBluebinderBtn(v);
+        refreshBluebinderBtn(v);
         v.findViewById(R.id.bt_btn_bluebinder).setOnClickListener(x -> toggleBluebinder(v));
         v.findViewById(R.id.bt_btn_up).setOnClickListener(x -> runCmd("hciconfig hci0 up && hciconfig", false));
         v.findViewById(R.id.bt_btn_interfaces).setOnClickListener(x -> runCmd("hciconfig", false));
@@ -78,22 +80,31 @@ public class BluetoothFragment extends Fragment {
             .show();
     }
 
-    private boolean bluebinderRunning = false;
-
-    private void updateBluebinderBtn(View v) {
+    private void refreshBluebinderBtn(View v) {
         android.widget.Button b = v.findViewById(R.id.bt_btn_bluebinder);
-        b.setText(bluebinderRunning ? "Stop Bluebinder" : "Start Bluebinder");
+        bluebinder.checkStatus((running, hciUp, detail) ->
+                b.setText(running ? "Stop Bluebinder" : "Start Bluebinder"));
     }
 
     private void toggleBluebinder(View v) {
-        if (bluebinderRunning) {
-            runCmd("pkill -f bluebinder; echo stopped", false);
-            bluebinderRunning = false;
-        } else {
-            runCmd("nohup bluebinder > /tmp/bluebinder.log 2>&1 & echo 'started pid '$!", false);
-            bluebinderRunning = true;
-        }
-        updateBluebinderBtn(v);
+        android.widget.Button b = v.findViewById(R.id.bt_btn_bluebinder);
+        b.setEnabled(false);
+        output.setText("...");
+        bluebinder.checkStatus((running, hciUp, detail) -> {
+            if (running) {
+                bluebinder.stop((ok, stopDetail) -> {
+                    output.setText("$ bluebinder stop\n" + stopDetail);
+                    b.setEnabled(true);
+                    refreshBluebinderBtn(v);
+                });
+            } else {
+                bluebinder.start((ok, startDetail) -> {
+                    output.setText("$ bluebinder start\n" + startDetail);
+                    b.setEnabled(true);
+                    refreshBluebinderBtn(v);
+                });
+            }
+        });
     }
 
     private void runCmd(String cmd, boolean isScan) {

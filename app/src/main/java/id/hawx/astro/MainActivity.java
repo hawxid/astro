@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
     private DrawerLayout engineStatusDrawer;
     private static final java.util.LinkedHashMap<Integer, DrawerSpec> DRAWER_SPECS = buildDrawerSpecs();
     private static final java.util.Set<Integer> ROOT_ONLY_IDS = new java.util.HashSet<>(java.util.Arrays.asList(
-            R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item));
+            R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item, R.id.keysmouse_item));
     private static final java.util.Set<Integer> VM_INDEPENDENT_IDS = new java.util.HashSet<>(java.util.Arrays.asList(
             R.id.dasboard_item, R.id.logs_item, R.id.about_item,
             R.id.wpair_item, R.id.bt_item, R.id.osint_item, R.id.geomac_item,
@@ -741,7 +741,7 @@ public class MainActivity extends AppCompatActivity {
             {"\uD83C\uDF10", "Network", 0xFFE06BC0, new int[]{R.id.lan_item, R.id.nmap_item}},
             {"\uD83C\uDFAF", "Offensive", 0xFFFF6B6B, new int[]{R.id.nuclei_item, R.id.arsenal_item, R.id.metasploit_item}},
             {"\uD83E\uDDF0", "Tools", 0xFFA088F0, new int[]{R.id.wordlists_item, R.id.geomac_item, R.id.vnc_item, R.id.manager_item, R.id.about_item}},
-            {"\uD83D\uDEE1\uFE0F", "Root", 0xFF8B93A7, new int[]{R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item}},
+            {"\uD83D\uDEE1\uFE0F", "Root", 0xFF8B93A7, new int[]{R.id.hid_item, R.id.usb_arsenal_item, R.id.keysmouse_item, R.id.macchanger_item}},
             {"\u2699\uFE0F", "System", 0xFF4CC38A, new int[]{R.id.system_setting_item, R.id.system_desktop_item, R.id.system_taskmgr_item}},
     };
 
@@ -1254,6 +1254,7 @@ public class MainActivity extends AppCompatActivity {
             if (itemId == R.id.logs_item) return new id.hawx.astro.logger.LoggerFragment();
             if (itemId == R.id.vnc_item) return new VNCFragment();
             if (itemId == R.id.hid_item) return new HidFragment();
+            if (itemId == R.id.keysmouse_item) return new id.hawx.astro.keysmouse.KeysMouseFragment();
             if (itemId == R.id.usb_arsenal_item) return new UsbArsenalFragment();
             return null;
         }
@@ -1313,6 +1314,7 @@ public class MainActivity extends AppCompatActivity {
         m.put(R.id.nuclei_item,       new DrawerSpec("Web scanner",      R.drawable.webscan,     0xFF3949AB));
         m.put(R.id.arsenal_item,      new DrawerSpec("Arsenal",          R.drawable.motion_blur, 0xFFEF6C00));
         m.put(R.id.hid_item,          new DrawerSpec("HID Attacks",      R.drawable.keyboard,    0xFFC62828));
+        m.put(R.id.keysmouse_item,    new DrawerSpec("Keys + Mouse",     R.drawable.keyboard,    0xFF1565C0));
         m.put(R.id.metasploit_item,   new DrawerSpec("Metasploit",       R.drawable.shield,      0xFFC62828));
         m.put(R.id.wordlists_item,    new DrawerSpec("Wordlists",        R.drawable.summarize,   0xFF5E35B1));
         m.put(R.id.geomac_item,       new DrawerSpec("GeoMac",           R.drawable.map,         0xFF00838F));

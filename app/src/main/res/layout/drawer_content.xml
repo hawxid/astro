@@ -292,6 +292,10 @@
             layout="@layout/drawer_row" />
 
         <include
+            android:id="@+id/keysmouse_item"
+            layout="@layout/drawer_row" />
+
+        <include
             android:id="@+id/macchanger_item"
             layout="@layout/drawer_row" />
 

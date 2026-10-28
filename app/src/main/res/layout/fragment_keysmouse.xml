@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Keys + Mouse"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Kontrol live: touchpad + keyboard ke host. Satu UI, dua transport."
+            android:textSize="12sp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_usb"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="USB" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_bluez"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Bluetooth" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/km_bluez_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="#1A1A1A"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/km_bluez_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Memeriksa Bluebinder..."
+                android:textSize="12sp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_activate_bluebinder"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Aktifkan Bluebinder" />
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Transport BlueZ HID menyusul (slice 2). Stop Bluebinder tetap di menu Bluetooth."
+                android:textColor="@color/grey"
+                android:textSize="11sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_connect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Hubungkan" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_disconnect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Putuskan" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_arsenal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="USB Arsenal" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/km_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="#0D1117"
+            android:fontFamily="monospace"
+            android:padding="12dp"
+            android:text="Status..."
+            android:textColor="#7EE787"
+            android:textSize="12sp" />
+        <TextView
+            android:id="@+id/km_touchpad"
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_marginTop="16dp"
+            android:background="#1A1A1A"
+            android:gravity="center"
+            android:text="Touchpad — geser untuk gerak, ketuk = klik kiri"
+            android:textColor="@color/grey"
+            android:textSize="13sp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_left"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Kiri" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_middle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Tengah" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_right"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Kanan" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_wheel_up"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Scroll ↑" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_wheel_down"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Scroll ↓" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+            <EditText
+                android:id="@+id/km_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Ketik di sini..."
+                android:imeOptions="actionDone"
+                android:inputType="text"
+                android:singleLine="true" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_btn_show_keyboard"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="⌨" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_esc"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Esc" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_tab"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Tab" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_enter"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Enter" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_backspace"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="⌫" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_left"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="←" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_up"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="↑" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_down"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="↓" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/km_key_right"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="→" />
+        </LinearLayout>
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="USB: kalau profil keyboard+mouse belum aktif, Astro menerapkan profil default saat Hubungkan (mengganti konfigurasi USB saat ini, seperti USB Arsenal). Putuskan mengembalikan port ke Android."
+            android:textColor="@color/grey"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>
