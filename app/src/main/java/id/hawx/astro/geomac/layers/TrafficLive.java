@@ -1,17 +1,23 @@
 package id.hawx.astro.geomac.layers;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.drawable.ColorDrawable;
 import android.location.Location;
 import android.location.LocationManager;
 import android.net.TrafficStats;
 import android.view.View;
+import android.view.Window;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.google.android.material.button.MaterialButton;
 
 import id.hawx.astro.R;
 
@@ -63,6 +69,17 @@ public final class TrafficLive {
     private static final int MAX_ROWS = 40;
     private static final int GEOIP_PER_POLL = 8;
 
+    // Reputation coloring (idea #4): exactly ONE free, no-key, plain-text
+    // IP blocklist — abuse.ch Feodo Tracker botnet-C2 IPs, one per line.
+    // Matched by EXACT destination IP only, never by ASN (ASNs mix
+    // legitimate and bad traffic). Fetched at most once per TrafficLive
+    // instance (i.e. once per Atlas open while Traffic is ON), kept in RAM
+    // only; a failed fetch silently leaves the default colors in place.
+    private static final String THREAT_URL =
+            "https://feodotracker.abuse.ch/downloads/ipblocklist.txt";
+    private static final String COLOR_NORMAL = "#FF6D00";
+    private static final String COLOR_FLAGGED = "#D32F2F";
+
     private static final class Geo {
         final double lat;
         final double lon;
@@ -104,6 +121,17 @@ public final class TrafficLive {
     private volatile boolean running;
     private Thread pollThread;
     private boolean lastReadFailed;
+    private boolean lastConnsEmpty = true;
+
+    // Foldable rows list (independent of Traffic ON/OFF: folding hides only
+    // the rows; polling and map markers/lines keep running while ON).
+    private View rowsScroll;
+    private MaterialButton foldBtn;
+    private boolean rowsFolded;
+
+    private final ArrayList<Conn> markerConns = new ArrayList<>();
+    private volatile Set<String> threatIps = new HashSet<>();
+    private boolean threatFetchAttempted;
 
     private final Map<String, Geo> geoCache = new HashMap<>();
     private final Set<String> geoFailed = new HashSet<>();
@@ -126,6 +154,33 @@ public final class TrafficLive {
         this.card = card;
         this.rows = rows;
         this.emptyView = emptyView;
+        if (card != null) {
+            rowsScroll = card.findViewById(R.id.geomac_traffic_rows_scroll);
+            foldBtn = card.findViewById(R.id.geomac_traffic_fold_btn);
+            if (foldBtn != null) {
+                foldBtn.setOnClickListener(v -> {
+                    rowsFolded = !rowsFolded;
+                    foldBtn.setRotation(rowsFolded ? 180f : 0f);
+                    refreshRowsVisibility();
+                });
+            }
+        }
+    }
+
+    private void refreshRowsVisibility() {
+        if (rowsFolded) {
+            if (rowsScroll != null) rowsScroll.setVisibility(View.GONE);
+            emptyView.setVisibility(View.GONE);
+            return;
+        }
+        if (rowsScroll != null) rowsScroll.setVisibility(View.VISIBLE);
+        if (lastReadFailed) {
+            emptyView.setText(R.string.geomac_traffic_failed);
+            emptyView.setVisibility(View.VISIBLE);
+        } else {
+            emptyView.setText(R.string.geomac_traffic_empty);
+            emptyView.setVisibility(lastConnsEmpty ? View.VISIBLE : View.GONE);
+        }
     }
 
     /** Idempotent. */
@@ -162,6 +217,10 @@ public final class TrafficLive {
 
     private void start() {
         if (pollThread != null && pollThread.isAlive()) return;
+        if (!threatFetchAttempted) {
+            threatFetchAttempted = true;
+            new Thread(this::fetchThreatList, "atlas-threatlist").start();
+        }
         running = true;
         Thread t = new Thread(() -> {
             while (running && alive.isAlive()) {
@@ -187,6 +246,30 @@ public final class TrafficLive {
         if (pollThread != null) {
             pollThread.interrupt();
             pollThread = null;
+        }
+    }
+
+    /** One-shot reputation-list fetch; silent default colors on any failure. */
+    private void fetchThreatList() {
+        try {
+            okhttp3.OkHttpClient client = new okhttp3.OkHttpClient();
+            okhttp3.Request req = new okhttp3.Request.Builder().url(THREAT_URL).build();
+            try (okhttp3.Response resp = client.newCall(req).execute()) {
+                if (!resp.isSuccessful() || resp.body() == null) return;
+                HashSet<String> set = new HashSet<>();
+                for (String raw : resp.body().string().split("\n")) {
+                    String line = raw.trim();
+                    if (line.isEmpty() || line.startsWith("#")) continue;
+                    // Plain IPs only: IPv4 dotted quads, or IPv6 (colon form).
+                    if (line.matches("\\d{1,3}(\\.\\d{1,3}){3}")
+                            || (line.contains(":") && line.matches("[0-9a-fA-F:]+"))) {
+                        set.add(line);
+                    }
+                }
+                threatIps = set;
+            }
+        } catch (Exception ignored) {
+            // Silent default: no coloring change, traffic list unaffected.
         }
     }
 
@@ -483,37 +566,38 @@ public final class TrafficLive {
             tv.setText(sb.toString());
             rows.addView(tv);
         }
-        if (lastReadFailed) {
-            // Read failure is NOT an empty list: say so instead of the
-            // silent empty text that hid the /proc/net lockdown.
-            emptyView.setText(R.string.geomac_traffic_failed);
-            emptyView.setVisibility(View.VISIBLE);
-        } else {
-            emptyView.setText(R.string.geomac_traffic_empty);
-            emptyView.setVisibility(conns.isEmpty() ? View.VISIBLE : View.GONE);
-        }
+        // Read failure is NOT an empty list: say so instead of the
+        // silent empty text that hid the /proc/net lockdown. Folding hides
+        // the rows area but never stops polling or map drawing.
+        lastConnsEmpty = conns.isEmpty();
+        refreshRowsVisibility();
         if (markerOverlay != null) map.getOverlays().remove(markerOverlay);
         markerOverlay = null;
         for (Polyline line : lines) map.getOverlays().remove(line);
         lines.clear();
         GeoPoint self = deviceLocation();
         ArrayList<OverlayItem> items = new ArrayList<>();
+        markerConns.clear();
+        Set<String> threats = threatIps;
         for (Conn c : conns) {
             if (c.geo == null) continue;
+            boolean flagged = threats != null && threats.contains(c.remoteIp);
+            String color = flagged ? COLOR_FLAGGED : COLOR_NORMAL;
             GeoPoint dest = new GeoPoint(c.geo.lat, c.geo.lon);
             String title = c.label + " → " + c.geo.city + ", " + c.geo.country;
             String snippet = c.remoteIp + ":" + c.remotePort;
             OverlayItem item = new OverlayItem(title, snippet, dest);
-            item.setMarker(LayerMarkers.dot(context, Color.parseColor("#FF6D00"), 12));
+            item.setMarker(LayerMarkers.dot(context, Color.parseColor(color), 12));
             item.setMarkerHotspot(OverlayItem.HotspotPlace.CENTER);
             items.add(item);
+            markerConns.add(c);
             if (self != null) {
                 Polyline line = new Polyline();
                 ArrayList<GeoPoint> pts = new ArrayList<>();
                 pts.add(self);
                 pts.add(dest);
                 line.setPoints(pts);
-                line.setColor(Color.parseColor("#FF6D00"));
+                line.setColor(Color.parseColor(color));
                 line.setWidth(3f);
                 lines.add(line);
                 map.getOverlays().add(line);
@@ -524,14 +608,8 @@ public final class TrafficLive {
                     new ItemizedIconOverlay.OnItemGestureListener<OverlayItem>() {
                         @Override
                         public boolean onItemSingleTapUp(int index, OverlayItem item) {
-                            if (item != null) {
-                                String text = item.getTitle() == null ? "" : item.getTitle();
-                                if (item.getSnippet() != null && !item.getSnippet().isEmpty()) {
-                                    text += "\n" + item.getSnippet();
-                                }
-                                if (!text.trim().isEmpty()) {
-                                    Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
-                                }
+                            if (index >= 0 && index < markerConns.size()) {
+                                showTrafficDetail(markerConns.get(index));
                             }
                             return true;
                         }
@@ -544,6 +622,205 @@ public final class TrafficLive {
             map.getOverlays().add(markerOverlay);
         }
         map.invalidate();
+    }
+
+    /** LEVEL 1: full connection facts for one destination marker. */
+    private void showTrafficDetail(final Conn c) {
+        final Dialog d = new Dialog(context);
+        LinearLayout root = new LinearLayout(context);
+        root.setOrientation(LinearLayout.VERTICAL);
+        float density = context.getResources().getDisplayMetrics().density;
+        int pad = Math.round(14 * density);
+        root.setPadding(pad, pad, pad, pad);
+        TextView title = new TextView(context);
+        title.setTextSize(15f);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title.setText(c.label);
+        root.addView(title);
+        // Created early so the IP row's tap handler can use it; it is added
+        // to the layout further below, after the flagged note.
+        final TextView whoisResult = new TextView(context);
+        whoisResult.setTextSize(13f);
+        whoisResult.setPadding(0, 8, 0, 4);
+        whoisResult.setVisibility(View.GONE);
+        // The IP row is the entry point to the IP actions: link-styled
+        // (underline + blue) with a tap hint, so the tap target is visible.
+        TextView ipRow = new TextView(context);
+        ipRow.setTextSize(13f);
+        ipRow.setPadding(0, 4, 0, 4);
+        ipRow.setText(c.remoteIp + ":" + c.remotePort);
+        ipRow.setTextColor(Color.parseColor("#1565C0"));
+        ipRow.setPaintFlags(ipRow.getPaintFlags() | Paint.UNDERLINE_TEXT_FLAG);
+        ipRow.setOnClickListener(v -> {
+            if (c.isPrivate) {
+                // Never fetch for private/LAN IPs: show the local note
+                // instead of opening the action area.
+                whoisResult.setVisibility(View.VISIBLE);
+                whoisResult.setText(R.string.geomac_traffic_local_no_whois);
+            } else {
+                showIpActions(c, d, whoisResult);
+            }
+        });
+        root.addView(ipRow);
+        TextView ipHint = new TextView(context);
+        ipHint.setTextSize(11f);
+        ipHint.setPadding(0, 0, 0, 4);
+        ipHint.setText(R.string.geomac_traffic_ip_hint);
+        root.addView(ipHint);
+        addDetailLine(root, c.proto + " · " + c.state);
+        if (c.txRate >= 0 && c.rxRate >= 0) {
+            addDetailLine(root, "↑ " + formatRate(c.txRate)
+                    + "  ↓ " + formatRate(c.rxRate));
+        }
+        if (c.geo != null) {
+            String loc = c.geo.city;
+            if (!c.geo.country.isEmpty()) {
+                loc = loc.isEmpty() ? c.geo.country : loc + ", " + c.geo.country;
+            }
+            if (!c.geo.isp.isEmpty()) {
+                loc = loc.isEmpty() ? c.geo.isp : loc + " · " + c.geo.isp;
+            }
+            if (!loc.isEmpty()) addDetailLine(root, loc);
+        } else if (c.isPrivate) {
+            addDetailLine(root, "LAN");
+        }
+        boolean flagged = threatIps != null && threatIps.contains(c.remoteIp);
+        if (flagged) {
+            TextView flag = new TextView(context);
+            flag.setTextSize(13f);
+            flag.setPadding(0, 4, 0, 4);
+            flag.setTextColor(Color.parseColor(COLOR_FLAGGED));
+            flag.setText(R.string.geomac_traffic_flagged);
+            root.addView(flag);
+        }
+        root.addView(whoisResult);
+        LinearLayout btnRow = new LinearLayout(context);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        btnRow.setGravity(android.view.Gravity.END);
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        rowLp.topMargin = Math.round(12 * density);
+        btnRow.setLayoutParams(rowLp);
+        Button close = new Button(context);
+        close.setText(R.string.geomac_streetview_close);
+        close.setOnClickListener(v -> d.dismiss());
+        btnRow.addView(close);
+        root.addView(btnRow);
+        d.setContentView(root);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setLayout(LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+        }
+        d.show();
+    }
+
+    /**
+     * One entry in the IP-action area. To add a future IP action, append
+     * one entry to the list in showIpActions — no other tap plumbing
+     * changes. Title is what the menu shows; run does the work.
+     */
+    private static class IpAction {
+        final String title;
+        final Runnable run;
+
+        IpAction(String title, Runnable run) {
+            this.title = title;
+            this.run = run;
+        }
+    }
+
+    /**
+     * IP-ACTION AREA: opened by tapping the IP row in the level-1 dialog.
+     * A second dialog listing the actions for this IP (AlertDialog.Builder
+     * with setItems — the standard single-choice list, already used across
+     * this app; tapping an entry dismisses the menu, then runs the entry).
+     * Currently exactly one entry: Whois, which runs the existing level-2
+     * logic unchanged in the level-1 dialog.
+     */
+    private void showIpActions(final Conn c, final Dialog detailDialog,
+                               final TextView whoisResult) {
+        final List<IpAction> actions = new ArrayList<>();
+        actions.add(new IpAction(
+                context.getString(R.string.geomac_traffic_whois_action), () -> {
+                    // LEVEL 2 (on demand only, never during polling):
+                    // identity verification for this IP via ipwho.is.
+                    whoisResult.setVisibility(View.VISIBLE);
+                    whoisResult.setText(R.string.geomac_traffic_whois_checking);
+                    fetchWhois(c.remoteIp, detailDialog, whoisResult);
+                }));
+        String[] titles = new String[actions.size()];
+        for (int i = 0; i < actions.size(); i++) titles[i] = actions.get(i).title;
+        new android.app.AlertDialog.Builder(context)
+                .setTitle(c.remoteIp)
+                .setItems(titles, (dialog, which) -> actions.get(which).run.run())
+                .show();
+    }
+
+    private void addDetailLine(LinearLayout root, String text) {
+        TextView tv = new TextView(context);
+        tv.setTextSize(13f);
+        tv.setPadding(0, 4, 0, 4);
+        tv.setText(text);
+        root.addView(tv);
+    }
+
+    private void fetchWhois(final String ip, final Dialog d, final TextView out) {
+        new Thread(() -> {
+            String result = null;
+            try {
+                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient();
+                okhttp3.Request req = new okhttp3.Request.Builder()
+                        .url("https://ipwho.is/" + ip).build();
+                try (okhttp3.Response resp = client.newCall(req).execute()) {
+                    if (resp.isSuccessful() && resp.body() != null) {
+                        JSONObject o = new JSONObject(resp.body().string());
+                        if (o.optBoolean("success", false)) {
+                            JSONObject conn = o.optJSONObject("connection");
+                            StringBuilder sb = new StringBuilder();
+                            if (conn != null) {
+                                Object asnObj = conn.opt("asn");
+                                if (asnObj != null) {
+                                    String asn = String.valueOf(asnObj);
+                                    if (!asn.startsWith("AS")) asn = "AS" + asn;
+                                    sb.append("ASN: ").append(asn).append("\n");
+                                }
+                                String org = conn.optString("org", "");
+                                if (!org.isEmpty()) {
+                                    sb.append("Organisasi: ").append(org).append("\n");
+                                }
+                                String isp = conn.optString("isp", "");
+                                if (!isp.isEmpty()) {
+                                    sb.append("ISP: ").append(isp).append("\n");
+                                }
+                            }
+                            String country = o.optString("country", "");
+                            if (!country.isEmpty()) {
+                                sb.append("Negara: ").append(country).append("\n");
+                            }
+                            String city = o.optString("city", "");
+                            if (!city.isEmpty()) {
+                                sb.append("Kota: ").append(city);
+                            }
+                            String text = sb.toString().trim();
+                            if (!text.isEmpty()) result = text;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            final String finalResult = result;
+            postToUi(() -> {
+                if (!d.isShowing()) return;
+                if (finalResult == null) {
+                    out.setText(R.string.geomac_traffic_whois_failed);
+                } else {
+                    out.setText(finalResult);
+                }
+            });
+        }, "atlas-whois").start();
     }
 
     private void clearOverlays() {

@@ -88,7 +88,6 @@ public class GeoMac extends Fragment {
     private TextView satCredit;
     private boolean satelliteOn;
     private boolean updatingChips;
-    private boolean panelCollapsed;
 
     private GeoPin.Category filter = null;
 
@@ -143,6 +142,7 @@ public class GeoMac extends Fragment {
         wireSearch(view);
         wireFilterChips(view);
         wirePanel(view);
+        wireSectionFolds(view);
         wireLayerChips(view);
         wireActionBar(view);
         restoreFilterState(view);
@@ -263,32 +263,36 @@ public class GeoMac extends Fragment {
 
     private void wirePanel(View view) {
         View panel = view.findViewById(R.id.geomac_panel);
-        MaterialButton collapse = view.findViewById(R.id.geomac_btn_collapse);
         MaterialButton hide = view.findViewById(R.id.geomac_btn_hide);
         MaterialButton restore = view.findViewById(R.id.geomac_btn_restore);
-        MaterialButton expand = view.findViewById(R.id.geomac_btn_expand);
-        // Folded = JUST an icon: the whole panel goes away and only the
-        // small expand button remains (no long folded header bar).
-        collapse.setOnClickListener(v -> {
-            panelCollapsed = true;
-            panel.setVisibility(View.GONE);
-            expand.setVisibility(View.VISIBLE);
-        });
-        expand.setOnClickListener(v -> {
-            panelCollapsed = false;
-            expand.setVisibility(View.GONE);
-            panel.setVisibility(View.VISIBLE);
-        });
-        // Hide stays distinct: panel gone + the floating restore button.
+        // X hides the WHOLE panel; the floating restore button brings it back.
+        // Per-section folding lives in wireSectionFolds below — the old global
+        // fold button was removed because it duplicated X.
         hide.setOnClickListener(v -> {
             panel.setVisibility(View.GONE);
             restore.setVisibility(View.VISIBLE);
         });
         restore.setOnClickListener(v -> {
             restore.setVisibility(View.GONE);
-            expand.setVisibility(View.GONE);
-            panelCollapsed = false;
             panel.setVisibility(View.VISIBLE);
+        });
+    }
+
+    private void wireSectionFolds(View view) {
+        wireSectionFold(view, R.id.geomac_btn_fold_overlay, R.id.geomac_overlay_scroll);
+        wireSectionFold(view, R.id.geomac_btn_fold_features, R.id.geomac_features_scroll);
+    }
+
+    private void wireSectionFold(View view, int btnId, int scrollId) {
+        View scroll = view.findViewById(scrollId);
+        MaterialButton btn = view.findViewById(btnId);
+        if (scroll == null || btn == null) return;
+        // Sections start EXPANDED on every open; tapping the section's own
+        // fold icon collapses ONLY that section's chips (header row stays).
+        btn.setOnClickListener(v -> {
+            boolean collapsed = scroll.getVisibility() == View.VISIBLE;
+            scroll.setVisibility(collapsed ? View.GONE : View.VISIBLE);
+            btn.setRotation(collapsed ? 180f : 0f);
         });
     }
 

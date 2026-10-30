@@ -16,6 +16,7 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -336,6 +337,7 @@ public final class AtlasLayers {
         final boolean useLon = west <= east;
         new Thread(() -> {
             ArrayList<OverlayItem> items = new ArrayList<>();
+            ArrayList<FlightDetail> details = new ArrayList<>();
             try {
                 StringBuilder url = new StringBuilder(
                         "https://opensky-network.org/api/states/all?lamin=")
@@ -363,6 +365,17 @@ public final class AtlasLayers {
                         if (callsign.isEmpty()) callsign = s.optString(0, "");
                         String country = s.optString(2, "");
                         double alt = s.optDouble(7, Double.NaN);
+                        // Indices verified against the parsing above (0 icao24,
+                        // 1 callsign, 2 country, 5 lon, 6 lat, 7 baro_alt,
+                        // 8 on_ground): the standard OpenSky states array
+                        // continues 9 velocity, 10 true_track, 11 vertical_rate.
+                        // Any of them may be null in the response -> NaN.
+                        double vel = s.length() > 9 && !s.isNull(9)
+                                ? s.optDouble(9, Double.NaN) : Double.NaN;
+                        double heading = s.length() > 10 && !s.isNull(10)
+                                ? s.optDouble(10, Double.NaN) : Double.NaN;
+                        double vertRate = s.length() > 11 && !s.isNull(11)
+                                ? s.optDouble(11, Double.NaN) : Double.NaN;
                         String snippet = country;
                         if (!Double.isNaN(alt)) {
                             snippet += " · " + Math.round(alt) + " m";
@@ -373,6 +386,8 @@ public final class AtlasLayers {
                                 Color.parseColor("#039BE5"), 12));
                         item.setMarkerHotspot(OverlayItem.HotspotPlace.CENTER);
                         items.add(item);
+                        details.add(new FlightDetail(callsign, country,
+                                lat, lon, alt, vel, heading, vertRate));
                     }
                 }
             } catch (Exception ex) {
@@ -380,9 +395,24 @@ public final class AtlasLayers {
                 return;
             }
             final ArrayList<OverlayItem> finalItems = items;
+            final ArrayList<FlightDetail> finalDetails = details;
             postToUi(() -> {
                 if (flightsOverlay != null) map.getOverlays().remove(flightsOverlay);
-                flightsOverlay = buildMarkerOverlay(finalItems);
+                flightsOverlay = new ItemizedIconOverlay<>(finalItems,
+                        new ItemizedIconOverlay.OnItemGestureListener<OverlayItem>() {
+                            @Override
+                            public boolean onItemSingleTapUp(int index, OverlayItem item) {
+                                if (index >= 0 && index < finalDetails.size()) {
+                                    showFlightDialog(finalDetails.get(index));
+                                }
+                                return true;
+                            }
+
+                            @Override
+                            public boolean onItemLongPress(int index, OverlayItem item) {
+                                return false;
+                            }
+                        }, context);
                 map.getOverlays().add(flightsOverlay);
                 map.invalidate();
             });
@@ -698,7 +728,8 @@ public final class AtlasLayers {
                             LinearLayout.LayoutParams.WRAP_CONTENT);
                     tlLp.setMarginEnd(Math.round(8 * density));
                     timelapse.setLayoutParams(tlLp);
-                    timelapse.setOnClickListener(v -> showTimelapseDialog(finalPlayer));
+                    timelapse.setOnClickListener(v -> showTimelapseDialog(
+                            finalPlayer, finalTitle, finalPlace));
                     btnRow.addView(timelapse);
                 }
                 Button close = new Button(context);
@@ -720,24 +751,131 @@ public final class AtlasLayers {
         }, "atlas-camera-photo").start();
     }
 
-    /** Opens the Windy timelapse player page in an in-app WebView dialog. */
-    private void showTimelapseDialog(final String playerUrl) {
+    private static final class FlightDetail {
+        final String callsign;
+        final String country;
+        final double lat;
+        final double lon;
+        final double alt;
+        final double velocity;
+        final double heading;
+        final double verticalRate;
+
+        FlightDetail(String callsign, String country, double lat, double lon,
+                     double alt, double velocity, double heading, double verticalRate) {
+            this.callsign = callsign;
+            this.country = country;
+            this.lat = lat;
+            this.lon = lon;
+            this.alt = alt;
+            this.velocity = velocity;
+            this.heading = heading;
+            this.verticalRate = verticalRate;
+        }
+    }
+
+    private void showFlightDialog(final FlightDetail f) {
         final Dialog d = new Dialog(context);
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
+        float density = context.getResources().getDisplayMetrics().density;
+        int pad = Math.round(14 * density);
+        root.setPadding(pad, pad, pad, pad);
+        TextView title = new TextView(context);
+        title.setTextSize(15f);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title.setText(f.callsign == null || f.callsign.isEmpty() ? "—" : f.callsign);
+        root.addView(title);
+        addDialogLine(root, R.string.geomac_flight_country,
+                f.country == null || f.country.isEmpty() ? "—" : f.country);
+        addDialogLine(root, R.string.geomac_flight_altitude,
+                Double.isNaN(f.alt) ? "—" : Math.round(f.alt) + " m");
+        addDialogLine(root, R.string.geomac_flight_speed,
+                Double.isNaN(f.velocity) ? "—"
+                        : Math.round(f.velocity) + " m/s ("
+                        + Math.round(f.velocity * 3.6) + " km/h)");
+        addDialogLine(root, R.string.geomac_flight_heading,
+                Double.isNaN(f.heading) ? "—" : Math.round(f.heading) + "°");
+        addDialogLine(root, R.string.geomac_flight_vertical_rate,
+                Double.isNaN(f.verticalRate) ? "—"
+                        : String.format(Locale.US, "%.1f m/s", f.verticalRate));
+        addDialogLine(root, R.string.geomac_flight_position,
+                String.format(Locale.US, "%.4f, %.4f", f.lat, f.lon));
+        Button close = new Button(context);
+        close.setText(R.string.geomac_streetview_close);
+        close.setOnClickListener(v -> d.dismiss());
+        root.addView(close);
+        d.setContentView(root);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setLayout(LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+        }
+        d.show();
+    }
+
+    private void addDialogLine(LinearLayout root, int labelRes, String value) {
+        TextView tv = new TextView(context);
+        tv.setTextSize(13f);
+        tv.setPadding(0, 4, 0, 4);
+        tv.setText(context.getString(labelRes) + ": " + value);
+        root.addView(tv);
+    }
+
+    /** Opens the Windy timelapse player page in an in-app WebView dialog. */
+    private void showTimelapseDialog(final String playerUrl, final String title,
+                                     final String place) {
+        final Dialog d = new Dialog(context);
+        LinearLayout root = new LinearLayout(context);
+        root.setOrientation(LinearLayout.VERTICAL);
+        float density = context.getResources().getDisplayMetrics().density;
+        int pad = Math.round(12 * density);
+        // Header: camera title (+ place) with a clear Close button.
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        header.setPadding(pad, pad, pad, pad);
+        TextView titleView = new TextView(context);
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        titleView.setLayoutParams(titleLp);
+        titleView.setTextSize(14f);
+        titleView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        titleView.setSingleLine(true);
+        titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        String headerText = (title == null || title.isEmpty())
+                ? context.getString(R.string.geomac_camera_timelapse) : title;
+        if (place != null && !place.isEmpty()) headerText += " · " + place;
+        titleView.setText(headerText);
+        header.addView(titleView);
+        Button close = new Button(context);
+        close.setText(R.string.geomac_streetview_close);
+        close.setOnClickListener(v -> d.dismiss());
+        header.addView(close);
+        root.addView(header);
+        // Loading indicator until the player page finishes loading.
+        final ProgressBar progress = new ProgressBar(context, null,
+                android.R.attr.progressBarStyleHorizontal);
+        progress.setIndeterminate(true);
+        progress.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(progress);
         final WebView web = new WebView(context);
         LinearLayout.LayoutParams webLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         web.setLayoutParams(webLp);
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                progress.setVisibility(View.GONE);
+            }
+        });
         web.loadUrl(playerUrl);
-        Button close = new Button(context);
-        close.setText(R.string.geomac_streetview_close);
-        close.setOnClickListener(v -> d.dismiss());
         root.addView(web);
-        root.addView(close);
         d.setContentView(root);
         Window w = d.getWindow();
         if (w != null) {
