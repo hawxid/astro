@@ -890,6 +890,10 @@ manager</string>
     <string name="geomac_layer_cameras">Cameras</string>
     <string name="geomac_layer_traffic">Traffic</string>
     <string name="geomac_layer_satellite">Satellite</string>
+    <string name="geomac_layer_group_overlay">Overlay</string>
+    <string name="geomac_layer_group_features">Features</string>
+    <string name="geomac_camera_timelapse">Timelapse</string>
+    <string name="geomac_traffic_failed">Gagal membaca tabel soket — butuh akses root</string>
     <string name="geomac_layer_credit_cameras">Cameras: Windy</string>
     <string name="geomac_sat_credit">Imagery: Esri, Maxar, Earthstar Geographics</string>
     <string name="geomac_traffic_header">Live traffic</string>

@@ -220,9 +220,12 @@ public class GeoMac extends Fragment {
     }
 
     private void wireLayerChips(View view) {
-        ChipGroup group = view.findViewById(R.id.geomac_layer_group);
-        layerGroup = group;
-        group.setOnCheckedStateChangeListener((g, checkedIds) -> {
+        // Overlay group: things drawn on the map. layerGroup keeps pointing
+        // at it because the cameras chip (askWindyKey) and the satellite
+        // chip (pref reflection at open) both live here.
+        ChipGroup overlayGroup = view.findViewById(R.id.geomac_layer_group_overlay);
+        layerGroup = overlayGroup;
+        overlayGroup.setOnCheckedStateChangeListener((g, checkedIds) -> {
             if (updatingChips) return;
             if (layers == null) return;
             boolean wantCameras = checkedIds.contains(R.id.geomac_chip_cameras);
@@ -241,35 +244,50 @@ public class GeoMac extends Fragment {
                     checkedIds.contains(R.id.geomac_chip_flights));
             layers.toggle(AtlasLayers.Layer.QUAKES,
                     checkedIds.contains(R.id.geomac_chip_quakes));
+            setSatellite(checkedIds.contains(R.id.geomac_chip_satellite));
+        });
+        // Features group: live panel features (Traffic), not map overlays.
+        ChipGroup featureGroup = view.findViewById(R.id.geomac_layer_group_features);
+        featureGroup.setOnCheckedStateChangeListener((g, checkedIds) -> {
+            if (updatingChips) return;
             if (trafficLive != null) {
                 trafficLive.setOn(checkedIds.contains(R.id.geomac_chip_traffic));
             }
-            setSatellite(checkedIds.contains(R.id.geomac_chip_satellite));
         });
         if (satelliteOn) {
             updatingChips = true;
-            group.check(R.id.geomac_chip_satellite);
+            overlayGroup.check(R.id.geomac_chip_satellite);
             updatingChips = false;
         }
     }
 
     private void wirePanel(View view) {
         View panel = view.findViewById(R.id.geomac_panel);
-        View body = view.findViewById(R.id.geomac_panel_body);
         MaterialButton collapse = view.findViewById(R.id.geomac_btn_collapse);
         MaterialButton hide = view.findViewById(R.id.geomac_btn_hide);
         MaterialButton restore = view.findViewById(R.id.geomac_btn_restore);
+        MaterialButton expand = view.findViewById(R.id.geomac_btn_expand);
+        // Folded = JUST an icon: the whole panel goes away and only the
+        // small expand button remains (no long folded header bar).
         collapse.setOnClickListener(v -> {
-            panelCollapsed = !panelCollapsed;
-            body.setVisibility(panelCollapsed ? View.GONE : View.VISIBLE);
-            collapse.setRotation(panelCollapsed ? 180f : 0f);
+            panelCollapsed = true;
+            panel.setVisibility(View.GONE);
+            expand.setVisibility(View.VISIBLE);
         });
+        expand.setOnClickListener(v -> {
+            panelCollapsed = false;
+            expand.setVisibility(View.GONE);
+            panel.setVisibility(View.VISIBLE);
+        });
+        // Hide stays distinct: panel gone + the floating restore button.
         hide.setOnClickListener(v -> {
             panel.setVisibility(View.GONE);
             restore.setVisibility(View.VISIBLE);
         });
         restore.setOnClickListener(v -> {
             restore.setVisibility(View.GONE);
+            expand.setVisibility(View.GONE);
+            panelCollapsed = false;
             panel.setVisibility(View.VISIBLE);
         });
     }

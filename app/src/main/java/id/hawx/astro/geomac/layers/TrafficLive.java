@@ -13,6 +13,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import id.hawx.astro.R;
+
 import org.json.JSONObject;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
@@ -21,7 +23,7 @@ import org.osmdroid.views.overlay.OverlayItem;
 import org.osmdroid.views.overlay.Polyline;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,12 +38,17 @@ import java.util.Set;
 /**
  * Live traffic of this phone for Atlas (v1 scope: TCP/UDP only).
  *
- * Reads the kernel socket tables (/proc/net/tcp, tcp6, udp, udp6) — no VPN,
- * no packet capture, no root. While ON, a poll every 2 s rebuilds the
+ * Reads the kernel socket tables (/proc/net/tcp, tcp6, udp, udp6) via su
+ * (root). Direct reads from the app UID do NOT work on modern Android:
+ * since Android P, /proc/net is locked down for apps with targetSdk >= 28,
+ * so other apps' sockets are hidden and the list came back silently empty.
+ * No VPN, no packet capture. While ON, a poll every 2 s rebuilds the
  * connection list, resolves destination GeoIP via ip-api.com (free, no key,
  * HTTP-only free tier; results cached per IP in RAM), and draws destination
  * markers plus lines from the device's last known location when one exists.
  * Polling stops completely on OFF / pause / destroy, mirroring AtlasLayers.
+ * If the su table read fails, the card shows a failure status instead of
+ * the silent empty text.
  *
  * ICMP/ping traffic does not appear in socket tables and is deliberately
  * out of scope for v1 (it needs root packet capture = phase 2).
@@ -96,6 +103,7 @@ public final class TrafficLive {
     private boolean trafficOn;
     private volatile boolean running;
     private Thread pollThread;
+    private boolean lastReadFailed;
 
     private final Map<String, Geo> geoCache = new HashMap<>();
     private final Set<String> geoFailed = new HashSet<>();
@@ -184,10 +192,10 @@ public final class TrafficLive {
 
     private List<Conn> collect() {
         ArrayList<Conn> out = new ArrayList<>();
-        readTable("/proc/net/tcp", "TCP", out);
-        readTable("/proc/net/tcp6", "TCP", out);
-        readTable("/proc/net/udp", "UDP", out);
-        readTable("/proc/net/udp6", "UDP", out);
+        // One su call per poll; the app-UID reads are NOT retried as a
+        // fallback — on modern Android they hide other apps' sockets and
+        // would silently report an empty list again.
+        lastReadFailed = !readTablesViaSu(out);
         Map<String, Conn> uniq = new HashMap<>();
         for (Conn c : out) {
             String key = c.proto + "|" + c.uid + "|" + c.remoteIp + "|" + c.remotePort;
@@ -230,48 +238,89 @@ public final class TrafficLive {
         return list;
     }
 
-    private void readTable(String path, String proto, List<Conn> out) {
-        BufferedReader br = null;
+    /**
+     * Reads all 4 socket tables in ONE su call, with section markers.
+     * Returns false when su is unavailable, denied, or exits non-zero, or
+     * when no section marker arrives (read did not actually happen).
+     * A successful read with zero connections returns true with an empty
+     * list — that is the genuine-empty case, distinct from failure.
+     */
+    private boolean readTablesViaSu(List<Conn> out) {
+        final String script = "echo __ATLAS_TCP__; cat /proc/net/tcp;"
+                + " echo __ATLAS_TCP6__; cat /proc/net/tcp6;"
+                + " echo __ATLAS_UDP__; cat /proc/net/udp;"
+                + " echo __ATLAS_UDP6__; cat /proc/net/udp6";
+        Process p = null;
         try {
-            br = new BufferedReader(new FileReader(path));
-            br.readLine(); // header
+            p = new ProcessBuilder("su", "-c", script)
+                    .redirectErrorStream(true).start();
+            BufferedReader br = new BufferedReader(
+                    new InputStreamReader(p.getInputStream()));
+            String proto = null;
+            boolean sawMarker = false;
             String line;
             while ((line = br.readLine()) != null && out.size() < MAX_RAW) {
-                String[] f = line.trim().split("\\s+");
-                if (f.length < 8) continue;
-                String remote = f[2];
-                int colon = remote.lastIndexOf(':');
-                if (colon < 0) continue;
-                String ip = parseIp(remote.substring(0, colon));
-                if (ip == null || isZeroIp(ip)) continue; // no remote peer
-                int port;
-                int uid;
-                try {
-                    port = Integer.parseInt(remote.substring(colon + 1), 16);
-                    uid = Integer.parseInt(f[7]);
-                } catch (NumberFormatException e) {
+                String t = line.trim();
+                if (t.equals("__ATLAS_TCP__")) {
+                    proto = "TCP";
+                    sawMarker = true;
                     continue;
                 }
-                Conn c = new Conn();
-                c.uid = uid;
-                c.label = uidLabel(uid);
-                c.proto = proto;
-                c.remoteIp = ip;
-                c.remotePort = port;
-                c.state = "UDP".equals(proto) ? "UDP" : tcpState(f[3]);
-                c.isPrivate = isPrivateIp(ip);
-                c.geo = c.isPrivate ? null : geoCache.get(ip);
-                out.add(c);
-            }
-        } catch (Exception ignored) {
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (Exception ignored) {
+                if (t.equals("__ATLAS_TCP6__")) {
+                    proto = "TCP";
+                    sawMarker = true;
+                    continue;
                 }
+                if (t.equals("__ATLAS_UDP__")) {
+                    proto = "UDP";
+                    sawMarker = true;
+                    continue;
+                }
+                if (t.equals("__ATLAS_UDP6__")) {
+                    proto = "UDP";
+                    sawMarker = true;
+                    continue;
+                }
+                if (proto == null) continue; // noise before the first marker
+                if (t.startsWith("sl ")) continue; // per-table header line
+                parseTableLine(t, proto, out);
             }
+            br.close();
+            int exit = p.waitFor();
+            return sawMarker && exit == 0;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (p != null) p.destroy();
         }
+    }
+
+    private void parseTableLine(String line, String proto, List<Conn> out) {
+        String[] f = line.trim().split("\\s+");
+        if (f.length < 8) return;
+        String remote = f[2];
+        int colon = remote.lastIndexOf(':');
+        if (colon < 0) return;
+        String ip = parseIp(remote.substring(0, colon));
+        if (ip == null || isZeroIp(ip)) return; // no remote peer
+        int port;
+        int uid;
+        try {
+            port = Integer.parseInt(remote.substring(colon + 1), 16);
+            uid = Integer.parseInt(f[7]);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        Conn c = new Conn();
+        c.uid = uid;
+        c.label = uidLabel(uid);
+        c.proto = proto;
+        c.remoteIp = ip;
+        c.remotePort = port;
+        c.state = "UDP".equals(proto) ? "UDP" : tcpState(f[3]);
+        c.isPrivate = isPrivateIp(ip);
+        c.geo = c.isPrivate ? null : geoCache.get(ip);
+        out.add(c);
     }
 
     private static String parseIp(String hex) {
@@ -434,7 +483,15 @@ public final class TrafficLive {
             tv.setText(sb.toString());
             rows.addView(tv);
         }
-        emptyView.setVisibility(conns.isEmpty() ? View.VISIBLE : View.GONE);
+        if (lastReadFailed) {
+            // Read failure is NOT an empty list: say so instead of the
+            // silent empty text that hid the /proc/net lockdown.
+            emptyView.setText(R.string.geomac_traffic_failed);
+            emptyView.setVisibility(View.VISIBLE);
+        } else {
+            emptyView.setText(R.string.geomac_traffic_empty);
+            emptyView.setVisibility(conns.isEmpty() ? View.VISIBLE : View.GONE);
+        }
         if (markerOverlay != null) map.getOverlays().remove(markerOverlay);
         markerOverlay = null;
         for (Polyline line : lines) map.getOverlays().remove(line);

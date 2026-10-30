@@ -11,6 +11,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.Window;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -596,13 +598,14 @@ public final class AtlasLayers {
             String key = keyProvider == null ? "" : keyProvider.windyKey();
             String title = "";
             String place = "";
+            String player = "";
             Bitmap bmp = null;
             if (key != null && !key.isEmpty()) {
                 try {
                     // Re-fetched on every open: free-tier image URLs expire
                     // after 10 minutes (401 when stale).
                     String url = "https://api.windy.com/webcams/api/v3/webcams/" + webcamId
-                            + "?include=images,location&lang=en";
+                            + "?include=images,location,player&lang=en";
                     okhttp3.OkHttpClient client = new okhttp3.OkHttpClient();
                     okhttp3.Request req = new okhttp3.Request.Builder()
                             .url(url)
@@ -612,6 +615,22 @@ public final class AtlasLayers {
                         if (resp.isSuccessful() && resp.body() != null) {
                             JSONObject o = new JSONObject(resp.body().string());
                             title = o.optString("title", "");
+                            // Timelapse player: Windy v3 `player` is an OBJECT
+                            // of embed links per timespan (day/month/year/
+                            // lifetime/live), NOT a plain string — parsing it
+                            // as a string would always yield "" and the button
+                            // would never appear. Day timelapse first, then
+                            // longer spans, live stream only as last resort.
+                            // No raw mp4 is offered by the API, so the player
+                            // page itself is the timelapse — opened in-app.
+                            JSONObject playerObj = o.optJSONObject("player");
+                            if (playerObj != null) {
+                                for (String span : new String[]{"day", "month",
+                                        "year", "lifetime", "live"}) {
+                                    player = playerObj.optString(span, "");
+                                    if (!player.isEmpty()) break;
+                                }
+                            }
                             JSONObject loc = o.optJSONObject("location");
                             String city = loc == null ? "" : loc.optString("city", "");
                             String country = loc == null ? "" : loc.optString("country", "");
@@ -628,6 +647,7 @@ public final class AtlasLayers {
             }
             final String finalTitle = title;
             final String finalPlace = place;
+            final String finalPlayer = player;
             final Bitmap finalBmp = bmp;
             postToUi(() -> {
                 if (finalBmp == null) {
@@ -662,18 +682,32 @@ public final class AtlasLayers {
                             ? finalPlace : captionText + " · " + finalPlace;
                 }
                 caption.setText(captionText);
+                LinearLayout btnRow = new LinearLayout(context);
+                btnRow.setOrientation(LinearLayout.HORIZONTAL);
+                btnRow.setGravity(android.view.Gravity.END);
+                LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+                rowLp.topMargin = Math.round(12 * density);
+                btnRow.setLayoutParams(rowLp);
+                if (finalPlayer != null && !finalPlayer.isEmpty()) {
+                    Button timelapse = new Button(context);
+                    timelapse.setText(R.string.geomac_camera_timelapse);
+                    LinearLayout.LayoutParams tlLp = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT);
+                    tlLp.setMarginEnd(Math.round(8 * density));
+                    timelapse.setLayoutParams(tlLp);
+                    timelapse.setOnClickListener(v -> showTimelapseDialog(finalPlayer));
+                    btnRow.addView(timelapse);
+                }
                 Button close = new Button(context);
                 close.setText(R.string.geomac_streetview_close);
-                LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
-                btnLp.topMargin = Math.round(12 * density);
-                btnLp.gravity = android.view.Gravity.END;
-                close.setLayoutParams(btnLp);
                 close.setOnClickListener(v -> d.dismiss());
+                btnRow.addView(close);
                 root.addView(img);
                 root.addView(caption);
-                root.addView(close);
+                root.addView(btnRow);
                 d.setContentView(root);
                 Window w = d.getWindow();
                 if (w != null) {
@@ -684,6 +718,38 @@ public final class AtlasLayers {
                 d.show();
             });
         }, "atlas-camera-photo").start();
+    }
+
+    /** Opens the Windy timelapse player page in an in-app WebView dialog. */
+    private void showTimelapseDialog(final String playerUrl) {
+        final Dialog d = new Dialog(context);
+        LinearLayout root = new LinearLayout(context);
+        root.setOrientation(LinearLayout.VERTICAL);
+        final WebView web = new WebView(context);
+        LinearLayout.LayoutParams webLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        web.setLayoutParams(webLp);
+        web.getSettings().setJavaScriptEnabled(true);
+        web.getSettings().setDomStorageEnabled(true);
+        web.setWebViewClient(new WebViewClient());
+        web.loadUrl(playerUrl);
+        Button close = new Button(context);
+        close.setText(R.string.geomac_streetview_close);
+        close.setOnClickListener(v -> d.dismiss());
+        root.addView(web);
+        root.addView(close);
+        d.setContentView(root);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setLayout(LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT);
+        }
+        d.setOnDismissListener(dialog -> {
+            web.stopLoading();
+            web.destroy();
+        });
+        d.show();
     }
 
     private Bitmap loadBitmap(String url) {

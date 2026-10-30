@@ -218,6 +218,16 @@
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/geomac_layer_group_overlay"
+                android:textColor="@color/grey"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
             <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -227,7 +237,7 @@
                 android:scrollbars="none">
 
                 <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/geomac_layer_group"
+                    android:id="@+id/geomac_layer_group_overlay"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     app:chipSpacingHorizontal="6dp"
@@ -263,18 +273,47 @@
                         android:text="@string/geomac_layer_cameras" />
 
                     <com.google.android.material.chip.Chip
-                        android:id="@+id/geomac_chip_traffic"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/geomac_layer_traffic" />
-
-                    <com.google.android.material.chip.Chip
                         android:id="@+id/geomac_chip_satellite"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/geomac_layer_satellite" />
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="14dp"
+                android:paddingTop="2dp"
+                android:paddingEnd="14dp"
+                android:text="@string/geomac_layer_group_features"
+                android:textColor="@color/grey"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="6dp"
+                android:scrollbars="none">
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/geomac_layer_group_features"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:chipSpacingHorizontal="6dp"
+                    app:singleLine="true"
+                    app:singleSelection="false">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/geomac_chip_traffic"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/geomac_layer_traffic" />
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
@@ -480,6 +519,23 @@
         android:visibility="gone"
         app:cornerRadius="22dp"
         app:icon="@drawable/map"
+        app:iconPadding="0dp"
+        app:iconSize="20dp"
+        app:iconTint="#E53935" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/geomac_btn_expand"
+        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="12dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:padding="8dp"
+        android:visibility="gone"
+        app:cornerRadius="22dp"
+        app:icon="@drawable/expand_icon"
         app:iconPadding="0dp"
         app:iconSize="20dp"
         app:iconTint="#E53935" />
