@@ -887,6 +887,16 @@ manager</string>
     <string name="geomac_layer_flights">Flights</string>
     <string name="geomac_layer_quakes">Quakes</string>
     <string name="geomac_layer_credit">Weather data by RainViewer</string>
+    <string name="geomac_layer_cameras">Cameras</string>
+    <string name="geomac_layer_traffic">Traffic</string>
+    <string name="geomac_layer_satellite">Satellite</string>
+    <string name="geomac_layer_credit_cameras">Cameras: Windy</string>
+    <string name="geomac_sat_credit">Imagery: Esri, Maxar, Earthstar Geographics</string>
+    <string name="geomac_traffic_header">Live traffic</string>
+    <string name="geomac_traffic_empty">No live connections</string>
+    <string name="geomac_windy_key_title">Windy API key</string>
+    <string name="geomac_windy_key_message">Paste a free Windy Webcams API key to load public cameras. It is stored only on this device.</string>
+    <string name="geomac_windy_key_hint">Windy API key</string>
     <string name="geomac_layer_failed">Layer failed to load</string>
     <string name="geomac_streetview_token_title">Mapillary token</string>
     <string name="geomac_streetview_token_message">Paste a free Mapillary access token (from the Mapillary developer dashboard) to load street photos. It is stored only on this device.</string>

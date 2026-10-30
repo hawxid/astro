@@ -38,6 +38,8 @@ import id.hawx.astro.R;
 import id.hawx.astro.dashboard.Dashboard;
 import id.hawx.astro.geomac.io.GeoExporter;
 import id.hawx.astro.geomac.layers.AtlasLayers;
+import id.hawx.astro.geomac.layers.EsriTiles;
+import id.hawx.astro.geomac.layers.TrafficLive;
 import id.hawx.astro.geomac.model.GeoPin;
 import id.hawx.astro.geomac.store.GeoStore;
 import id.hawx.astro.geomac.ui.GeoMarkers;
@@ -80,12 +82,20 @@ public class GeoMac extends Fragment {
     private TextView layerCredit;
     private CircularProgressIndicator busy;
     private AtlasLayers layers;
+    private TrafficLive trafficLive;
+    private ChipGroup layerGroup;
+    private TextView satCredit;
+    private boolean satelliteOn;
+    private boolean updatingChips;
+    private boolean panelCollapsed;
 
     private GeoPin.Category filter = null;
 
     private static final String PREF_FILTER = "geomac_filter";
     private static final String PREF_CRACKED_FILTER = "geomac_cracked_filter";
     private static final String PREF_MAPILLARY_TOKEN = "mapillary_token";
+    private static final String PREF_WINDY_KEY = "windy_key";
+    private static final String PREF_SATELLITE = "geomac_satellite";
 
     private final AtomicBoolean alive = new AtomicBoolean(false);
 
@@ -108,9 +118,8 @@ public class GeoMac extends Fragment {
 
         map = view.findViewById(R.id.geomap);
         map.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        map.setTileSource(core.getBoolean("geomac_satellite")
-                ? TileSourceFactory.USGS_SAT
-                : TileSourceFactory.MAPNIK);
+        satelliteOn = core.getBoolean(PREF_SATELLITE);
+        map.setTileSource(satelliteOn ? new EsriTiles() : TileSourceFactory.MAPNIK);
         map.setMultiTouchControls(true);
         mapController = map.getController();
         mapController.setZoom(3.0);
@@ -119,11 +128,20 @@ public class GeoMac extends Fragment {
         counter = view.findViewById(R.id.geomac_counter_text);
         busy = view.findViewById(R.id.geomac_busy);
         layerCredit = view.findViewById(R.id.geomac_layer_credit);
+        satCredit = view.findViewById(R.id.geomac_sat_credit);
+        satCredit.setVisibility(satelliteOn ? View.VISIBLE : View.GONE);
         layers = new AtlasLayers(activity, context, map,
-                () -> alive.get() && isAdded(), layerCredit);
+                () -> alive.get() && isAdded(), layerCredit,
+                () -> core == null ? "" : core.getString(PREF_WINDY_KEY));
+        trafficLive = new TrafficLive(activity, context, map,
+                () -> alive.get() && isAdded(),
+                view.findViewById(R.id.geomac_traffic_card),
+                view.findViewById(R.id.geomac_traffic_rows),
+                view.findViewById(R.id.geomac_traffic_empty));
 
         wireSearch(view);
         wireFilterChips(view);
+        wirePanel(view);
         wireLayerChips(view);
         wireActionBar(view);
         restoreFilterState(view);
@@ -137,12 +155,14 @@ public class GeoMac extends Fragment {
         super.onResume();
         if (map != null) map.onResume();
         if (layers != null) layers.onResume();
+        if (trafficLive != null) trafficLive.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
         if (layers != null) layers.onPause();
+        if (trafficLive != null) trafficLive.onPause();
         if (map != null) map.onPause();
     }
 
@@ -151,6 +171,10 @@ public class GeoMac extends Fragment {
         if (layers != null) {
             layers.hideAll();
             layers = null;
+        }
+        if (trafficLive != null) {
+            trafficLive.hideAll();
+            trafficLive = null;
         }
         alive.set(false);
         super.onDestroyView();
@@ -196,15 +220,91 @@ public class GeoMac extends Fragment {
 
     private void wireLayerChips(View view) {
         ChipGroup group = view.findViewById(R.id.geomac_layer_group);
+        layerGroup = group;
         group.setOnCheckedStateChangeListener((g, checkedIds) -> {
+            if (updatingChips) return;
             if (layers == null) return;
+            boolean wantCameras = checkedIds.contains(R.id.geomac_chip_cameras);
+            if (wantCameras && (core == null || core.getString(PREF_WINDY_KEY).isEmpty())) {
+                updatingChips = true;
+                group.uncheck(R.id.geomac_chip_cameras);
+                updatingChips = false;
+                askWindyKey();
+            } else {
+                layers.toggle(AtlasLayers.Layer.CAMERAS, wantCameras);
+            }
             layers.toggle(AtlasLayers.Layer.WEATHER,
                     checkedIds.contains(R.id.geomac_chip_weather));
             layers.toggle(AtlasLayers.Layer.FLIGHTS,
                     checkedIds.contains(R.id.geomac_chip_flights));
             layers.toggle(AtlasLayers.Layer.QUAKES,
                     checkedIds.contains(R.id.geomac_chip_quakes));
+            if (trafficLive != null) {
+                trafficLive.setOn(checkedIds.contains(R.id.geomac_chip_traffic));
+            }
+            setSatellite(checkedIds.contains(R.id.geomac_chip_satellite));
         });
+        if (satelliteOn) {
+            updatingChips = true;
+            group.check(R.id.geomac_chip_satellite);
+            updatingChips = false;
+        }
+    }
+
+    private void wirePanel(View view) {
+        View panel = view.findViewById(R.id.geomac_panel);
+        View body = view.findViewById(R.id.geomac_panel_body);
+        MaterialButton collapse = view.findViewById(R.id.geomac_btn_collapse);
+        MaterialButton hide = view.findViewById(R.id.geomac_btn_hide);
+        MaterialButton restore = view.findViewById(R.id.geomac_btn_restore);
+        collapse.setOnClickListener(v -> {
+            panelCollapsed = !panelCollapsed;
+            body.setVisibility(panelCollapsed ? View.GONE : View.VISIBLE);
+            collapse.setRotation(panelCollapsed ? 180f : 0f);
+        });
+        hide.setOnClickListener(v -> {
+            panel.setVisibility(View.GONE);
+            restore.setVisibility(View.VISIBLE);
+        });
+        restore.setOnClickListener(v -> {
+            restore.setVisibility(View.GONE);
+            panel.setVisibility(View.VISIBLE);
+        });
+    }
+
+    private void setSatellite(boolean on) {
+        if (map == null || on == satelliteOn) return;
+        satelliteOn = on;
+        if (core != null) core.putBoolean(PREF_SATELLITE, on);
+        map.setTileSource(on ? new EsriTiles() : TileSourceFactory.MAPNIK);
+        if (satCredit != null) {
+            satCredit.setVisibility(on ? View.VISIBLE : View.GONE);
+        }
+        map.invalidate();
+    }
+
+    private void askWindyKey() {
+        if (core == null) return;
+        final EditText input = new EditText(context);
+        input.setHint(R.string.geomac_windy_key_hint);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.geomac_windy_key_title)
+                .setMessage(R.string.geomac_windy_key_message)
+                .setView(input)
+                .setPositiveButton(R.string.geomac_streetview_token_save, (d2, w) -> {
+                    String t = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (t.isEmpty()) return;
+                    core.putString(PREF_WINDY_KEY, t);
+                    if (layerGroup != null) {
+                        updatingChips = true;
+                        layerGroup.check(R.id.geomac_chip_cameras);
+                        updatingChips = false;
+                    }
+                    if (layers != null) layers.toggle(AtlasLayers.Layer.CAMERAS, true);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void persistFilterState() {

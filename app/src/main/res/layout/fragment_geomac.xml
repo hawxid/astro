@@ -13,6 +13,7 @@
         android:layout_height="match_parent" />
 
     <com.google.android.material.card.MaterialCardView
+        android:id="@+id/geomac_panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="12dp"
@@ -88,7 +89,43 @@
                     app:indicatorColor="#E53935"
                     app:indicatorSize="22dp"
                     app:trackThickness="2dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/geomac_btn_collapse"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="8dp"
+                    app:cornerRadius="18dp"
+                    app:icon="@drawable/arrow_down"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp"
+                    app:iconTint="@color/grey" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/geomac_btn_hide"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="4dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="8dp"
+                    app:cornerRadius="18dp"
+                    app:icon="@drawable/close"
+                    app:iconPadding="0dp"
+                    app:iconSize="18dp"
+                    app:iconTint="@color/grey" />
             </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/geomac_panel_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -217,6 +254,27 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/geomac_layer_quakes" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/geomac_chip_cameras"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/geomac_layer_cameras" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/geomac_chip_traffic"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/geomac_layer_traffic" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/geomac_chip_satellite"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/geomac_layer_satellite" />
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
@@ -231,6 +289,7 @@
                 android:textColor="@color/grey"
                 android:textSize="10sp"
                 android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -343,4 +402,85 @@
             android:textColor="#D4D4D4"
             android:textSize="11sp" />
     </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/geomac_traffic_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="84dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/light_contrast"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="2dp"
+        app:strokeColor="@color/light_lite_contrast"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/geomac_traffic_header"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginTop="6dp"
+                android:scrollbars="vertical">
+
+                <LinearLayout
+                    android:id="@+id/geomac_traffic_rows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/geomac_traffic_empty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/geomac_traffic_empty"
+                android:textColor="@color/grey"
+                android:textSize="11sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/geomac_sat_credit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:text="@string/geomac_sat_credit"
+        android:textColor="@color/grey"
+        android:textSize="10sp"
+        android:visibility="gone" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/geomac_btn_restore"
+        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="12dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:padding="8dp"
+        android:visibility="gone"
+        app:cornerRadius="22dp"
+        app:icon="@drawable/map"
+        app:iconPadding="0dp"
+        app:iconSize="20dp"
+        app:iconTint="#E53935" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
