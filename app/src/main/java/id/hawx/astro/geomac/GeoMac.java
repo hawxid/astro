@@ -28,6 +28,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
@@ -227,7 +228,8 @@ public class GeoMac extends Fragment {
             boolean wantCameras = checkedIds.contains(R.id.geomac_chip_cameras);
             if (wantCameras && (core == null || core.getString(PREF_WINDY_KEY).isEmpty())) {
                 updatingChips = true;
-                group.uncheck(R.id.geomac_chip_cameras);
+                Chip camChip = view.findViewById(R.id.geomac_chip_cameras);
+                if (camChip != null) camChip.setChecked(false);
                 updatingChips = false;
                 askWindyKey();
             } else {
