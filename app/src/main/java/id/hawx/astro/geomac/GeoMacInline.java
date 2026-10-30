@@ -141,7 +141,7 @@ public class GeoMacInline extends AppCompatActivity {
 
     private void copy(String text) {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        cm.setPrimaryClip(ClipData.newPlainText("GeoMac", text));
+        cm.setPrimaryClip(ClipData.newPlainText("Atlas", text));
         core.toaster("Copied " + text);
     }
 }

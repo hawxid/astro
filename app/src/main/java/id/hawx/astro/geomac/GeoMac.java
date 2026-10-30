@@ -5,15 +5,20 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -32,6 +37,7 @@ import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.dashboard.Dashboard;
 import id.hawx.astro.geomac.io.GeoExporter;
+import id.hawx.astro.geomac.layers.AtlasLayers;
 import id.hawx.astro.geomac.model.GeoPin;
 import id.hawx.astro.geomac.store.GeoStore;
 import id.hawx.astro.geomac.ui.GeoMarkers;
@@ -71,12 +77,15 @@ public class GeoMac extends Fragment {
 
     private TextView subtitle;
     private TextView counter;
+    private TextView layerCredit;
     private CircularProgressIndicator busy;
+    private AtlasLayers layers;
 
     private GeoPin.Category filter = null;
 
     private static final String PREF_FILTER = "geomac_filter";
     private static final String PREF_CRACKED_FILTER = "geomac_cracked_filter";
+    private static final String PREF_MAPILLARY_TOKEN = "mapillary_token";
 
     private final AtomicBoolean alive = new AtomicBoolean(false);
 
@@ -109,30 +118,40 @@ public class GeoMac extends Fragment {
         subtitle = view.findViewById(R.id.geomac_subtitle);
         counter = view.findViewById(R.id.geomac_counter_text);
         busy = view.findViewById(R.id.geomac_busy);
+        layerCredit = view.findViewById(R.id.geomac_layer_credit);
+        layers = new AtlasLayers(activity, context, map,
+                () -> alive.get() && isAdded(), layerCredit);
 
         wireSearch(view);
         wireFilterChips(view);
+        wireLayerChips(view);
         wireActionBar(view);
         restoreFilterState(view);
         refreshOverlay();
 
-        receiver.setTitle("GeoMac");
+        receiver.setTitle(getString(R.string.geomac_title));
     }
 
     @Override
     public void onResume() {
         super.onResume();
         if (map != null) map.onResume();
+        if (layers != null) layers.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
+        if (layers != null) layers.onPause();
         if (map != null) map.onPause();
     }
 
     @Override
     public void onDestroyView() {
+        if (layers != null) {
+            layers.hideAll();
+            layers = null;
+        }
         alive.set(false);
         super.onDestroyView();
     }
@@ -172,6 +191,19 @@ public class GeoMac extends Fragment {
             crackedFilter = id == R.id.geomac_chip_cracked;
             persistFilterState();
             refreshOverlay();
+        });
+    }
+
+    private void wireLayerChips(View view) {
+        ChipGroup group = view.findViewById(R.id.geomac_layer_group);
+        group.setOnCheckedStateChangeListener((g, checkedIds) -> {
+            if (layers == null) return;
+            layers.toggle(AtlasLayers.Layer.WEATHER,
+                    checkedIds.contains(R.id.geomac_chip_weather));
+            layers.toggle(AtlasLayers.Layer.FLIGHTS,
+                    checkedIds.contains(R.id.geomac_chip_flights));
+            layers.toggle(AtlasLayers.Layer.QUAKES,
+                    checkedIds.contains(R.id.geomac_chip_quakes));
         });
     }
 
@@ -452,6 +484,7 @@ public class GeoMac extends Fragment {
         View swatch = d.findViewById(R.id.geopin_swatch);
         FrameLayout swatchWrap = d.findViewById(R.id.geopin_swatch_wrap);
         MaterialButton copy = d.findViewById(R.id.geopin_btn_copy);
+        MaterialButton streetview = d.findViewById(R.id.geopin_btn_streetview);
         MaterialButton delete = d.findViewById(R.id.geopin_btn_delete);
 
         title.setText(pin.ssid == null || pin.ssid.isEmpty() ? pin.bssid : pin.ssid);
@@ -483,6 +516,7 @@ public class GeoMac extends Fragment {
             setClipboard(pin.lat + "," + pin.lon);
             d.dismiss();
         });
+        streetview.setOnClickListener(v -> openStreetView(pin));
         delete.setOnClickListener(v -> {
             store.delete(pin.bssid);
             refreshOverlay();
@@ -493,9 +527,97 @@ public class GeoMac extends Fragment {
         mapController.animateTo(new GeoPoint(pin.lat, pin.lon));
     }
 
+    private void openStreetView(GeoPin pin) {
+        String token = core == null ? "" : core.getString(PREF_MAPILLARY_TOKEN);
+        if (token == null || token.isEmpty()) {
+            askMapillaryToken(pin);
+            return;
+        }
+        fetchStreetView(pin, token);
+    }
+
+    private void askMapillaryToken(final GeoPin pin) {
+        final EditText input = new EditText(context);
+        input.setHint(R.string.geomac_streetview_token_hint);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.geomac_streetview_token_title)
+                .setMessage(R.string.geomac_streetview_token_message)
+                .setView(input)
+                .setPositiveButton(R.string.geomac_streetview_token_save, (d2, w) -> {
+                    String t = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (t.isEmpty()) return;
+                    core.putString(PREF_MAPILLARY_TOKEN, t);
+                    fetchStreetView(pin, t);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void fetchStreetView(final GeoPin pin, final String token) {
+        if (activity == null) return;
+        Toast.makeText(context, R.string.geomac_streetview_searching, Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            Mapillary.Photo photo = Mapillary.nearest(token, pin.lat, pin.lon);
+            if (activity == null || !isAdded() || !alive.get()) return;
+            activity.runOnUiThread(() -> {
+                if (activity == null || !isAdded() || !alive.get()) return;
+                if (photo == null) {
+                    Toast.makeText(context, R.string.geomac_streetview_none,
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                showPhotoDialog(photo);
+            });
+        }, "atlas-streetview").start();
+    }
+
+    private void showPhotoDialog(Mapillary.Photo photo) {
+        final android.app.Dialog d = new android.app.Dialog(context);
+        d.setContentView(R.layout.dialog_mapillary_photo);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setLayout(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        }
+        ImageView img = d.findViewById(R.id.mapillary_photo);
+        TextView caption = d.findViewById(R.id.mapillary_caption);
+        MaterialButton close = d.findViewById(R.id.mapillary_btn_close);
+        caption.setText(getString(R.string.geomac_streetview_caption, photo.id));
+        close.setOnClickListener(v -> d.dismiss());
+        d.show();
+        new Thread(() -> {
+            Bitmap bmp = loadBitmap(photo.thumbUrl);
+            if (activity == null || !isAdded() || !alive.get()) return;
+            activity.runOnUiThread(() -> {
+                if (activity == null || !isAdded() || !alive.get()) return;
+                if (bmp != null) {
+                    img.setImageBitmap(bmp);
+                } else {
+                    Toast.makeText(context, R.string.geomac_streetview_failed,
+                            Toast.LENGTH_SHORT).show();
+                }
+            });
+        }, "atlas-photo").start();
+    }
+
+    private Bitmap loadBitmap(String url) {
+        try {
+            okhttp3.OkHttpClient client = new okhttp3.OkHttpClient();
+            okhttp3.Request req = new okhttp3.Request.Builder().url(url).build();
+            try (okhttp3.Response resp = client.newCall(req).execute()) {
+                if (!resp.isSuccessful() || resp.body() == null) return null;
+                byte[] bytes = resp.body().bytes();
+                return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void setClipboard(String text) {
         ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        cm.setPrimaryClip(ClipData.newPlainText("GeoMac", text));
+        cm.setPrimaryClip(ClipData.newPlainText("Atlas", text));
         Toast.makeText(context, R.string.geomac_copied, Toast.LENGTH_SHORT).show();
     }
 

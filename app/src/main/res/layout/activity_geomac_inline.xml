@@ -33,7 +33,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:padding="10dp"
-                android:text="Astro Geomac"
+                android:text="Astro Atlas"
                 android:textColor="@android:color/white"
                 android:textSize="18dp" />
 

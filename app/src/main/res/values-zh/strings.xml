@@ -199,7 +199,7 @@
     <string name="dashboard_tile_handshakes">握手包</string>
     <string name="dashboard_tile_exploits">漏洞\n中心</string>
     <string name="dashboard_tile_searchsploit">漏洞\n数据库</string>
-    <string name="dashboard_tile_geomac">GeoMac</string>
+    <string name="dashboard_tile_geomac">Atlas</string>
     <string name="dashboard_tile_metasploit">Metasploit</string>
     <string name="dashboard_card_terminal_title">打开终端</string>
     <string name="dashboard_card_news_title">新闻</string>
@@ -757,7 +757,7 @@
     <string name="hydra_validation_creds">输入密码（或切换到字典）</string>
     <string name="hydra_validation_wordlist">选择字典 — 将文件放入 /sdcard/Astro/wordlists</string>
     <string name="hydra_toast_copied">已复制到剪贴板</string>
-    <string name="geomac_title">GeoMac</string>
+    <string name="geomac_title">Atlas</string>
     <string name="geomac_subtitle_idle">查找、扫描和破解过的 AP 的地图</string>
     <string name="geomac_subtitle_count">地图上有 %1$d 个标记</string>
     <string name="geomac_subtitle_lookup">正在查找 %1$s…</string>

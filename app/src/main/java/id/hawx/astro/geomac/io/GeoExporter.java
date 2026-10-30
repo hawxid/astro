@@ -47,7 +47,7 @@ public final class GeoExporter {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>\n");
-        sb.append("  <name>Astro GeoMac export</name>\n");
+        sb.append("  <name>Astro Atlas export</name>\n");
         for (GeoPin p : pins) {
             sb.append("  <Placemark>\n");
             sb.append("    <name>").append(xml(p.ssid == null || p.ssid.isEmpty() ? p.bssid : p.ssid)).append("</name>\n");

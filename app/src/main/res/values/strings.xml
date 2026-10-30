@@ -229,7 +229,7 @@
     <string name="dashboard_tile_handshakes">Handshakes</string>
     <string name="dashboard_tile_exploits">Exploit\nHub</string>
     <string name="dashboard_tile_searchsploit">Exploit\nDatabase</string>
-    <string name="dashboard_tile_geomac">GeoMac</string>
+    <string name="dashboard_tile_geomac">Atlas</string>
     <string name="dashboard_tile_metasploit">Metasploit</string>
     <string name="dashboard_tile_nmap">Nmap</string>
     <string name="dashboard_tile_hid">HID
@@ -848,7 +848,7 @@ manager</string>
     <string name="hydra_validation_wordlist">Pick a wordlist — drop files into /sdcard/Astro/wordlists</string>
     <string name="hydra_toast_copied">Copied to clipboard</string>
 
-    <string name="geomac_title">GeoMac</string>
+    <string name="geomac_title">Atlas</string>
     <string name="geomac_subtitle_idle">Map of looked-up, scanned and cracked APs</string>
     <string name="geomac_subtitle_count">%1$d pins on the map</string>
     <string name="geomac_subtitle_lookup">Looking up %1$s…</string>
@@ -860,7 +860,7 @@ manager</string>
     <string name="geomac_chip_scan">Scanned</string>
     <string name="geomac_chip_cracked">Cracked</string>
     <string name="geomac_chip_manual">Manual</string>
-    <string name="geomac_not_installed">GeoMac module not installed — go to Manager to download it</string>
+    <string name="geomac_not_installed">Atlas module not installed — go to Manager to download it</string>
     <string name="geomac_no_pins_to_fit">No pins match the current filter</string>
     <string name="geomac_copied">Coordinates copied</string>
     <string name="geomac_bg_active">BG SCAN</string>
@@ -882,6 +882,21 @@ manager</string>
     <string name="geomac_pin_age">Last seen %1$s ago</string>
     <string name="geomac_pin_btn_copy">Copy</string>
     <string name="geomac_pin_btn_delete">Delete</string>
+    <string name="geomac_pin_btn_streetview">Street View</string>
+    <string name="geomac_layer_weather">Weather</string>
+    <string name="geomac_layer_flights">Flights</string>
+    <string name="geomac_layer_quakes">Quakes</string>
+    <string name="geomac_layer_credit">Weather data by RainViewer</string>
+    <string name="geomac_layer_failed">Layer failed to load</string>
+    <string name="geomac_streetview_token_title">Mapillary token</string>
+    <string name="geomac_streetview_token_message">Paste a free Mapillary access token (from the Mapillary developer dashboard) to load street photos. It is stored only on this device.</string>
+    <string name="geomac_streetview_token_hint">MLY|…</string>
+    <string name="geomac_streetview_token_save">Save</string>
+    <string name="geomac_streetview_searching">Looking for a nearby street photo…</string>
+    <string name="geomac_streetview_none">No Mapillary photo near this pin yet</string>
+    <string name="geomac_streetview_failed">Photo failed to load</string>
+    <string name="geomac_streetview_caption">Mapillary photo %1$s</string>
+    <string name="geomac_streetview_close">Close</string>
 
     <string name="settings_section_geo">Geo mapping</string>
     <string name="settings_geo_bg_title">Auto-pin scanned APs</string>
