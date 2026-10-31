@@ -281,6 +281,9 @@ public class Dashboard extends Fragment {
         t.add(new Tool("macchanger", R.string.dashboard_tile_macchanger, R.drawable.password,
                 R.drawable.dashboard_tile_bg_blue, accent, false,
                 () -> receiver.changeFragment(R.id.macchanger_item)));
+        t.add(new Tool("anon", R.string.dashboard_tile_anon, R.drawable.shield,
+                R.drawable.dashboard_tile_bg_teal, 0xFF00897B, false,
+                () -> receiver.changeFragment(R.id.anon_item)));
         t.add(new Tool("wpair", R.string.dashboard_tile_wpair, R.drawable.wpair,
                 R.drawable.dashboard_tile_bg_indigo, 0xFF3949AB, false,
                 () -> receiver.changeFragment(R.id.wpair_item)));
@@ -317,6 +320,7 @@ public class Dashboard extends Fragment {
                 {"hid", R.string.dashboard_tile_hid, false},
                 {"wordlists", R.string.dashboard_tile_wordlists, false},
                 {"macchanger", R.string.dashboard_tile_macchanger, false},
+                {"anon", R.string.dashboard_tile_anon, false},
                 {"wpair", R.string.dashboard_tile_wpair, false},
                 {"vnc", R.string.dashboard_tile_vnc, false},
                 {"usb", R.string.dashboard_tile_usb, false},

@@ -48,6 +48,7 @@ import id.hawx.astro.geomac.GeoMac;
 import id.hawx.astro.handshakes.HandshakeStorage;
 import id.hawx.astro.localnetwork.LocalMain;
 import id.hawx.astro.macchanger.MACChangerFragment;
+import id.hawx.astro.anon.AnonFragment;
 import id.hawx.astro.metasploit.InstallMetasploit;
 import id.hawx.astro.metasploit.utils.MetasploitUtils;
 import id.hawx.astro.nmap.NmapScanner;
@@ -95,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
     private DrawerLayout engineStatusDrawer;
     private static final java.util.LinkedHashMap<Integer, DrawerSpec> DRAWER_SPECS = buildDrawerSpecs();
     private static final java.util.Set<Integer> ROOT_ONLY_IDS = new java.util.HashSet<>(java.util.Arrays.asList(
-            R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item, R.id.keysmouse_item));
+            R.id.hid_item, R.id.usb_arsenal_item, R.id.macchanger_item, R.id.keysmouse_item, R.id.anon_item));
     private static final java.util.Set<Integer> VM_INDEPENDENT_IDS = new java.util.HashSet<>(java.util.Arrays.asList(
             R.id.dasboard_item, R.id.logs_item, R.id.about_item,
             R.id.wpair_item, R.id.bt_item, R.id.osint_item, R.id.geomac_item,
@@ -742,7 +743,7 @@ public class MainActivity extends AppCompatActivity {
     private static final Object[][] APPS_CATS = {
             {"\u2B50", "Essentials", 0xFFA088F0, new int[]{R.id.dasboard_item, R.id.terminal_item, R.id.logs_item}},
             {"\uD83D\uDCF6", "Wireless", 0xFF5B8DEF, new int[]{R.id.wifi_item, R.id.hs_item, R.id.wpair_item, R.id.bt_item}},
-            {"\uD83C\uDF10", "Network", 0xFFE06BC0, new int[]{R.id.lan_item, R.id.nmap_item, R.id.geomac_item, R.id.macchanger_item}},
+            {"\uD83C\uDF10", "Network", 0xFFE06BC0, new int[]{R.id.lan_item, R.id.nmap_item, R.id.geomac_item, R.id.macchanger_item, R.id.anon_item}},
             {"\uD83C\uDFAF", "Offensive", 0xFFFF6B6B, new int[]{R.id.nuclei_item, R.id.arsenal_item, R.id.metasploit_item, R.id.hid_item, R.id.osint_item}},
             {"\uD83E\uDDF0", "Tools", 0xFFA088F0, new int[]{R.id.wordlists_item, R.id.vnc_item, R.id.manager_item}},
             {"\uD83C\uDFAE", "Control", 0xFFFFA726, new int[]{R.id.usb_arsenal_item, R.id.keysmouse_item, R.id.ir_item}},
@@ -1240,6 +1241,7 @@ public class MainActivity extends AppCompatActivity {
             if (itemId == R.id.wifi_item) return new Wifi();
             if (itemId == R.id.lan_item) return new LocalMain();
             if (itemId == R.id.macchanger_item) return new MACChangerFragment();
+            if (itemId == R.id.anon_item) return new AnonFragment();
             if (itemId == R.id.dasboard_item) return new Dashboard();
             if (itemId == R.id.arsenal_item) return new ArsenalFragment();
             if (itemId == R.id.manager_item) return new CoreManager();
@@ -1311,6 +1313,7 @@ public class MainActivity extends AppCompatActivity {
         m.put(R.id.wifi_item,         new DrawerSpec("WiFi networks",    R.drawable.wifi,        0xFF1565C0));
         m.put(R.id.hs_item,           new DrawerSpec("Handshakes",       R.drawable.storage,     0xFF00897B));
         m.put(R.id.macchanger_item,   new DrawerSpec("MAC changer",      R.drawable.password,    0xFF1565C0));
+        m.put(R.id.anon_item,         new DrawerSpec("Mode Anonim",      R.drawable.shield,      0xFF00897B));
         m.put(R.id.wpair_item,        new DrawerSpec("WhisperPair (BLE)", R.drawable.wpair,      0xFF3949AB));
         m.put(R.id.bt_item,           new DrawerSpec("Bluetooth", R.drawable.wpair, 0xFF3949AB));
         m.put(R.id.osint_item,         new DrawerSpec("OSINT Recon",       R.drawable.scanner,    0xFF00E5FF));
