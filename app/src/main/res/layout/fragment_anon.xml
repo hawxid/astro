@@ -83,6 +83,13 @@
                         android:layout_marginStart="8dp"
                         android:text="@string/anon_btn_repair" />
                 </LinearLayout>
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/anon_killswitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/anon_killswitch_label" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -223,6 +230,14 @@
                     android:text="@string/anon_btn_genkey" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/anon_pubkey_btn"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/anon_btn_pubkey" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/anon_save_btn"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -269,6 +284,7 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/anon_warn_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"

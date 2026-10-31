@@ -102,9 +102,11 @@ public class LayerSheet extends BottomSheetDialogFragment {
         RadioGroup basemap = new RadioGroup(requireContext());
         basemap.setOrientation(RadioGroup.VERTICAL);
         streetRadio = new RadioButton(requireContext());
+        streetRadio.setId(View.generateViewId());
         streetRadio.setText(R.string.atlas_sheet_basemap_street);
         streetRadio.setChecked(!store.isSatellite());
         satelliteRadio = new RadioButton(requireContext());
+        satelliteRadio.setId(View.generateViewId());
         satelliteRadio.setText(R.string.geomac_layer_satellite);
         satelliteRadio.setChecked(store.isSatellite());
         basemap.addView(streetRadio);
@@ -112,7 +114,13 @@ public class LayerSheet extends BottomSheetDialogFragment {
         basemap.setOnCheckedChangeListener((group, checkedId) -> {
             if (updating) return;
             if (host != null) {
-                host.onBasemapSelected(satelliteRadio.isChecked());
+                // State dari checkedId, BUKAN dari isChecked() salah satu
+                // tombol: RadioButton tanpa id membuat RadioGroup gagal
+                // mutual exclusion (mCheckedId=-1), sehingga radio Jalan
+                // yang sudah checked sejak awal tidak pernah bisa ditekan
+                // lagi setelah satelit dipilih. Id eksplisit + checkedId
+                // menutup kelas bug itu sepenuhnya.
+                host.onBasemapSelected(checkedId == satelliteRadio.getId());
             }
         });
         root.addView(basemap);

@@ -16,6 +16,7 @@ public class WgConfig {
     public static final String P_ALLOWED = "anon_wg_allowed";
     public static final String P_KEEPALIVE = "anon_wg_keepalive";
     public static final String P_NAME = "anon_wg_name";
+    public static final String P_KILL = "anon_wg_killswitch";
 
     /** State runtime (bukan config): dipakai down() untuk memulihkan rute. */
     public static final String P_RT_GW = "anon_wg_rt_gw";
@@ -30,6 +31,9 @@ public class WgConfig {
     public String endpoint = "";
     public String allowedIps = "0.0.0.0/0, ::/0";
     public int keepalive = 25;
+    /** Kill switch default MENYALA (absen = true): proteksi adalah default,
+     * mematikannya harus eksplisit lewat sakelar. */
+    public boolean killswitch = true;
 
     public static WgConfig load(Core core) {
         WgConfig c = new WgConfig();
@@ -46,6 +50,7 @@ public class WgConfig {
         } catch (NumberFormatException ignored) {
             c.keepalive = 25;
         }
+        c.killswitch = !core.contains(P_KILL) || core.getBoolean(P_KILL);
         return c;
     }
 
@@ -57,6 +62,7 @@ public class WgConfig {
         core.putString(P_ENDPOINT, endpoint == null ? "" : endpoint);
         core.putString(P_ALLOWED, allowedIps == null ? "" : allowedIps);
         core.putString(P_KEEPALIVE, String.valueOf(keepalive));
+        core.putBoolean(P_KILL, killswitch);
     }
 
     /** Validasi keras: kunci WireGuard selalu 44 karakter base64. */

@@ -9,19 +9,27 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Engine WireGuard Batch 1: kernel wg0 lewat wireguard-tools di chroot
+ * Engine WireGuard: kernel wg0 lewat wireguard-tools di chroot
  * (root, satu network namespace dengan Android — jadi tunnel ini
  * device-wide, bukan cuma chroot).
  *
  * Semua perintah dijalankan dengan nolog=true: kunci privat tidak boleh
  * mendarat di log Astro. up() memverifikasi hasil dan rollback otomatis
  * (down) kalau verifikasi gagal, supaya tidak ada state setengah jalan.
- * Kill switch BELUM diimplementasikan di Batch 1 (tidak ada toggle palsu).
+ *
+ * Kill switch (refinement pasca-Batch 1): rantai iptables khusus
+ * ASTRO_KILL (loopback + via-tunnel + handshake UDP ke endpoint diizinkan,
+ * sisanya DROP), dijump dari posisi 1 OUTPUT saat tunnel naik dan dicabut
+ * saat tunnel mati. Rantai khusus = pencabutan tidak pernah menyentuh
+ * aturan sistem (cukup hapus jump + flush chain). Fail-closed: bila aturan
+ * gagal diterapkan, up() dibatalkan (rollback), bukan jalan tanpa proteksi.
+ * Cakupan IPv4 saja di batch ini; IPv6 masih bisa lolos (limitasi dicatat).
  */
 public class WgEngine {
 
     public static final String IFACE = "astro-wg0";
     private static final String KEY_FILE = "/tmp/astro-wg-key";
+    private static final String KS_CHAIN = "ASTRO_KILL";
 
     /**
      * Android memakai policy routing: tabel main sering TIDAK punya rute
@@ -79,6 +87,65 @@ public class WgEngine {
             if (t.length() == 44 && t.matches("[A-Za-z0-9+/]{43}=")) return t;
         }
         return null;
+    }
+
+    /** Kunci publik turunan dari private key (untuk ditempel ke server). */
+    public static String pubKey(Core core, String privateKey) {
+        if (privateKey == null) return null;
+        String out = join(run(core, "printf '%s' " + Apt.shellQuote(privateKey.trim())
+                + " | wg pubkey"));
+        for (String l : out.split("\n")) {
+            String t = l.trim();
+            if (t.length() == 44 && t.matches("[A-Za-z0-9+/]{43}=")) return t;
+        }
+        return null;
+    }
+
+    public static boolean iptablesOk(Core core) {
+        return join(run(core, "command -v iptables")).contains("/iptables");
+    }
+
+    /** Jump kill switch sedang terpasang (verifikasi live, bukan setelan). */
+    public static boolean killSwitchActive(Core core) {
+        return join(run(core, "iptables -S OUTPUT")).contains("-j " + KS_CHAIN);
+    }
+
+    /** Cabut kill switch: hapus jump (diulang, toleran terhadap duplikat
+     * sisa crash) lalu flush + hapus chain. Tidak menyentuh aturan lain. */
+    public static void removeKillSwitch(Core core) {
+        for (int i = 0; i < 3; i++) {
+            run(core, "iptables -D OUTPUT -j " + KS_CHAIN + " 2>/dev/null; true");
+        }
+        run(core, "iptables -F " + KS_CHAIN + " 2>/dev/null; true");
+        run(core, "iptables -X " + KS_CHAIN + " 2>/dev/null; true");
+    }
+
+    /**
+     * Pasang kill switch: bersihkan sisa crash dulu, lalu isi chain
+     * (loopback, via-tunnel, handshake UDP ke endpoint) + DROP, dan jump
+     * dari posisi 1 OUTPUT. Gagal = rollback aturan + Result gagal.
+     */
+    public static Result applyKillSwitch(Core core, String endpointIp, String port) {
+        if (!iptablesOk(core)) {
+            return new Result(false, "iptables tidak tersedia");
+        }
+        removeKillSwitch(core);
+        run(core, "iptables -N " + KS_CHAIN + " 2>/dev/null; true");
+        run(core, "iptables -A " + KS_CHAIN + " -o lo -j ACCEPT");
+        run(core, "iptables -A " + KS_CHAIN + " -o " + IFACE + " -j ACCEPT");
+        String ep = "iptables -A " + KS_CHAIN + " -d " + Apt.shellQuote(endpointIp)
+                + " -p udp";
+        if (port != null && !port.isEmpty()) {
+            ep += " --dport " + Apt.shellQuote(port);
+        }
+        run(core, ep + " -j ACCEPT");
+        run(core, "iptables -A " + KS_CHAIN + " -j DROP");
+        run(core, "iptables -I OUTPUT 1 -j " + KS_CHAIN);
+        if (killSwitchActive(core)) {
+            return new Result(true, "kill switch aktif");
+        }
+        removeKillSwitch(core);
+        return new Result(false, "kill switch gagal diterapkan");
     }
 
     public static Status status(Core core) {
@@ -251,10 +318,22 @@ public class WgEngine {
             down(core);
             return new Result(false, "verifikasi gagal, rute dipulihkan");
         }
+        // Kill switch dipasang SETELAH tunnel terverifikasi, dan gagalnya
+        // fail-closed: tidak ada tunnel tanpa proteksi saat sakelar menyala.
+        if (cfg.killswitch) {
+            Result ks = applyKillSwitch(core, endpointIp, port);
+            if (!ks.ok) {
+                down(core);
+                return new Result(false, ks.message);
+            }
+        }
         return new Result(true, "aktif");
     }
 
     public static Result down(Core core) {
+        // Cabut kill switch dulu supaya konektivitas langsung pulih saat
+        // toggle dimatikan (bukan sesudah interface dihapus).
+        removeKillSwitch(core);
         run(core, "ip link del dev " + IFACE + " 2>/dev/null; true");
         String gw = core.getString(WgConfig.P_RT_GW);
         String dev = core.getString(WgConfig.P_RT_DEV);

@@ -17,6 +17,7 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import id.hawx.astro.R;
@@ -47,6 +48,8 @@ public class AnonFragment extends Fragment {
     private MaterialButton toggleBtn;
     private MaterialButton refreshBtn;
     private MaterialButton repairBtn;
+    private SwitchMaterial killSwitch;
+    private MaterialTextView warnText;
     private Chip chipWg;
     private Chip chipVpn;
     private Chip chipTor;
@@ -57,6 +60,7 @@ public class AnonFragment extends Fragment {
     private TextInputEditText inPeer;
     private TextInputEditText inPrivkey;
     private MaterialButton genkeyBtn;
+    private MaterialButton pubkeyBtn;
     private MaterialButton saveBtn;
     private MaterialButton importBtn;
     private MaterialTextView toolsText;
@@ -103,7 +107,13 @@ public class AnonFragment extends Fragment {
         toggleBtn.setOnClickListener(v -> onToggle());
         refreshBtn.setOnClickListener(v -> refreshStatus());
         repairBtn.setOnClickListener(v -> onRepair());
+        killSwitch.setChecked(WgConfig.load(core).killswitch);
+        // Sakelar menyimpan langsung (hanya pref kill switch, bukan field
+        // form) supaya Perbaiki rute pun menghormatinya tanpa Simpan dulu.
+        killSwitch.setOnCheckedChangeListener((btn, checked) ->
+                core.putBoolean(WgConfig.P_KILL, checked));
         genkeyBtn.setOnClickListener(v -> onGenkey());
+        pubkeyBtn.setOnClickListener(v -> onShowPubkey());
         saveBtn.setOnClickListener(v -> onSave());
         importBtn.setOnClickListener(v -> onImport());
         installToolsBtn.setOnClickListener(v -> onInstallTools());
@@ -124,6 +134,8 @@ public class AnonFragment extends Fragment {
         toggleBtn = view.findViewById(R.id.anon_toggle_btn);
         refreshBtn = view.findViewById(R.id.anon_refresh_btn);
         repairBtn = view.findViewById(R.id.anon_repair_btn);
+        killSwitch = view.findViewById(R.id.anon_killswitch);
+        warnText = view.findViewById(R.id.anon_warn_text);
         chipWg = view.findViewById(R.id.anon_chip_wg);
         chipVpn = view.findViewById(R.id.anon_chip_vpn);
         chipTor = view.findViewById(R.id.anon_chip_tor);
@@ -134,6 +146,7 @@ public class AnonFragment extends Fragment {
         inPeer = view.findViewById(R.id.anon_in_peer);
         inPrivkey = view.findViewById(R.id.anon_in_privkey);
         genkeyBtn = view.findViewById(R.id.anon_genkey_btn);
+        pubkeyBtn = view.findViewById(R.id.anon_pubkey_btn);
         saveBtn = view.findViewById(R.id.anon_save_btn);
         importBtn = view.findViewById(R.id.anon_import_btn);
         toolsText = view.findViewById(R.id.anon_tools_text);
@@ -156,6 +169,7 @@ public class AnonFragment extends Fragment {
         c.allowedIps = textOf(inAllowed);
         c.peerPublicKey = textOf(inPeer);
         c.privateKey = textOf(inPrivkey);
+        c.killswitch = killSwitch != null && killSwitch.isChecked();
         try {
             c.keepalive = Integer.parseInt(textOf(inKeepalive));
         } catch (NumberFormatException ignored) {
@@ -176,6 +190,8 @@ public class AnonFragment extends Fragment {
     private void refreshStatus() {
         runBg(() -> {
             WgEngine.Status s = WgEngine.status(core);
+            boolean ksActive = WgEngine.killSwitchActive(core);
+            boolean ksPref = WgConfig.load(core).killswitch;
             runUi(() -> {
                 if (s.up) {
                     String hs = s.handshake.isEmpty()
@@ -185,6 +201,19 @@ public class AnonFragment extends Fragment {
                 } else {
                     statusText.setText(R.string.anon_status_off);
                     toggleBtn.setText(R.string.anon_btn_on);
+                }
+                // Peringatan mengikuti VERIFIKASI LIVE aturan, bukan hanya
+                // setelan: sakelar menyala tapi aturan hilang = rusak.
+                if (warnText != null) {
+                    if (s.up && ksActive) {
+                        warnText.setText(R.string.anon_warn_ks_on);
+                    } else if (s.up && ksPref) {
+                        warnText.setText(R.string.anon_warn_ks_broken);
+                    } else if (s.up) {
+                        warnText.setText(R.string.anon_warn_ks_off);
+                    } else {
+                        warnText.setText(R.string.anon_warn);
+                    }
                 }
             });
         });
@@ -261,6 +290,42 @@ public class AnonFragment extends Fragment {
         });
     }
 
+    private void onShowPubkey() {
+        runBg(() -> {
+            String priv = textOf(inPrivkey);
+            if (priv.length() != 44) {
+                toast(getString(R.string.anon_toast_need_privkey));
+                return;
+            }
+            if (!WgEngine.toolsOk(core)) {
+                toast(getString(R.string.anon_toast_tools_first));
+                return;
+            }
+            String pub = WgEngine.pubKey(core, priv);
+            if (pub == null) {
+                toast(getString(R.string.anon_toast_pubkey_fail));
+                return;
+            }
+            runUi(() -> new MaterialAlertDialogBuilder(context)
+                    .setTitle(R.string.anon_pubkey_title)
+                    .setMessage(pub)
+                    .setPositiveButton(R.string.anon_btn_copy, (d, w) -> {
+                        try {
+                            ClipboardManager cm = (ClipboardManager)
+                                    context.getSystemService(Context.CLIPBOARD_SERVICE);
+                            if (cm != null) {
+                                cm.setPrimaryClip(ClipData.newPlainText("wg-pubkey", pub));
+                            }
+                            toast(getString(R.string.anon_toast_copied));
+                        } catch (Exception ignored) {
+                            // Clipboard gagal: kunci tetap terlihat di dialog.
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show());
+        });
+    }
+
     private void onSave() {
         WgConfig c = readFields();
         c.save(core);
@@ -306,6 +371,8 @@ public class AnonFragment extends Fragment {
                         toast(getString(R.string.anon_toast_import_fail));
                         return;
                     }
+                    // Impor tidak boleh menimpa setelan kill switch.
+                    c.killswitch = killSwitch != null && killSwitch.isChecked();
                     fillFields(c);
                     c.save(core);
                     toast(getString(R.string.anon_toast_saved));
