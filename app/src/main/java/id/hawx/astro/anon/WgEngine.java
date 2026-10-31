@@ -24,18 +24,18 @@ public class WgEngine {
     private static final String KEY_FILE = "/tmp/astro-wg-key";
 
     /**
-     * Rute default Android ada dua bentuk: WiFi biasanya
-     * "default via &lt;gw&gt; dev &lt;dev&gt;", sedangkan data seluler sering
-     * "default dev &lt;dev&gt;" tanpa gateway. Keduanya harus diterima.
+     * Android memakai policy routing: tabel main sering TIDAK punya rute
+     * default; default tinggal di tabel per-jaringan (di HP ini 1011/1013).
+     * Karena itu engine tidak pernah membaca main-table saja: rute efektif
+     * dibaca dari `ip route get` (yang memperhitungkan semua rule), dan
+     * default tunnel dipasang/dikembalikan di tabel itu juga.
      */
-    private static final Pattern DEFAULT_ROUTE_VIA =
-            Pattern.compile("default via (\\S+) dev (\\S+)");
-    private static final Pattern DEFAULT_ROUTE_DEV =
-            Pattern.compile("default dev (\\S+)");
-    private static final Pattern METRIC =
-            Pattern.compile("metric (\\d+)");
-    private static final Pattern DEV_IN_ROUTE =
-            Pattern.compile("dev (\\S+)");
+    private static final Pattern ROUTE_GET_VIA =
+            Pattern.compile("via (\\S+) dev (\\S+) table (\\S+)");
+    private static final Pattern ROUTE_GET_DEV =
+            Pattern.compile("dev (\\S+) table (\\S+)");
+    private static final Pattern TABLE_DEFAULT =
+            Pattern.compile("default (?:via (\\S+) )?dev (\\S+) table (\\S+)");
     private static final Pattern IPV4 =
             Pattern.compile("^(\\d{1,3}\\.){3}\\d{1,3}$");
 
@@ -91,61 +91,87 @@ public class WgEngine {
                 s.handshake = t.substring("latest handshake:".length()).trim();
             }
         }
-        String route = join(run(core, "ip route show default"));
-        // Bila ada beberapa default, yang lewat tunnel menang untuk verifikasi.
-        Matcher m = DEV_IN_ROUTE.matcher(route);
-        String firstDev = null;
-        while (m.find()) {
-            if (firstDev == null) firstDev = m.group(1);
-            if (IFACE.equals(m.group(1))) {
-                firstDev = IFACE;
+        String route = join(run(core, "ip route show table all"));
+        // Tunnel aktif bila ada default lewat astro-wg0 di tabel mana pun.
+        for (String raw : route.split("\\n")) {
+            String t = raw.trim();
+            if (t.startsWith("default dev " + IFACE + " ")
+                    || t.equals("default dev " + IFACE)) {
+                s.defaultDev = IFACE;
                 break;
             }
         }
-        if (firstDev != null) s.defaultDev = firstDev;
         return s;
     }
 
-    /** Satu baris rute default: gw null untuk bentuk dev-only. */
+    /** Satu rute efektif: gw null untuk bentuk dev-only. */
     private static class Route {
         String gw;
         String dev;
-        int metric = Integer.MAX_VALUE;
+        String table;
     }
 
-    /** Pilih rute default bermetric terendah; seri dimenangkan baris via. */
-    private static Route parseDefaultRoute(String output) {
-        Route best = null;
+    /** Parse satu baris hasil `ip route get` (baris pertama yang cocok). */
+    private static Route parseRouteGet(String output) {
         if (output == null) return null;
         for (String raw : output.split("\\n")) {
             String line = raw.trim();
-            if (!line.startsWith("default ")) continue;
-            Route r = new Route();
-            Matcher via = DEFAULT_ROUTE_VIA.matcher(line);
-            Matcher devOnly = DEFAULT_ROUTE_DEV.matcher(line);
+            if (line.isEmpty() || line.startsWith("local ")
+                    || line.contains("RTNETLINK")) continue;
+            Matcher via = ROUTE_GET_VIA.matcher(line);
             if (via.find()) {
+                Route r = new Route();
                 r.gw = via.group(1);
                 r.dev = via.group(2);
-            } else if (devOnly.find()) {
+                r.table = via.group(3);
+                return r;
+            }
+            Matcher devOnly = ROUTE_GET_DEV.matcher(line);
+            if (devOnly.find()) {
+                Route r = new Route();
                 r.gw = null;
                 r.dev = devOnly.group(1);
-            } else {
-                continue;
-            }
-            Matcher mm = METRIC.matcher(line);
-            if (mm.find()) {
-                try {
-                    r.metric = Integer.parseInt(mm.group(1));
-                } catch (NumberFormatException ignored) {
-                    // pakai MAX_VALUE
-                }
-            }
-            if (best == null || r.metric < best.metric
-                    || (r.metric == best.metric && best.gw == null && r.gw != null)) {
-                best = r;
+                r.table = devOnly.group(2);
+                return r;
             }
         }
-        return best;
+        return null;
+    }
+
+    /**
+     * Fallback: pilih satu default dari `ip route show table all`.
+     * dummy0 dilewati (bukan jalur trafik nyata); yang ber-gateway menang.
+     */
+    private static Route pickTableDefault(String output) {
+        Route devOnly = null;
+        if (output == null) return null;
+        for (String raw : output.split("\\n")) {
+            String line = raw.trim();
+            Matcher m = TABLE_DEFAULT.matcher(line);
+            if (!m.find()) continue;
+            if ("dummy0".equals(m.group(2))) continue;
+            Route r = new Route();
+            r.gw = m.group(1);
+            r.dev = m.group(2);
+            r.table = m.group(3);
+            if (r.gw != null) return r;
+            if (devOnly == null) devOnly = r;
+        }
+        return devOnly;
+    }
+
+    /** Rute efektif untuk endpoint, dengan fallback berlapis. */
+    private static Route effectiveRoute(Core core, String endpointIp) {
+        Route r = parseRouteGet(join(run(core, "ip route get " + Apt.shellQuote(endpointIp))));
+        if (r != null) return r;
+        r = parseRouteGet(join(run(core, "ip route get 8.8.8.8")));
+        if (r != null) return r;
+        return pickTableDefault(join(run(core, "ip route show table all")));
+    }
+
+    /** Qualifier tabel untuk perintah ip route ("" = main, perilaku lama). */
+    private static String tableArg(String table) {
+        return (table == null || table.isEmpty()) ? "" : " table " + table;
     }
 
     private static String resolveEndpoint(Core core, String host) {
@@ -178,16 +204,18 @@ public class WgEngine {
         if (endpointIp == null) {
             return new Result(false, "endpoint tidak bisa di-resolve: " + host);
         }
-        String routeOut = join(run(core, "ip route show default"));
-        // Bentuk dev-only (data seluler) sah: gw kosong, bukan gagal.
-        Route rt = parseDefaultRoute(routeOut);
+        // Rute efektif dari `ip route get`: tabel main HP ini tidak punya
+        // default (policy routing Android), jadi main-table tidak dibaca.
+        Route rt = effectiveRoute(core, endpointIp);
         if (rt == null) {
             return new Result(false, "tidak ada rute default aktif");
         }
         String gw = rt.gw;
         String dev = rt.dev;
+        String table = rt.table;
         core.putString(WgConfig.P_RT_GW, gw == null ? "" : gw);
         core.putString(WgConfig.P_RT_DEV, dev);
+        core.putString(WgConfig.P_RT_TABLE, table == null ? "" : table);
         core.putString(WgConfig.P_RT_ENDPOINT_IP, endpointIp);
 
         String key = cfg.privateKey.trim();
@@ -204,17 +232,19 @@ public class WgEngine {
         run(core, set);
         run(core, "ip addr add " + Apt.shellQuote(cfg.address.trim())
                 + " dev " + IFACE);
-        // Rute pengecualian endpoint: tanpa gateway pakai bentuk dev-only
-        // (data seluler) supaya handshake tidak masuk ke tunnel.
+        // Pengecualian endpoint DAN default tunnel dipasang di tabel yang
+        // sama dengan rute efektif (bukan main): di tabel itulah kernel
+        // benar-benar me-routing trafik di HP ini.
+        String tArg = tableArg(table);
         if (gw != null && !gw.isEmpty()) {
             run(core, "ip route add " + Apt.shellQuote(endpointIp)
                     + " via " + Apt.shellQuote(gw)
-                    + " dev " + Apt.shellQuote(dev));
+                    + " dev " + Apt.shellQuote(dev) + tArg);
         } else {
             run(core, "ip route add " + Apt.shellQuote(endpointIp)
-                    + " dev " + Apt.shellQuote(dev));
+                    + " dev " + Apt.shellQuote(dev) + tArg);
         }
-        run(core, "ip route replace default dev " + IFACE);
+        run(core, "ip route replace default dev " + IFACE + tArg);
 
         Status s = status(core);
         if (!s.up || !IFACE.equals(s.defaultDev)) {
@@ -228,14 +258,18 @@ public class WgEngine {
         run(core, "ip link del dev " + IFACE + " 2>/dev/null; true");
         String gw = core.getString(WgConfig.P_RT_GW);
         String dev = core.getString(WgConfig.P_RT_DEV);
+        String table = core.getString(WgConfig.P_RT_TABLE);
         String endpointIp = core.getString(WgConfig.P_RT_ENDPOINT_IP);
+        // Restore di tabel yang sama dengan saat up(); tabel kosong berarti
+        // state lama (main-table) — qualifier kosong = perilaku lama.
+        String tArg = tableArg(table);
         if (dev != null && !dev.isEmpty()) {
             if (gw != null && !gw.isEmpty()) {
                 run(core, "ip route replace default via " + Apt.shellQuote(gw)
-                        + " dev " + Apt.shellQuote(dev) + " 2>/dev/null; true");
+                        + " dev " + Apt.shellQuote(dev) + tArg + " 2>/dev/null; true");
             } else {
                 run(core, "ip route replace default dev " + Apt.shellQuote(dev)
-                        + " 2>/dev/null; true");
+                        + tArg + " 2>/dev/null; true");
             }
         }
         if (endpointIp != null && !endpointIp.isEmpty()
@@ -243,14 +277,15 @@ public class WgEngine {
             if (gw != null && !gw.isEmpty()) {
                 run(core, "ip route del " + Apt.shellQuote(endpointIp)
                         + " via " + Apt.shellQuote(gw)
-                        + " dev " + Apt.shellQuote(dev) + " 2>/dev/null; true");
+                        + " dev " + Apt.shellQuote(dev) + tArg + " 2>/dev/null; true");
             } else {
                 run(core, "ip route del " + Apt.shellQuote(endpointIp)
-                        + " dev " + Apt.shellQuote(dev) + " 2>/dev/null; true");
+                        + " dev " + Apt.shellQuote(dev) + tArg + " 2>/dev/null; true");
             }
         }
         core.putString(WgConfig.P_RT_GW, "");
         core.putString(WgConfig.P_RT_DEV, "");
+        core.putString(WgConfig.P_RT_TABLE, "");
         core.putString(WgConfig.P_RT_ENDPOINT_IP, "");
         Status s = status(core);
         if (s.up) {

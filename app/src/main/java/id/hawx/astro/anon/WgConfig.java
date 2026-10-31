@@ -20,6 +20,7 @@ public class WgConfig {
     /** State runtime (bukan config): dipakai down() untuk memulihkan rute. */
     public static final String P_RT_GW = "anon_wg_rt_gw";
     public static final String P_RT_DEV = "anon_wg_rt_dev";
+    public static final String P_RT_TABLE = "anon_wg_rt_table";
     public static final String P_RT_ENDPOINT_IP = "anon_wg_rt_endpoint_ip";
 
     public String name = "";
