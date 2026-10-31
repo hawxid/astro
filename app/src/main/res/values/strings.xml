@@ -890,6 +890,12 @@ manager</string>
     <string name="geomac_layer_cameras">Cameras</string>
     <string name="geomac_layer_traffic">Traffic</string>
     <string name="geomac_layer_satellite">Satellite</string>
+    <string name="atlas_sheet_title">Lapisan Atlas</string>
+    <string name="atlas_sheet_basemap">Peta dasar</string>
+    <string name="atlas_sheet_layers">Lapisan</string>
+    <string name="atlas_sheet_features">Fitur</string>
+    <string name="atlas_sheet_basemap_street">Jalan</string>
+    <string name="atlas_btn_layers">Lapisan</string>
     <string name="geomac_layer_group_overlay">Overlay</string>
     <string name="geomac_layer_group_features">Features</string>
     <string name="geomac_camera_timelapse">Timelapse</string>

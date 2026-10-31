@@ -203,150 +203,17 @@
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
-            <LinearLayout
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/geomac_btn_layers"
+                style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/geomac_layer_group_overlay"
-                    android:textColor="@color/grey"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/geomac_btn_fold_overlay"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="5dp"
-                    app:cornerRadius="14dp"
-                    app:icon="@drawable/arrow_down"
-                    app:iconPadding="0dp"
-                    app:iconSize="14dp"
-                    app:iconTint="@color/grey" />
-            </LinearLayout>
-
-            <HorizontalScrollView
-                android:id="@+id/geomac_overlay_scroll"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:paddingBottom="6dp"
-                android:scrollbars="none">
-
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/geomac_layer_group_overlay"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:chipSpacingHorizontal="6dp"
-                    app:singleLine="true"
-                    app:singleSelection="false">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/geomac_chip_weather"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/geomac_layer_weather" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/geomac_chip_flights"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/geomac_layer_flights" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/geomac_chip_quakes"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/geomac_layer_quakes" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/geomac_chip_cameras"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/geomac_layer_cameras" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/geomac_chip_satellite"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/geomac_layer_satellite" />
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="14dp"
-                android:paddingTop="2dp"
-                android:paddingEnd="14dp">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/geomac_layer_group_features"
-                    android:textColor="@color/grey"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/geomac_btn_fold_features"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="5dp"
-                    app:cornerRadius="14dp"
-                    app:icon="@drawable/arrow_down"
-                    app:iconPadding="0dp"
-                    app:iconSize="14dp"
-                    app:iconTint="@color/grey" />
-            </LinearLayout>
-
-            <HorizontalScrollView
-                android:id="@+id/geomac_features_scroll"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
-                android:paddingBottom="6dp"
-                android:scrollbars="none">
-
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/geomac_layer_group_features"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:chipSpacingHorizontal="6dp"
-                    app:singleLine="true"
-                    app:singleSelection="false">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/geomac_chip_traffic"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/geomac_layer_traffic" />
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginBottom="10dp"
+                android:text="@string/atlas_btn_layers"
+                app:icon="@drawable/map" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/geomac_layer_credit"

@@ -67,9 +67,7 @@ public class SettingsHomeFragment extends Fragment {
         LinearLayout bannerRow = view.findViewById(R.id.banner_row);
         LinearLayout hideRow = view.findViewById(R.id.hide_row);
         LinearLayout geoBgRow = view.findViewById(R.id.geo_bg_row);
-        LinearLayout geoSatelliteRow = view.findViewById(R.id.geo_satellite_row);
         SwitchMaterial geoBg = view.findViewById(R.id.geo_bg_switch);
-        SwitchMaterial geoSatellite = view.findViewById(R.id.geo_satellite_switch);
         LinearLayout unmountLayout = view.findViewById(R.id.unmount_view);
         LinearLayout deleteLayout = view.findViewById(R.id.delete_view);
         LinearLayout debug = view.findViewById(R.id.debug_view);
@@ -108,11 +106,8 @@ public class SettingsHomeFragment extends Fragment {
         bindRowToSwitch(hideRow, hide);
 
         geoBg.setChecked(core.getBoolean("geomac_bg_scan"));
-        geoSatellite.setChecked(core.getBoolean("geomac_satellite"));
-        geoSatellite.setOnCheckedChangeListener((btn, b) -> core.putBoolean("geomac_satellite", b));
         geoBg.setOnCheckedChangeListener((btn, b) -> core.putBoolean("geomac_bg_scan", b));
         bindRowToSwitch(geoBgRow, geoBg);
-        bindRowToSwitch(geoSatelliteRow, geoSatellite);
 
         LinearLayout msfAutostartRow = view.findViewById(R.id.msf_autostart_row);
         LinearLayout msfStopRow = view.findViewById(R.id.msf_stop_row);
