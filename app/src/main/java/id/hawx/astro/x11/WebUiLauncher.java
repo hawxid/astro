@@ -239,46 +239,75 @@ public class WebUiLauncher {
                             + "then rm -f " + pidPath(e.port) + "; fi");
                     final LauncherEntry term = termEntryFor(e, cmd);
                     XSessionManager mgr = XSessionManager.get(ctx);
+                    // Latch menunggu callback jendela (main thread)
+                    // supaya jendela xterm naik sebelum poll port;
+                    // timeout longgar karena start server X baru
+                    // bisa makan waktu — timeout bukan gagal,
+                    // poll di bawah yang memutuskan.
+                    final java.util.concurrent.CountDownLatch termDone =
+                            new java.util.concurrent.CountDownLatch(1);
+                    final java.util.concurrent.atomic.AtomicReference<String> termErr =
+                            new java.util.concurrent.atomic.AtomicReference<>();
                     if (!mgr.entryRunningSync(term.id, term.firstWord())) {
-                        // Latch menunggu callback launch (main thread)
-                        // supaya jendela xterm naik sebelum poll port;
-                        // timeout longgar karena start server X baru
-                        // bisa makan waktu — timeout bukan gagal,
-                        // poll di bawah yang memutuskan.
-                        final java.util.concurrent.CountDownLatch termDone =
-                                new java.util.concurrent.CountDownLatch(1);
-                        final java.util.concurrent.atomic.AtomicReference<String> termErr =
-                                new java.util.concurrent.atomic.AtomicReference<>();
                         mgr.launchFloating(term, (ok, d, msg) -> {
-                            if (!ok) {
-                                // Balapan tap ganda: xterm sudah jalan
-                                // tapi catatan floating-nya hilang
-                                // (restart app) — bukan gagal, lanjut
-                                // ke poll; jendela dibuka dari desktop.
-                                if (msg != null && msg.contains("bukan floating")) {
-                                    // Lanjut ke poll, tanpa error.
-                                } else {
-                                    termErr.set(msg != null ? msg
-                                            : "Gagal meluncurkan terminal");
-                                }
-                            } else if (d > 0) {
+                            if (ok && d > 0) {
                                 id.hawx.astro.MainActivity.openXWindowFrom(
                                         ctx, d, term.name + " · :" + d);
+                                termDone.countDown();
+                            } else if (!ok && msg != null && msg.contains("bukan floating")) {
+                                // Balapan tap ganda: xterm sudah jalan
+                                // tapi catatan floating-nya hilang
+                                // (restart app) — dulu cabang ini
+                                // diam-diam lanjut ke poll tanpa
+                                // membuka jendela (bug 2026-10-31).
+                                // Sekarang pulihkan dari state live.
+                                mgr.openFloatingWindowFor(term, (ok2, d2, msg2) -> {
+                                    if (ok2 && d2 > 0) {
+                                        id.hawx.astro.MainActivity.openXWindowFrom(
+                                                ctx, d2, term.name + " · :" + d2);
+                                    } else {
+                                        termErr.set(msg2 != null ? msg2
+                                                : "Terminal jalan tapi jendelanya tidak ketemu");
+                                    }
+                                    termDone.countDown();
+                                });
+                            } else if (!ok) {
+                                termErr.set(msg != null ? msg
+                                        : "Gagal meluncurkan terminal");
+                                termDone.countDown();
+                            } else {
+                                termDone.countDown();
+                            }
+                        });
+                    } else {
+                        // SUDAH JALAN: dulu jalur ini tidak membuka
+                        // jendela sama sekali (langsung poll) —
+                        // itu yang bikin xterm "cuma di dock, buka
+                        // manual" (bug 2026-10-31). Sekarang buka
+                        // ulang jendelanya dari state live.
+                        mgr.openFloatingWindowFor(term, (ok, d, msg) -> {
+                            if (ok && d > 0) {
+                                id.hawx.astro.MainActivity.openXWindowFrom(
+                                        ctx, d, term.name + " · :" + d);
+                            } else {
+                                termErr.set(msg != null ? msg
+                                        : "Terminal jalan tapi jendelanya tidak ketemu");
                             }
                             termDone.countDown();
                         });
-                        try {
-                            termDone.await(60, java.util.concurrent.TimeUnit.SECONDS);
-                        } catch (InterruptedException ignored) {
-                            // Lanjut ke poll — xterm mungkin tetap naik.
-                        }
-                        if (termErr.get() != null) {
-                            toast(ctx, termErr.get());
-                            return;
-                        }
                     }
-                    // xterm sudah jalan (baru diluncurkan / sudah ada
-                    // dari tap sebelumnya) — lanjut ke poll port.
+                    try {
+                        termDone.await(60, java.util.concurrent.TimeUnit.SECONDS);
+                    } catch (InterruptedException ignored) {
+                        // Lanjut ke poll — xterm mungkin tetap naik.
+                    }
+                    if (termErr.get() != null) {
+                        toast(ctx, termErr.get());
+                        return;
+                    }
+                    // Jendela xterm sudah dibuka (baru diluncurkan /
+                    // dibuka ulang dari tap sebelumnya) — lanjut
+                    // ke poll port.
                 } else {
                     // Jalur lama, tidak berubah: server detached +
                     // PID file. Pola peluncuran yang sama dengan entri
@@ -314,14 +343,45 @@ public class WebUiLauncher {
                     return;
                 }
             }
-            // Port SUDAH listening saat tap (cabang else dari
-            // isListening di atas): perilaku lama dipertahankan —
-            // webview saja, TANPA jendela terminal, karena terminal
-            // tidak bisa disambungkan ke instance yang sudah jalan.
+            // Port SUDAH listening saat tap: server sudah jalan
+            // (mungkin milik xterm dari tap sebelumnya). Dulu jalur
+            // ini webview saja TANPA jendela terminal — itu yang
+            // bikin tap ulang tidak pernah memunculkan xterm
+            // (bug 2026-10-31). Sekarang, bila ini tap ulang
+            // (bukan fresh start di atas): buka ulang jendela
+            // terminal dari state live, tanpa start ulang apa pun;
+            // gagal = toast, webview tetap dibuka.
             // killOnClose juga dimatikan untuk entri 2 jendela di
             // SEMUA jalur (fresh start maupun sudah listening):
             // server mungkin milik terminal, dan tutup webview tidak
             // boleh membunuhnya.
+            if (e.launchTerminal && !started) {
+                String cmd0 = e.command == null ? ""
+                        : e.command.replace("{PORT}", String.valueOf(e.port));
+                final LauncherEntry term0 = termEntryFor(e, cmd0);
+                XSessionManager mgr0 = XSessionManager.get(ctx);
+                final java.util.concurrent.CountDownLatch latch0 =
+                        new java.util.concurrent.CountDownLatch(1);
+                final java.util.concurrent.atomic.AtomicReference<Integer> disp0 =
+                        new java.util.concurrent.atomic.AtomicReference<>();
+                mgr0.openFloatingWindowFor(term0, (ok0, d0, msg0) -> {
+                    if (ok0 && d0 > 0) {
+                        disp0.set(d0);
+                    } else {
+                        toast(ctx, "Jendela terminal tidak ketemu — buka dari dock display");
+                    }
+                    latch0.countDown();
+                });
+                try {
+                    latch0.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException ignored) {
+                }
+                if (disp0.get() != null) {
+                    final int dd = disp0.get();
+                    MAIN.post(() -> id.hawx.astro.MainActivity.openXWindowFrom(
+                            ctx, dd, term0.name + " · :" + dd));
+                }
+            }
             final boolean didStart = started;
             final boolean killOnClose = !e.launchTerminal;
             MAIN.post(() -> openWebview(ctx, e, url, didStart, killOnClose));

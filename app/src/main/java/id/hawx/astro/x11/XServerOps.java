@@ -329,6 +329,23 @@ public class XServerOps {
         return run(script).contains("RUNNING");
     }
 
+    /** Display X tempat proses entri jalan, dibaca dari environ
+     *  proses itu sendiri (state live, bukan map in-memory) —
+     *  dipakai jalur 2 jendela saat catatan floating hilang
+     *  (restart app): map boleh lupa, environ proses tidak.
+     *  @return nomor display (3/4/...) atau -1 bila tak ketemu. */
+    int displayForEntry(String entryId) {
+        String script = "P=''; [ -f " + entryPidPath(entryId) + " ] && P=$(cat " + entryPidPath(entryId) + " 2>/dev/null); "
+                + "if [ -n \"$P\" ] && [ -d /proc/$P ]; then "
+                + "grep -a -o 'DISPLAY=:[0-9]*' /proc/$P/environ 2>/dev/null | head -1 | cut -d: -f2; fi";
+        String out = run(script).trim();
+        try {
+            return Integer.parseInt(out);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
     /** Skala global aplikasi klasik (keputusan Hawx: global, bukan
      *  per jendela): xterm tak nurut Xft.dpi (font bitmap) — suntik
      *  font TrueType + ukuran turunan nilai DPI pas peluncuran.

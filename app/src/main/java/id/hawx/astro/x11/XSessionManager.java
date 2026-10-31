@@ -635,6 +635,52 @@ public class XSessionManager {
         });
     }
 
+    /**
+     * Buka jendela floating untuk entri yang SUDAH jalan — display
+     * dicari dari state live, bukan cuma map in-memory (ronde
+     * 2 jendela, 2026-10-31): map floating hilang saat restart app
+     * atau dibersihkan refresh dock, padahal proses + server masih
+     * hidup — dulu jalur ini diam-diam tidak membuka jendela sama
+     * sekali (skip launch / cabang "bukan floating" tanpa toast).
+     * Urutan: map floating (bila servernya masih RUNNING) ->
+     * lastEntry display :3-:4 -> DISPLAY environ proses. Hasil
+     * di luar :3-:4 ditolak (aturan: xterm 2 jendela tidak pernah
+     * :0/fullscreen) dan dilaporkan sebagai gagal, bukan diam.
+     * Callback (ok, display, msg) selalu di main thread.
+     */
+    public void openFloatingWindowFor(LauncherEntry entry, FloatingCallback cb) {
+        exec.execute(() -> {
+            Integer mapped = floatingDisplays.get(entry.id);
+            if (mapped != null && mapped >= 3 && mapped <= 4
+                    && probeSync(mapped).state == XServerOps.State.RUNNING) {
+                postF(cb, true, mapped, entry.name + " sudah jalan di :" + mapped);
+                return;
+            }
+            for (int d = 3; d <= 4; d++) {
+                if (probeSync(d).state == XServerOps.State.RUNNING
+                        && entry.id.equals(lastEntryByDisplay.get(d))) {
+                    floatingDisplays.put(entry.id, d);
+                    postF(cb, true, d, entry.name + " sudah jalan di :" + d);
+                    return;
+                }
+            }
+            int live = ops.displayForEntry(entry.id);
+            if (live >= 3 && live <= 4) {
+                floatingDisplays.put(entry.id, live);
+                lastEntryByDisplay.put(live, entry.id);
+                lastEntryObjByDisplay.put(live, entry);
+                postF(cb, true, live, entry.name + " sudah jalan di :" + live);
+                return;
+            }
+            if (live >= 0) {
+                postF(cb, false, -1, entry.name + " jalan di :" + live
+                        + " (bukan jendela floating :3-:4)");
+            } else {
+                postF(cb, false, -1, entry.name + " jalan tapi display-nya tidak ketemu");
+            }
+        });
+    }
+
     private void postF(FloatingCallback cb, boolean ok, int d, String msg) {
         if (cb != null) main.post(() -> cb.onResult(ok, d, msg));
     }

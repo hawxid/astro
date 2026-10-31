@@ -44,6 +44,13 @@ public class WebOverlayWindows {
     // rehash — taskbar yang loncat-loncat membingungkan).
     private static final Map<String, WebOverlayWindows> sByPath = new LinkedHashMap<>();
 
+    // Overlay terdepan terakhir (tap-to-front, 2026-10-31): raise
+    // hanya re-add bila bukan ini — tap pada window yang sudah di
+    // depan tidak boleh mengusik gesture/keyboard dengan
+    // remove+add sia-sia. Di-set di attach()/raise(), dibersihkan
+    // di hide() (close() lewat hide()).
+    private static WebOverlayWindows sFront;
+
     // Listener perubahan overlay (ronde dock webview, 2026-10-25):
     // Dashboard mendaftar di onResume, melepas di onPause; tiap
     // transisi tampil/sembunyi/tutup memicu rebuild dock — tanpa
@@ -714,6 +721,7 @@ public class WebOverlayWindows {
         sByPath.put(path, this);
         wm.addView(container, wlp);
         attached = true;
+        sFront = this;
         startFrameListener();
         notifyOverlayListeners();
         File f = new File(path);
@@ -732,8 +740,36 @@ public class WebOverlayWindows {
             wm.addView(container, wlp);
             attached = true;
             startFrameListener();
+            sFront = this;
             notifyOverlayListeners();
+        } else {
+            raiseToFront();
         }
+    }
+
+    /**
+     * Naikkan overlay ke depan (tap-to-front + raise dock):
+     * reorder WindowManager remove+add — WebView + halaman
+     * dipertahankan (tanpa reload). No-op bila belum attached,
+     * sudah di depan, atau sudah keluar registry. Bila window
+     * sedang mode ketik, mode itu dimasuki ulang sesudah re-add
+     * (token window baru; tanpa ini keyboard jatuh).
+     */
+    private void raiseToFront() {
+        if (!attached || sFront == this || sByPath.get(path) != this) return;
+        boolean wasInput = focusInputMode;
+        stopFrameListener();
+        try {
+            wm.removeView(container);
+        } catch (Throwable ignored) {
+        }
+        attached = false;
+        wm.addView(container, wlp);
+        attached = true;
+        startFrameListener();
+        sFront = this;
+        notifyOverlayListeners();
+        if (wasInput) enterInputMode();
     }
 
     private void hide() {
@@ -749,6 +785,7 @@ public class WebOverlayWindows {
             stopFrameListener();
             wm.removeView(container);
             attached = false;
+            if (sFront == this) sFront = null;
             notifyOverlayListeners();
         }
     }
@@ -795,7 +832,18 @@ public class WebOverlayWindows {
             if (e.getActionMasked() == android.view.MotionEvent.ACTION_OUTSIDE) {
                 WebOverlayWindows.this.setFocusableInputMode(false);
             }
-            return super.dispatchTouchEvent(e);
+            boolean r = super.dispatchTouchEvent(e);
+            // Tap-to-front: UP pada window yang tertimbun
+            // menaikkannya ke depan. Sengaja sesudah dispatch
+            // (bukan DOWN): klik/scroll halaman selesai dulu,
+            // baru reorder — raise di DOWN berisiko memutus
+            // gesture (token window baru). No-op bila window
+            // sudah di depan, atau tertutup oleh klik itu
+            // sendiri (✕/—).
+            if (e.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
+                WebOverlayWindows.this.raiseToFront();
+            }
+            return r;
         }
 
         @Override
