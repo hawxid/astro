@@ -17,19 +17,17 @@ import java.util.regex.Pattern;
  * mendarat di log Astro. up() memverifikasi hasil dan rollback otomatis
  * (down) kalau verifikasi gagal, supaya tidak ada state setengah jalan.
  *
- * Kill switch (refinement pasca-Batch 1): rantai iptables khusus
- * ASTRO_KILL (loopback + via-tunnel + handshake UDP ke endpoint diizinkan,
- * sisanya DROP), dijump dari posisi 1 OUTPUT saat tunnel naik dan dicabut
- * saat tunnel mati. Rantai khusus = pencabutan tidak pernah menyentuh
- * aturan sistem (cukup hapus jump + flush chain). Fail-closed: bila aturan
- * gagal diterapkan, up() dibatalkan (rollback), bukan jalan tanpa proteksi.
- * Cakupan IPv4 saja di batch ini; IPv6 masih bisa lolos (limitasi dicatat).
+ * Kill switch (refinement pasca-Batch 1): 4 aturan iptables langsung di
+ * posisi 1-4 OUTPUT (loopback + via-tunnel + handshake UDP ke endpoint
+ * diizinkan, sisanya DROP), dipasang saat tunnel naik dan dicabut saat
+ * tunnel mati. Fail-closed: bila aturan gagal diterapkan, up()
+ * dibatalkan (rollback), bukan jalan tanpa proteksi. Cakupan IPv4 saja;
+ * IPv6 masih bisa lolos (limitasi dicatat).
  */
 public class WgEngine {
 
     public static final String IFACE = "astro-wg0";
     private static final String KEY_FILE = "/tmp/astro-wg-key";
-    private static final String KS_CHAIN = "ASTRO_KILL";
 
     /**
      * Android memakai policy routing: tabel main sering TIDAK punya rute
@@ -101,46 +99,74 @@ public class WgEngine {
         return null;
     }
 
-    public static boolean iptablesOk(Core core) {
-        return join(run(core, "command -v iptables")).contains("/iptables");
-    }
-
-    /** Jump kill switch sedang terpasang (verifikasi live, bukan setelan). */
-    public static boolean killSwitchActive(Core core) {
-        return join(run(core, "iptables -S OUTPUT")).contains("-j " + KS_CHAIN);
-    }
-
-    /** Cabut kill switch: hapus jump (diulang, toleran terhadap duplikat
-     * sisa crash) lalu flush + hapus chain. Tidak menyentuh aturan lain. */
-    public static void removeKillSwitch(Core core) {
-        for (int i = 0; i < 3; i++) {
-            run(core, "iptables -D OUTPUT -j " + KS_CHAIN + " 2>/dev/null; true");
+    /**
+     * Kill switch berjalan lewat su shell SISI ANDROID (Core.executeCommand),
+     * BUKAN chroot: terbukti di perangkat 2026-10-31 bahwa tulis iptables
+     * dari chroot selalu gagal (nft: genid; legacy: -N/-I ENOENT; baca
+     * jalan), sementara sisip + hapus dari su shell Android jalan
+     * (I: 0, aturan muncul di posisi 1 OUTPUT, hapus bersih). nft CLI
+     * juga mati (cache init gagal) — tidak ada jalur nft sama sekali.
+     * Aturan kill switch TIDAK memakai chain khusus (pembuatan chain
+     * gagal di kernel ini): 4 aturan langsung di posisi 1-4 OUTPUT.
+     * Aturan DROP dihapus by-spec; karena aturan kita di posisi atas,
+     * -D mengenai aturan kita dulu bila ada DROP lain di OUTPUT.
+     * Perintah kill switch tidak mengandung kunci (hanya IP endpoint).
+     */
+    private static String runAndroid(Core core, String cmd) {
+        try {
+            String out = core.executeCommand(cmd);
+            return out == null ? "" : out;
+        } catch (Exception ignored) {
+            return "";
         }
-        run(core, "iptables -F " + KS_CHAIN + " 2>/dev/null; true");
-        run(core, "iptables -X " + KS_CHAIN + " 2>/dev/null; true");
+    }
+
+    private static boolean androidIptablesOk(Core core) {
+        return runAndroid(core, "command -v iptables").contains("/iptables");
+    }
+
+    /** Kill switch sedang terpasang (verifikasi live, bukan setelan). */
+    public static boolean killSwitchActive(Core core) {
+        String out = runAndroid(core, "iptables -S OUTPUT");
+        return out.contains("-o " + IFACE + " -j ACCEPT")
+                && out.contains("-j DROP");
+    }
+
+    /** Cabut kill switch: hapus 4 aturan by-spec (toleran bila tak ada).
+     * Endpoint/port dibaca dari pref runtime (disimpan saat up()). */
+    public static void removeKillSwitch(Core core) {
+        String endpointIp = core.getString(WgConfig.P_RT_ENDPOINT_IP);
+        String port = core.getString(WgConfig.P_RT_PORT);
+        runAndroid(core, "iptables -D OUTPUT -o lo -j ACCEPT 2>/dev/null; true");
+        runAndroid(core, "iptables -D OUTPUT -o " + IFACE + " -j ACCEPT 2>/dev/null; true");
+        if (endpointIp != null && !endpointIp.isEmpty()) {
+            String ep = "iptables -D OUTPUT -d " + Apt.shellQuote(endpointIp) + " -p udp";
+            if (port != null && !port.isEmpty()) {
+                ep += " --dport " + Apt.shellQuote(port);
+            }
+            runAndroid(core, ep + " -j ACCEPT 2>/dev/null; true");
+        }
+        runAndroid(core, "iptables -D OUTPUT -j DROP 2>/dev/null; true");
     }
 
     /**
-     * Pasang kill switch: bersihkan sisa crash dulu, lalu isi chain
-     * (loopback, via-tunnel, handshake UDP ke endpoint) + DROP, dan jump
-     * dari posisi 1 OUTPUT. Gagal = rollback aturan + Result gagal.
+     * Pasang kill switch: bersihkan sisa crash dulu, lalu sisip 4 aturan
+     * di posisi 1-4 OUTPUT (loopback, via-tunnel, handshake UDP ke
+     * endpoint, DROP). Gagal = rollback aturan + Result gagal.
      */
     public static Result applyKillSwitch(Core core, String endpointIp, String port) {
-        if (!iptablesOk(core)) {
+        if (!androidIptablesOk(core)) {
             return new Result(false, "iptables tidak tersedia");
         }
         removeKillSwitch(core);
-        run(core, "iptables -N " + KS_CHAIN + " 2>/dev/null; true");
-        run(core, "iptables -A " + KS_CHAIN + " -o lo -j ACCEPT");
-        run(core, "iptables -A " + KS_CHAIN + " -o " + IFACE + " -j ACCEPT");
-        String ep = "iptables -A " + KS_CHAIN + " -d " + Apt.shellQuote(endpointIp)
-                + " -p udp";
+        runAndroid(core, "iptables -I OUTPUT 1 -o lo -j ACCEPT");
+        runAndroid(core, "iptables -I OUTPUT 2 -o " + IFACE + " -j ACCEPT");
+        String ep = "iptables -I OUTPUT 3 -d " + Apt.shellQuote(endpointIp) + " -p udp";
         if (port != null && !port.isEmpty()) {
             ep += " --dport " + Apt.shellQuote(port);
         }
-        run(core, ep + " -j ACCEPT");
-        run(core, "iptables -A " + KS_CHAIN + " -j DROP");
-        run(core, "iptables -I OUTPUT 1 -j " + KS_CHAIN);
+        runAndroid(core, ep + " -j ACCEPT");
+        runAndroid(core, "iptables -I OUTPUT 4 -j DROP");
         if (killSwitchActive(core)) {
             return new Result(true, "kill switch aktif");
         }
@@ -284,6 +310,7 @@ public class WgEngine {
         core.putString(WgConfig.P_RT_DEV, dev);
         core.putString(WgConfig.P_RT_TABLE, table == null ? "" : table);
         core.putString(WgConfig.P_RT_ENDPOINT_IP, endpointIp);
+        core.putString(WgConfig.P_RT_PORT, port == null ? "" : port);
 
         String key = cfg.privateKey.trim();
         run(core, "umask 077; printf '%s' " + Apt.shellQuote(key)
@@ -366,6 +393,7 @@ public class WgEngine {
         core.putString(WgConfig.P_RT_DEV, "");
         core.putString(WgConfig.P_RT_TABLE, "");
         core.putString(WgConfig.P_RT_ENDPOINT_IP, "");
+        core.putString(WgConfig.P_RT_PORT, "");
         Status s = status(core);
         if (s.up) {
             return new Result(false, "interface masih ada setelah dimatikan");
