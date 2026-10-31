@@ -1,8 +1,11 @@
 package id.hawx.astro.anon;
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Bundle;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -267,13 +270,42 @@ public class AnonFragment extends Fragment {
     private void onImport() {
         TextInputEditText input = new TextInputEditText(context);
         input.setMinLines(8);
+        // Multiline eksplisit: tanpa ini, tempelan .conf berisiko runtuh
+        // jadi satu baris dan parser tidak menemukan section apa pun.
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         input.setHint(R.string.anon_import_hint);
+        // Bila clipboard sudah berisi .conf, tampilkan langsung: tombol
+        // "tempel" harus benar-benar menempel, bukan kotak kosong lagi.
+        try {
+            ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip()) {
+                ClipData clip = cm.getPrimaryClip();
+                if (clip != null && clip.getItemCount() > 0) {
+                    CharSequence clipText = clip.getItemAt(0).getText();
+                    if (clipText != null) {
+                        String s = clipText.toString();
+                        if (s.contains("[Interface]") || s.contains("PrivateKey")) {
+                            input.setText(s);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Clipboard tidak bisa dibaca: user tetap bisa paste manual.
+        }
         new MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.anon_import_title)
                 .setView(input)
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
                     String text = input.getText() == null ? "" : input.getText().toString();
                     WgConfig c = WgConfig.parseConf(text);
+                    // Jangan pernah menimpa config tersimpan dengan hasil
+                    // parse kosong/gagal: itu yang dulu bikin impor terasa
+                    // "tidak masuk" sambil diam-diam menghapus isian.
+                    if (!c.isComplete()) {
+                        toast(getString(R.string.anon_toast_import_fail));
+                        return;
+                    }
                     fillFields(c);
                     c.save(core);
                     toast(getString(R.string.anon_toast_saved));

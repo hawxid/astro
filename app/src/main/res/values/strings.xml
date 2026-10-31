@@ -1640,8 +1640,9 @@ manager</string>
     <string name="anon_btn_install_tools">Pasang wireguard-tools</string>
     <string name="anon_warn">Batch 1: tunnel WireGuard berjalan device-wide (satu network namespace dengan Android). Kill switch belum aktif di batch ini — kalau tunnel putus, matikan manual dan periksa rute. Kunci privat tersimpan terenkripsi, tidak pernah ditulis ke log.</string>
     <string name="anon_toast_saved">Konfigurasi tersimpan.</string>
+    <string name="anon_toast_import_fail">Impor gagal: format .conf tidak dikenali atau tidak lengkap.</string>
     <string name="anon_toast_up_ok">Tunnel WireGuard aktif.</string>
-    <string name="anon_toast_up_fail">Gagal mengaktifkan tunnel, rute dipulihkan.</string>
+    <string name="anon_toast_up_fail">Gagal mengaktifkan tunnel.</string>
     <string name="anon_toast_down_ok">Tunnel dimatikan, rute dipulihkan.</string>
     <string name="anon_toast_need_config">Lengkapi konfigurasi dulu.</string>
     <string name="anon_toast_tools_first">Pasang wireguard-tools dulu.</string>

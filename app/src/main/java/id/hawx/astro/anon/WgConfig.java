@@ -89,6 +89,9 @@ public class WgConfig {
     public static WgConfig parseConf(String text) {
         WgConfig c = new WgConfig();
         if (text == null) return c;
+        // BOM di awal salinan file bisa bikin baris "[Interface]" pertama
+        // tidak dikenali sebagai section, lalu seluruh parse gagal diam-diam.
+        if (text.startsWith("\uFEFF")) text = text.substring(1);
         String section = "";
         for (String raw : text.split("\\n")) {
             String line = raw.trim();
