@@ -33,6 +33,9 @@ public class LauncherEntry {
     public boolean allowMultiple;
     /** true = buka sebagai jendela floating (display sendiri >= :1), bukan viewer fullscreen :0. */
     public boolean floating;
+    /** Mode webui saja: buka juga jendela terminal xterm (mode 2 jendela)
+     *  — terminal yang memiliki proses server, bukan proses detached. */
+    public boolean launchTerminal;
     public boolean builtin;
     public boolean hidden;
 
@@ -48,6 +51,7 @@ public class LauncherEntry {
         env = "";
         allowMultiple = false;
         floating = false;
+        launchTerminal = false;
         builtin = false;
         hidden = false;
     }
@@ -66,6 +70,7 @@ public class LauncherEntry {
         c.env = env;
         c.allowMultiple = allowMultiple;
         c.floating = floating;
+        c.launchTerminal = launchTerminal;
         c.builtin = builtin;
         c.hidden = hidden;
         return c;
@@ -104,6 +109,7 @@ public class LauncherEntry {
         o.put("env", env);
         o.put("allowMultiple", allowMultiple);
         o.put("floating", floating);
+        o.put("launchTerminal", launchTerminal);
         o.put("builtin", builtin);
         o.put("hidden", hidden);
         return o;
@@ -130,6 +136,7 @@ public class LauncherEntry {
         e.env = o.optString("env", "");
         e.allowMultiple = o.optBoolean("allowMultiple", false);
         e.floating = o.optBoolean("floating", false);
+        e.launchTerminal = o.optBoolean("launchTerminal", false);
         e.builtin = o.optBoolean("builtin", false);
         e.hidden = o.optBoolean("hidden", false);
         if (e.id.isEmpty()) e.id = slug(e.name);

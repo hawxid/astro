@@ -37,6 +37,7 @@ public class LauncherEditActivity extends AppCompatActivity {
     private TextView fPortLabel, fPathLabel;
     private CheckBox fMultiple;
     private CheckBox fFloating;
+    private CheckBox fLaunchTerminal;
 
     private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
 
@@ -82,6 +83,13 @@ public class LauncherEditActivity extends AppCompatActivity {
         fPortLabel = (TextView) root.getChildAt(root.indexOfChild(fPort) - 1);
         fPath = field(root, "Path URL (kosong = /)", "/");
         fPathLabel = (TextView) root.getChildAt(root.indexOfChild(fPath) - 1);
+        // Opsi 2 jendela dibuat SEBELUM listener tipe dipasang (aturan
+        // definite-assignment yang sama seperti Port/Path di atas):
+        // listener menampilkan/menyembunyikannya per tipe.
+        fLaunchTerminal = new CheckBox(this);
+        fLaunchTerminal.setText("Buka terminal xterm juga (mode 2 jendela)");
+        root.addView(fLaunchTerminal);
+        fLaunchTerminal.setVisibility(View.GONE);
         showWebuiFields(false);
         fType.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent,
@@ -92,16 +100,19 @@ public class LauncherEditActivity extends AppCompatActivity {
                     fCommand.setHint("mis. /sdcard/Astro/tools/hitung.html");
                     fFloating.setText("Buka sebagai jendela melayang");
                     showWebuiFields(false);
+                    fLaunchTerminal.setVisibility(View.GONE);
                 } else if (pos == 3) {
                     fCommandLabel.setText("Perintah server chroot (pakai {PORT} untuk port)");
                     fCommand.setHint("mis. python3 -m http.server {PORT}");
                     fFloating.setText("Buka sebagai jendela melayang");
                     showWebuiFields(true);
+                    fLaunchTerminal.setVisibility(View.VISIBLE);
                 } else {
                     fCommandLabel.setText("Perintah (dijalankan di chroot, apa adanya)");
                     fCommand.setHint("mis. wireshark -i wlan0");
                     fFloating.setText("Buka sebagai jendela floating (display sendiri, bukan layar penuh)");
                     showWebuiFields(false);
+                    fLaunchTerminal.setVisibility(View.GONE);
                 }
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
@@ -133,6 +144,7 @@ public class LauncherEditActivity extends AppCompatActivity {
             fEnv.setText(existing.env);
             fMultiple.setChecked(existing.allowMultiple);
             fFloating.setChecked(existing.floating);
+            fLaunchTerminal.setChecked(existing.launchTerminal);
         }
 
         LinearLayout row1 = new LinearLayout(this);
@@ -242,6 +254,10 @@ public class LauncherEditActivity extends AppCompatActivity {
         e.env = fEnv.getText().toString();
         e.allowMultiple = fMultiple.isChecked();
         e.floating = fFloating.isChecked();
+        // Hanya bermakna untuk webui — checkbox disembunyikan (bukan
+        // di-reset) saat tipe diganti, jadi nilai mentahnya tidak
+        // boleh bocor ke tipe lain.
+        e.launchTerminal = "webui".equals(e.type) && fLaunchTerminal.isChecked();
         e.builtin = existing != null && existing.builtin;
         e.hidden = existing != null && existing.hidden;
         return e;

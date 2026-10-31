@@ -34,6 +34,28 @@ import id.hawx.astro.utils.Core;
  * dengan PID file R1: setsid + log + echo $!); ✕ / Kill membaca
  * PID file itu untuk mematikan server. Sembunyikan (—) TIDAK
  * mematikan server (cerminan semantik X: hide = server hidup).
+ *
+ * MODE 2 JENDELA (opsi launchTerminal pada entri webui):
+ * fresh start TIDAK memakai proses detached di atas — perintah
+ * server dijalankan INTERAKTIF di dalam jendela xterm lewat jalur
+ * launch floating XSessionManager (pool desktop :3-:4, font xterm
+ * tetap disuntik scaledCommand), lalu port di-poll seperti biasa
+ * dan webview dibuka. Terminal yang MEMILIKI proses:
+ * - Tutup jendela xterm (✕ layer -> stopDisplay -> server X display
+ *   mati -> xterm keluar -> server menerima SIGHUP dan mati).
+ * - Tutup webview TIDAK membunuh server di mode ini (hook tutup
+ *   webview = no-op, dan GhostViz tidak diberi port) — server hidup
+ *   selama xterm hidup; tap ulang entry hanya membuka lagi
+ *   webview-nya (port sudah listening).
+ * - File PID webui (/tmp/astro-webui-<port>.pid) TIDAK PERNAH dibuat
+ *   di mode ini, jadi killServer tidak punya PID untuk dibunuh
+ *   (file hilang = no-op); file basi berisi PID mati dibersihkan
+ *   saat fresh start supaya killServer masa depan tidak mengenai
+ *   PID daur ulang. File berisi PID hidup DIBIARKAN (server detached
+ *   lama yang belum sempat listen).
+ * Port SUDAH listening saat tap: perilaku lama dipertahankan persis
+ * (webview saja, TANPA jendela terminal — terminal tidak bisa
+ * disambungkan ke instance yang sudah jalan).
  */
 public class WebUiLauncher {
 
@@ -76,6 +98,34 @@ public class WebUiLauncher {
 
     public static String logPath(int port) {
         return "/tmp/astro-webui-" + port + ".log";
+    }
+
+    /** ID entri xterm turunan untuk satu entri webui — dipakai file
+     *  PID jalur X (/tmp/astro-launch-<id>.pid). Diekspos supaya
+     *  jalur Kill desktop kelak bisa menghentikan entri ini juga. */
+    public static String termEntryIdFor(LauncherEntry e) {
+        return e.id + "-term";
+    }
+
+    /** Entri GUI xterm sementara untuk mode 2 jendela: perintah server
+     *  (sudah substitusi {PORT}) dijalankan interaktif lewat
+     *  `xterm -e sh -c ...` — sh -c menjaga semantik shell mode
+     *  detached (pipa, &&, dsb). Font xterm tetap disuntik
+     *  XSessionManager.scaledCommand karena perintah diawali kata
+     *  `xterm` (tidak diduplikasi di sini). workdir/env diwariskan
+     *  dari entri webui; allowMultiple=false supaya tap ganda tidak
+     *  melahirkan xterm kedua (tabrakan port). */
+    public static LauncherEntry termEntryFor(LauncherEntry e, String serverCmd) {
+        LauncherEntry t = new LauncherEntry();
+        t.id = termEntryIdFor(e);
+        t.name = e.name + " terminal";
+        t.command = "xterm -e sh -c " + XServerOps.shq(serverCmd);
+        t.type = "gui";
+        t.floating = true;
+        t.workdir = e.workdir;
+        t.env = e.env;
+        t.allowMultiple = false;
+        return t;
     }
 
     /**
@@ -176,13 +226,70 @@ public class WebUiLauncher {
                     toast(ctx, "Perintah webui kosong");
                     return;
                 }
-                // Pola peluncuran yang sama dengan entri X (R1):
-                // subshell (setsid server > log 2>&1 & echo $! > pid).
-                // Perintah harus satu invokasi server (bukan pipeline)
-                // supaya $! = PID server yang sebenarnya.
-                String wrap = "(setsid " + cmd + " >" + logPath(e.port)
-                        + " 2>&1 & echo $! > " + pidPath(e.port) + ")";
-                core.threadChrootCommand(wrap);
+                if (e.launchTerminal) {
+                    // MODE 2 JENDELA — fresh start: server dijalankan
+                    // INTERAKTIF di jendela xterm (bukan detached).
+                    // TIDAK ada proses setsid dan TIDAK ada file PID
+                    // webui di mode ini (lihat komentar kelas).
+                    // Bersihkan file PID basi (PID sudah mati) supaya
+                    // killServer masa depan tidak mengenai PID daur
+                    // ulang; file berisi PID hidup DIBIARKAN.
+                    core.threadChrootCommand("P=$(cat " + pidPath(e.port)
+                            + " 2>/dev/null); if [ -n \"$P\" ] && ! [ -d /proc/$P ]; "
+                            + "then rm -f " + pidPath(e.port) + "; fi");
+                    final LauncherEntry term = termEntryFor(e, cmd);
+                    XSessionManager mgr = XSessionManager.get(ctx);
+                    if (!mgr.entryRunningSync(term.id, term.firstWord())) {
+                        // Latch menunggu callback launch (main thread)
+                        // supaya jendela xterm naik sebelum poll port;
+                        // timeout longgar karena start server X baru
+                        // bisa makan waktu — timeout bukan gagal,
+                        // poll di bawah yang memutuskan.
+                        final java.util.concurrent.CountDownLatch termDone =
+                                new java.util.concurrent.CountDownLatch(1);
+                        final java.util.concurrent.atomic.AtomicReference<String> termErr =
+                                new java.util.concurrent.atomic.AtomicReference<>();
+                        mgr.launchFloating(term, (ok, d, msg) -> {
+                            if (!ok) {
+                                // Balapan tap ganda: xterm sudah jalan
+                                // tapi catatan floating-nya hilang
+                                // (restart app) — bukan gagal, lanjut
+                                // ke poll; jendela dibuka dari desktop.
+                                if (msg != null && msg.contains("bukan floating")) {
+                                    // Lanjut ke poll, tanpa error.
+                                } else {
+                                    termErr.set(msg != null ? msg
+                                            : "Gagal meluncurkan terminal");
+                                }
+                            } else if (d > 0) {
+                                id.hawx.astro.MainActivity.openXWindowFrom(
+                                        ctx, d, term.name + " · :" + d);
+                            }
+                            termDone.countDown();
+                        });
+                        try {
+                            termDone.await(60, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (InterruptedException ignored) {
+                            // Lanjut ke poll — xterm mungkin tetap naik.
+                        }
+                        if (termErr.get() != null) {
+                            toast(ctx, termErr.get());
+                            return;
+                        }
+                    }
+                    // xterm sudah jalan (baru diluncurkan / sudah ada
+                    // dari tap sebelumnya) — lanjut ke poll port.
+                } else {
+                    // Jalur lama, tidak berubah: server detached +
+                    // PID file. Pola peluncuran yang sama dengan entri
+                    // X (R1): subshell (setsid server > log 2>&1 &
+                    // echo $! > pid). Perintah harus satu invokasi
+                    // server (bukan pipeline) supaya $! = PID server
+                    // yang sebenarnya.
+                    String wrap = "(setsid " + cmd + " >" + logPath(e.port)
+                            + " 2>&1 & echo $! > " + pidPath(e.port) + ")";
+                    core.threadChrootCommand(wrap);
+                }
                 started = true;
                 boolean up = false;
                 for (int i = 0; i < POLL_TRIES; i++) {
@@ -197,13 +304,27 @@ public class WebUiLauncher {
                     }
                 }
                 if (!up) {
-                    toast(ctx, "Server " + e.name + " tidak hidup di port "
-                            + e.port + " (cek log: " + logPath(e.port) + ")");
+                    if (e.launchTerminal) {
+                        toast(ctx, "Server " + e.name + " tidak hidup di port "
+                                + e.port + " (cek jendela terminal)");
+                    } else {
+                        toast(ctx, "Server " + e.name + " tidak hidup di port "
+                                + e.port + " (cek log: " + logPath(e.port) + ")");
+                    }
                     return;
                 }
             }
+            // Port SUDAH listening saat tap (cabang else dari
+            // isListening di atas): perilaku lama dipertahankan —
+            // webview saja, TANPA jendela terminal, karena terminal
+            // tidak bisa disambungkan ke instance yang sudah jalan.
+            // killOnClose juga dimatikan untuk entri 2 jendela di
+            // SEMUA jalur (fresh start maupun sudah listening):
+            // server mungkin milik terminal, dan tutup webview tidak
+            // boleh membunuhnya.
             final boolean didStart = started;
-            MAIN.post(() -> openWebview(ctx, e, url, didStart));
+            final boolean killOnClose = !e.launchTerminal;
+            MAIN.post(() -> openWebview(ctx, e, url, didStart, killOnClose));
         }).start();
     }
 
@@ -222,12 +343,15 @@ public class WebUiLauncher {
      * tidak boleh kereset tiap tap).
      */
     private static void openWebview(Context ctx, LauncherEntry e, String url,
-                                    boolean didStart) {
+                                    boolean didStart, boolean killOnClose) {
         if (e.floating) {
             boolean existed =
                     id.hawx.astro.x11.window.WebOverlayWindows.isShowing(url);
+            // Mode 2 jendela: hook tutup = no-op — server milik
+            // terminal, tutup webview tidak boleh membunuhnya.
             boolean shown = id.hawx.astro.x11.window.WebOverlayWindows.show(
-                    ctx, e.name, url, () -> killServer(ctx, e.port));
+                    ctx, e.name, url,
+                    killOnClose ? () -> killServer(ctx, e.port) : () -> { });
             if (shown) {
                 // Label dock (ikon entry) — jalur raise ikut segar.
                 id.hawx.astro.x11.window.WebOverlayWindows.setDockLabelForPath(
@@ -242,7 +366,12 @@ public class WebUiLauncher {
         Intent i = new Intent(ctx, id.hawx.astro.goose.GhostVizActivity.class);
         i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_PATH, url);
         i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_TITLE, e.name);
-        i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_WEBUI_PORT, e.port);
+        // Mode 2 jendela: port TIDAK diberikan — onDestroy GhostViz
+        // membunuh server bila port ada; di mode ini server milik
+        // terminal dan tutup webview tidak boleh membunuhnya.
+        if (killOnClose) {
+            i.putExtra(id.hawx.astro.goose.GhostVizActivity.EXTRA_WEBUI_PORT, e.port);
+        }
         if (!(ctx instanceof Activity)) {
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         }

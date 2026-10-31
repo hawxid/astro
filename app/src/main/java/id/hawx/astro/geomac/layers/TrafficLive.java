@@ -17,6 +17,8 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.core.content.ContextCompat;
+
 import com.google.android.material.button.MaterialButton;
 
 import id.hawx.astro.R;
@@ -632,6 +634,10 @@ public final class TrafficLive {
         float density = context.getResources().getDisplayMetrics().density;
         int pad = Math.round(14 * density);
         root.setPadding(pad, pad, pad, pad);
+        // The window background is TRANSPARENT (set below), so the root
+        // needs its own opaque background, otherwise the map shows through
+        // behind the text. Same card color as the other GeoMac dialogs.
+        root.setBackgroundColor(ContextCompat.getColor(context, R.color.light_contrast));
         TextView title = new TextView(context);
         title.setTextSize(15f);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);

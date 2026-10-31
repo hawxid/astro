@@ -76,6 +76,37 @@ public class WebOverlayWindows {
         }
     }
 
+    /**
+     * Suntikan auto keyboard (ronde auto keyboard, 2026-10-31):
+     * listener focusin level dokumen. focusin bubble, jadi satu
+     * listener di document menutupi input yang dibuat dinamis
+     * sesudah load (SPA seperti UI bettercap) tanpa suntik ulang
+     * per rute; navigasi dokumen penuh memicu onPageFinished lagi
+     * (guard __astroAutoKb cegah duplikat dalam satu dokumen).
+     * Non-intrusif: tidak mengubah DOM, tidak menyentuh skrip
+     * halaman; semua dibungkus try/catch. Tipe input non-teks
+     * (tombol, checkbox, radio, hidden, file, dst) tidak memanggil
+     * keyboard — hanya field teks, textarea, dan contenteditable.
+     */
+    private static final String AUTO_KEYBOARD_JS =
+            "(function(){try{"
+            + "if(window.__astroAutoKb)return;"
+            + "window.__astroAutoKb=true;"
+            + "document.addEventListener('focusin',function(e){"
+            + "var t=e.target;if(!t)return;"
+            + "var tag=t.tagName;"
+            + "if(tag==='TEXTAREA'||t.isContentEditable){"
+            + "if(window.AstroBridge)window.AstroBridge.onInputFocused();"
+            + "return;}"
+            + "if(tag!=='INPUT')return;"
+            + "var ty=(t.type||'text').toLowerCase();"
+            + "if(ty==='hidden'||ty==='button'||ty==='submit'||ty==='reset'"
+            + "||ty==='checkbox'||ty==='radio'||ty==='file'||ty==='image'"
+            + "||ty==='range'||ty==='color')return;"
+            + "if(window.AstroBridge)window.AstroBridge.onInputFocused();"
+            + "},true);"
+            + "}catch(err){}})();";
+
     /** Potret satu overlay untuk dock (sumber kebenaran = registry
      *  sByPath; visible = attached nyata, bukan pref/mode baru). */
     public static class OverlayInfo {
@@ -310,6 +341,13 @@ public class WebOverlayWindows {
                     backBtn.setAlpha(canBack ? 1.0f : 0.35f);
                     backBtn.setEnabled(canBack);
                 }
+                // Auto keyboard: suntik listener focusin (idempotent
+                // per dokumen; SPA tidak reload dokumen, jadi
+                // listener bertahan lintas rute tanpa suntik ulang).
+                try {
+                    v.evaluateJavascript(AUTO_KEYBOARD_JS, null);
+                } catch (Throwable ignored) {
+                }
             }
             // Guard navigasi (hardening 2026-10-25): hanya origin lokal /
             // loopback boleh dimuat di webview ber-bridge; link ke luar
@@ -330,10 +368,16 @@ public class WebOverlayWindows {
                 return true;
             }
         });
-        webView.addJavascriptInterface(
+        // Bridge dibuat lokal dulu (bukan inline) supaya listener
+        // auto keyboard bisa dipasang sebelum attach — listener
+        // hanya dipanggil sesudah konstruksi selesai (saat halaman
+        // memanggil onInputFocused), jadi tidak ada pembacaan field
+        // selagi ctor berjalan.
+        id.hawx.astro.goose.ToolsBridge bridge =
                 new id.hawx.astro.goose.ToolsBridge(
-                        new id.hawx.astro.utils.Core(act), webView),
-                "AstroBridge");
+                        new id.hawx.astro.utils.Core(act), webView);
+        bridge.setInputFocusListener(() -> onWebInputFocused());
+        webView.addJavascriptInterface(bridge, "AstroBridge");
 
         // ---- chrome bar: SALIN PERSIS dari XFloatingWindow ----
         // (temuan Hawx: tombol Button bawaan tema merenggang
@@ -380,19 +424,9 @@ public class WebOverlayWindows {
         backBtn.setAlpha(0.35f);
         backBtn.setEnabled(false);
         bar.addView(backBtn);
-        bar.addView(chromeBtn("⌨", v -> {
-            // Masuk mode ketik webview: window HARUS focusable dulu,
-            // baru requestFocus/showSoftInput bisa jalan (urutan ini
-            // penting — keduanya gagal kalau window masih
-            // NOT_FOCUSABLE).
-            setFocusableInputMode(true);
-            kbSeenOpen = false;
-            webView.requestFocus();
-            android.view.inputmethod.InputMethodManager imm =
-                    (android.view.inputmethod.InputMethodManager)
-                            act.getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) imm.showSoftInput(webView, 0);
-        }));
+        // Fallback manual mode ketik — jalur auto (focusin halaman)
+        // memanggil enterInputMode() yang sama di bawah.
+        bar.addView(chromeBtn("⌨", v -> enterInputMode()));
         bar.addView(chromeBtn("—", v -> hide()));
         // JANGAN pasang listener di dalam inisialisasi maxBtn:
         // lambda-nya membaca maxBtn sendiri, padahal assignment
@@ -569,6 +603,40 @@ public class WebOverlayWindows {
         if (!maximized || !attached || wantH <= 0 || wlp.height == wantH) return;
         wlp.height = wantH;
         wm.updateViewLayout(container, wlp);
+    }
+
+    /**
+     * Dipanggil bridge saat input teks halaman mendapat fokus (auto
+     * keyboard): urutan persis tombol ⌨, tapi dipicu SETELAH input
+     * benar-benar fokus — jadi tidak ada balapan seperti tap ⌨ yang
+     * kadang gagal (window belum focusable / input belum fokus saat
+     * showSoftInput dipanggil). JavascriptInterface jalan di thread
+     * WebView, jadi semua sentuhan view/window dipost ke UI thread.
+     * No-op bila window sudah tidak attached (hide/close).
+     * Idempotent dengan ⌨: setFocusableInputMode(true) sudah no-op
+     * bila sudah focusable, dan requestFocus/showSoftInput yang
+     * berulang tidak merusak state.
+     */
+    private void onWebInputFocused() {
+        activity.runOnUiThread(this::enterInputMode);
+    }
+
+    /**
+     * Urutan masuk mode ketik (dipakai tombol ⌨ DAN jalur auto):
+     * window HARUS focusable dulu, baru requestFocus/showSoftInput
+     * bisa jalan (urutan ini penting — keduanya gagal kalau window
+     * masih NOT_FOCUSABLE). kbSeenOpen di-reset supaya deteksi
+     * keyboard-hide (frame listener) mulai dari siklus segar.
+     */
+    private void enterInputMode() {
+        if (!attached) return;
+        setFocusableInputMode(true);
+        kbSeenOpen = false;
+        webView.requestFocus();
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager)
+                        activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(webView, 0);
     }
 
     /** Toggle fokus input webview. true = window bisa jadi target

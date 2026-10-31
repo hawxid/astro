@@ -32,12 +32,43 @@ import id.hawx.astro.utils.Core;
  */
 public class ToolsBridge {
 
+    /**
+     * Listener opsional: halaman webview memberi tahu bahwa sebuah
+     * input teks mendapat fokus (dipakai jendela overlay melayang
+     * untuk auto keyboard). null = tidak ada yang mendengarkan
+     * (default, mis. GhostViz) — panggilan JS jadi no-op.
+     * Sengaja TANPA origin gate seperti run(): memunculkan keyboard
+     * bukan operasi privileged, dan halaman yang bisa memanggil
+     * bridge sudah dibatasi guard navigasi.
+     */
+    public interface InputFocusListener {
+        void onInputFocused();
+    }
+
     private final Core core;
     private final WebView webView;
+    private InputFocusListener inputFocusListener;
 
     public ToolsBridge(Core core, WebView webView) {
         this.core = core;
         this.webView = webView;
+    }
+
+    public void setInputFocusListener(InputFocusListener l) {
+        inputFocusListener = l;
+    }
+
+    /**
+     * Dipanggil halaman saat input teks mendapat fokus (lihat
+     * suntikan focusin di WebOverlayWindows). Berjalan di thread
+     * WebView, bukan UI thread — listener yang dipasang harus
+     * mem-post sendiri ke UI thread bila menyentuh view/window.
+     */
+    @JavascriptInterface
+    public void onInputFocused() {
+        if (inputFocusListener != null) {
+            inputFocusListener.onInputFocused();
+        }
     }
 
     @JavascriptInterface
