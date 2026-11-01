@@ -79,7 +79,7 @@
     <color name="dash_surface_high">#12121A</color>
 
     <color name="dash_secondary">#8A8A95</color>
-    <color name="astro_stroke">#2A2A35</color>
+    <color name="astro_stroke">#D4AF37</color>
     <!-- OSIRIS night-ops palette (re-UI 2026-11-01; hex = estimasi visual
          dari screenshot + inspeksi browser, bukan nilai resmi OSIRIS) -->
     <color name="osiris_bg">#050508</color>
@@ -91,6 +91,6 @@
     <color name="osiris_cyan">#22D3EE</color>
     <color name="osiris_green">#00FF88</color>
     <color name="osiris_red">#EF5350</color>
-    <color name="osiris_border">#2A2A35</color>
+    <color name="osiris_border">#D4AF37</color>
     <color name="osiris_tile">#1A1A24</color>
 </resources>

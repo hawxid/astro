@@ -76,14 +76,14 @@ public class DesktopSettingsFragment extends Fragment {
         hdr.setPadding(0, dp(18), 0, dp(6));
         TextView t = new TextView(requireContext());
         t.setText(title);
-        t.setTextColor(0xFFE8EBFA);
+        t.setTextColor(0xFFE8E8EA);
         t.setTextSize(15);
         t.setTypeface(null, android.graphics.Typeface.BOLD);
         hdr.addView(t, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         TextView arrow = new TextView(requireContext());
         arrow.setText(open ? "⌄" : "›");
-        arrow.setTextColor(0xFF8B93B8);
+        arrow.setTextColor(0xFF8A8A95);
         arrow.setTextSize(16);
         hdr.addView(arrow);
         root.addView(hdr);
@@ -108,7 +108,7 @@ public class DesktopSettingsFragment extends Fragment {
         id.hawx.astro.utils.Core prefs = new id.hawx.astro.utils.Core(requireContext());
 
         ScrollView scroll = new ScrollView(requireContext());
-        scroll.setBackgroundColor(0xFF0A0F1E);
+        scroll.setBackgroundColor(0xFF050508);
         LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16), dp(16), dp(16), dp(24));
@@ -116,14 +116,14 @@ public class DesktopSettingsFragment extends Fragment {
 
         TextView title = new TextView(requireContext());
         title.setText("Desktop");
-        title.setTextColor(0xFFE8EBFA);
+        title.setTextColor(0xFFE8E8EA);
         title.setTextSize(18);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         root.addView(title);
 
         TextView sub = new TextView(requireContext());
         sub.setText("Pengatur antarmuka — semua setelan tampilan tinggal di sini.");
-        sub.setTextColor(0xFF8B93B8);
+        sub.setTextColor(0xFF8A8A95);
         sub.setTextSize(12);
         sub.setPadding(0, dp(2), 0, dp(2));
         root.addView(sub);
@@ -134,7 +134,7 @@ public class DesktopSettingsFragment extends Fragment {
         dpiLabel.setText("Skala teks GTK (DPI) — nilai, bukan slider (keputusan Hawx). "
                 + "GTK nurut lewat Xft.dpi; xterm & klasik nurut lewat ukuran font "
                 + "pas jendela dibuka.");
-        dpiLabel.setTextColor(0xFF8B93B8);
+        dpiLabel.setTextColor(0xFF8A8A95);
         dpiLabel.setTextSize(12);
         dpiLabel.setPadding(0, 0, 0, dp(6));
         skala.addView(dpiLabel);
@@ -144,12 +144,14 @@ public class DesktopSettingsFragment extends Fragment {
         EditText dpiField = new EditText(requireContext());
         dpiField.setInputType(InputType.TYPE_CLASS_NUMBER);
         dpiField.setText(String.valueOf(mgr.getDpi()));
-        dpiField.setTextColor(0xFFE8EBFA);
+        dpiField.setTextColor(0xFFE8E8EA);
         dpiField.setTextSize(15);
         dpiField.setLayoutParams(new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         dpiRow.addView(dpiField);
         Button apply = new Button(requireContext());
+        apply.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        apply.setTextColor(0xFF0B0B10);
         apply.setText("Terapkan");
         apply.setTextSize(12);
         apply.setOnClickListener(v -> {
@@ -178,7 +180,7 @@ public class DesktopSettingsFragment extends Fragment {
         LinearLayout ikon = section(root, "Atur Ikon Desktop", false);
         TextView th = new TextView(requireContext());
         th.setText("Tools bawaan");
-        th.setTextColor(0xFF8B93B8);
+        th.setTextColor(0xFF8A8A95);
         th.setTextSize(12);
         ikon.addView(th);
         for (Object[] meta : id.hawx.astro.dashboard.Dashboard.toolMetas()) {
@@ -194,7 +196,7 @@ public class DesktopSettingsFragment extends Fragment {
         }
         TextView lh2 = new TextView(requireContext());
         lh2.setText("Launcher");
-        lh2.setTextColor(0xFF8B93B8);
+        lh2.setTextColor(0xFF8A8A95);
         lh2.setTextSize(12);
         lh2.setPadding(0, dp(10), 0, 0);
         ikon.addView(lh2);
@@ -215,6 +217,8 @@ public class DesktopSettingsFragment extends Fragment {
             ikon.addView(sw);
         }
         Button addL = new Button(requireContext());
+        addL.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        addL.setTextColor(0xFF0B0B10);
         addL.setText("+ Add launcher");
         addL.setTextSize(13);
         addL.setOnClickListener(v -> startActivity(new android.content.Intent(
@@ -226,7 +230,7 @@ public class DesktopSettingsFragment extends Fragment {
         TextView dh = new TextView(requireContext());
         dh.setText("Pilih ikon tetap yang tampil di dock (pintasan jendela aktif selalu ikut). "
                 + "Berlaku pas Dashboard dibuka lagi.");
-        dh.setTextColor(0xFF8B93B8);
+        dh.setTextColor(0xFF8A8A95);
         dh.setTextSize(12);
         dh.setPadding(0, 0, 0, dp(6));
         dockSec.addView(dh);
@@ -244,7 +248,7 @@ public class DesktopSettingsFragment extends Fragment {
         wpInfo.setText("Gambar dipilih dari galeri/berkas, disalin ke "
                 + "/sdcard/Astro/wallpaper.jpg, lalu dipakai Dashboard "
                 + "(center-crop, tanpa gepeng).");
-        wpInfo.setTextColor(0xFF8B93B8);
+        wpInfo.setTextColor(0xFF8A8A95);
         wpInfo.setTextSize(12);
         wpInfo.setPadding(0, 0, 0, dp(6));
         wpSec.addView(wpInfo);
@@ -253,17 +257,19 @@ public class DesktopSettingsFragment extends Fragment {
                 id.hawx.astro.dashboard.Dashboard.PREF_WALLPAPER);
         wpState.setText(cur == null || cur.isEmpty()
                 ? "Saat ini: bawaan" : "Kustom: wallpaper.jpg");
-        wpState.setTextColor(0xFF8B93B8);
+        wpState.setTextColor(0xFF8A8A95);
         wpState.setTextSize(12);
         wpState.setPadding(0, 0, 0, dp(6));
         wpSec.addView(wpState);
         Button pick = new Button(requireContext());
+        pick.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        pick.setTextColor(0xFF0B0B10);
         pick.setText("Pilih gambar");
         pick.setTextSize(13);
         pick.setOnClickListener(v -> pickImage.launch("image/*"));
         wpSec.addView(pick);
         TextView dimLabel = new TextView(requireContext());
-        dimLabel.setTextColor(0xFF8B93B8);
+        dimLabel.setTextColor(0xFF8A8A95);
         dimLabel.setTextSize(12);
         dimLabel.setPadding(0, dp(8), 0, 0);
         wpSec.addView(dimLabel);
@@ -290,6 +296,8 @@ public class DesktopSettingsFragment extends Fragment {
                 });
         wpSec.addView(dimBar);
         Button reset = new Button(requireContext());
+        reset.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        reset.setTextColor(0xFF0B0B10);
         reset.setText("Kembalikan default");
         reset.setTextSize(13);
         reset.setOnClickListener(v -> {

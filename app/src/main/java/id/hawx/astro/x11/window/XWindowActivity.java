@@ -95,8 +95,8 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable rootBg = new GradientDrawable();
-        rootBg.setColor(0xFF0B0F1E);
-        rootBg.setStroke(dp(1), 0xFF232C4E);
+        rootBg.setColor(0xFF0B0B10);
+        rootBg.setStroke(dp(1), 0xFFD4AF37);
         rootBg.setCornerRadius(dp(10));
         root.setBackground(rootBg);
 
@@ -105,7 +105,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable barBg = new GradientDrawable();
-        barBg.setColor(0xFF232C4E);
+        barBg.setColor(0xFF12121A);
         barBg.setCornerRadii(new float[]{dp(10), dp(10), dp(10), dp(10), 0, 0, 0, 0});
         bar.setBackground(barBg);
         bar.setPadding(dp(10), 0, dp(4), 0);
@@ -115,12 +115,12 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         dot = new TextView(this);
         dot.setText("●");
         dot.setTextSize(9);
-        dot.setTextColor(0xFF8B93B8);
+        dot.setTextColor(0xFF8A8A95);
         bar.addView(dot);
 
         TextView titleView = new TextView(this);
         titleView.setText(title + " · :" + display);
-        titleView.setTextColor(0xFFE8EBFA);
+        titleView.setTextColor(0xFFE8E8EA);
         titleView.setTextSize(12);
         titleView.setSingleLine(true);
         titleView.setPadding(dp(6), 0, 0, 0);
@@ -150,7 +150,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         TextView grip = new TextView(this);
         grip.setText("◢");
         grip.setTextSize(11);
-        grip.setTextColor(0xFF8B93B8);
+        grip.setTextColor(0xFF8A8A95);
         grip.setGravity(Gravity.BOTTOM | Gravity.END);
         FrameLayout.LayoutParams gripLp = new FrameLayout.LayoutParams(dp(30), dp(30));
         gripLp.gravity = Gravity.BOTTOM | Gravity.END;
@@ -194,7 +194,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
     private TextView chromeButton(String label, View.OnClickListener click) {
         TextView b = new TextView(this);
         b.setText(label);
-        b.setTextColor(0xFFE8EBFA);
+        b.setTextColor(0xFFE8E8EA);
         b.setTextSize(13);
         b.setGravity(Gravity.CENTER);
         b.setOnClickListener(click);
@@ -309,7 +309,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
 
     @Override public void onConnectionChanged(XWindowHost h, boolean connected) {
         if (dot != null)
-            dot.setTextColor(connected ? 0xFF3DDC84 : 0xFF8B93B8);
+            dot.setTextColor(connected ? 0xFF00FF88 : 0xFF8A8A95);
     }
 
     @Override public void onStripVisibilityRequested(XWindowHost h, boolean visible) {

@@ -293,7 +293,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
                     if (glyph != null && (tx == null || tx.length() == 0)) {
                         b.setForeground(null);
                         b.setText(glyph);
-                        b.setTextColor(0xFFFFFFFF);
+                        b.setTextColor(0xFFE8E8EA);
                     }
                 }
             });
@@ -344,7 +344,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
     private TextView stripButton(String label) {
         TextView b = new TextView(getContext());
         b.setText(label);
-        b.setTextColor(0xFFE8EBFA);
+        b.setTextColor(0xFFE8E8EA);
         b.setTextSize(14);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(10), dp(7), dp(10), dp(7));

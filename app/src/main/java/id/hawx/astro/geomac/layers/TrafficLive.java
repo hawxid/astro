@@ -709,6 +709,8 @@ public final class TrafficLive {
         rowLp.topMargin = Math.round(12 * density);
         btnRow.setLayoutParams(rowLp);
         Button close = new Button(context);
+        close.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        close.setTextColor(0xFF0B0B10);
         close.setText(R.string.geomac_streetview_close);
         close.setOnClickListener(v -> d.dismiss());
         btnRow.addView(close);

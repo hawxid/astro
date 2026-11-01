@@ -223,6 +223,8 @@ public class LauncherEditActivity extends AppCompatActivity {
 
     private Button btn(String text, View.OnClickListener l) {
         Button b = new Button(this);
+        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        b.setTextColor(0xFF0B0B10);
         b.setText(text);
         b.setOnClickListener(l);
         return b;

@@ -127,7 +127,7 @@ public class TaskManagerFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         ScrollView scroll = new ScrollView(requireContext());
-        scroll.setBackgroundColor(0xFF0A0F1E);
+        scroll.setBackgroundColor(0xFF050508);
         LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16), dp(16), dp(16), dp(24));
@@ -135,7 +135,7 @@ public class TaskManagerFragment extends Fragment {
 
         TextView title = new TextView(requireContext());
         title.setText("Task Manager");
-        title.setTextColor(0xFFE8EBFA);
+        title.setTextColor(0xFFE8E8EA);
         title.setTextSize(18);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         root.addView(title);
@@ -143,32 +143,34 @@ public class TaskManagerFragment extends Fragment {
         TextView sub = new TextView(requireContext());
         sub.setText("Proses, display, dan server yang jalan — termasuk yang ngumpet. "
                 + "Tahan baris untuk aksi (Buka / Matikan / Kill). Tap baris tidak ngapa-ngapain.");
-        sub.setTextColor(0xFF8B93B8);
+        sub.setTextColor(0xFF8A8A95);
         sub.setTextSize(12);
         sub.setPadding(0, dp(2), 0, dp(10));
         root.addView(sub);
 
         Button refreshBtn = new Button(requireContext());
+        refreshBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        refreshBtn.setTextColor(0xFF0B0B10);
         refreshBtn.setText("Refresh");
         refreshBtn.setTextSize(12);
         root.addView(refreshBtn);
         refreshBtn.setOnClickListener(v -> refresh());
 
         statusText = new TextView(requireContext());
-        statusText.setTextColor(0xFF8B93B8);
+        statusText.setTextColor(0xFF8A8A95);
         statusText.setTextSize(12);
         statusText.setPadding(0, dp(6), 0, dp(6));
         root.addView(statusText);
 
         TextView ramHdr = new TextView(requireContext());
         ramHdr.setText("RAM");
-        ramHdr.setTextColor(0xFFE8EBFA);
+        ramHdr.setTextColor(0xFFE8E8EA);
         ramHdr.setTextSize(15);
         ramHdr.setTypeface(null, android.graphics.Typeface.BOLD);
         ramHdr.setPadding(0, dp(18), 0, dp(6));
         root.addView(ramHdr);
         ramText = new TextView(requireContext());
-        ramText.setTextColor(0xFFE8EBFA);
+        ramText.setTextColor(0xFFE8E8EA);
         ramText.setTextSize(14);
         root.addView(ramText);
 
@@ -181,7 +183,7 @@ public class TaskManagerFragment extends Fragment {
     private LinearLayout section(LinearLayout root, String title) {
         TextView hdr = new TextView(requireContext());
         hdr.setText(title);
-        hdr.setTextColor(0xFFE8EBFA);
+        hdr.setTextColor(0xFFE8E8EA);
         hdr.setTextSize(15);
         hdr.setTypeface(null, android.graphics.Typeface.BOLD);
         hdr.setPadding(0, dp(18), 0, dp(6));
@@ -208,7 +210,7 @@ public class TaskManagerFragment extends Fragment {
         box.removeAllViews();
         TextView t = new TextView(requireContext());
         t.setText(text);
-        t.setTextColor(0xFF8B93B8);
+        t.setTextColor(0xFF8A8A95);
         t.setTextSize(12);
         box.addView(t);
     }
@@ -220,12 +222,12 @@ public class TaskManagerFragment extends Fragment {
         row.setPadding(dp(4), dp(8), dp(4), dp(8));
         TextView t = new TextView(requireContext());
         t.setText(title);
-        t.setTextColor(0xFFE8EBFA);
+        t.setTextColor(0xFFE8E8EA);
         t.setTextSize(14);
         row.addView(t);
         TextView s = new TextView(requireContext());
         s.setText(sub);
-        s.setTextColor(0xFF8B93B8);
+        s.setTextColor(0xFF8A8A95);
         s.setTextSize(12);
         s.setMaxLines(2);
         s.setEllipsize(android.text.TextUtils.TruncateAt.END);

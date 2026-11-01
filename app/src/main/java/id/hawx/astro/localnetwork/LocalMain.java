@@ -104,7 +104,7 @@ public class LocalMain extends Fragment {
 
         refresh.setColorSchemeColors(
                 getResources().getColor(R.color.astro_accent),
-                0xFFAB47BC);
+                0xFFD4AF37);
         refresh.setOnRefreshListener(this::triggerScan);
         rescanBtn.setOnClickListener(v -> triggerScan());
 
@@ -364,7 +364,7 @@ public class LocalMain extends Fragment {
         }
 
         String override = core.getString("local_scan_target");
-        int accent = 0xFFAB47BC;
+        int accent = 0xFFD4AF37;
         int defaultText = themeTextColor();
         if (override != null && !override.isEmpty() && override.contains("/")) {
             String[] parts = override.split("/");
@@ -386,13 +386,13 @@ public class LocalMain extends Fragment {
 
     private int themeTextColor() {
         Context ctx = context != null ? context : getContext();
-        if (ctx == null) return 0xFFFFFFFF;
+        if (ctx == null) return 0xFFE8E8EA;
         android.content.res.TypedArray a = ctx.getTheme().obtainStyledAttributes(
                 new int[]{android.R.attr.textColorPrimary});
         try {
             android.content.res.ColorStateList csl = a.getColorStateList(0);
             if (csl != null) return csl.getDefaultColor();
-            return a.getColor(0, 0xFFFFFFFF);
+            return a.getColor(0, 0xFFE8E8EA);
         } finally {
             a.recycle();
         }

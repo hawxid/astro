@@ -48,6 +48,7 @@ import id.hawx.astro.geomac.store.GeoStore;
 import id.hawx.astro.geomac.ui.GeoMarkers;
 import id.hawx.astro.geomac.ui.GeoMacSearchSheet;
 import id.hawx.astro.geomac.ui.LayerSheet;
+import id.hawx.astro.geomac.ui.AtlasBottomBar;
 import id.hawx.astro.utils.Core;
 
 import org.osmdroid.api.IMapController;
@@ -92,6 +93,7 @@ public class GeoMac extends Fragment {
     private LayerStore layerStore;
     private LayerSheet layerSheet;
     private GeoMacSearchSheet searchSheet;
+    private AtlasBottomBar bottomBar;
     private TextView satCredit;
 
     private GeoPin.Category filter = null;
@@ -180,6 +182,7 @@ public class GeoMac extends Fragment {
         wireFilterChips(view);
         wirePanel(view);
         wireLayersButton(view);
+        wireBottomBar(view);
         wireActionBar(view);
         restoreFilterState(view);
         refreshOverlay();
@@ -211,6 +214,7 @@ public class GeoMac extends Fragment {
             layerSheet.dismissAllowingStateLoss();
             layerSheet = null;
         }
+        bottomBar = null;
         if (layers != null) {
             layers.hideAll();
             layers = null;
@@ -232,6 +236,43 @@ public class GeoMac extends Fragment {
         alive.set(false);
         receiver.restoreTitle();
         super.onDestroy();
+    }
+
+    /** Bilah bawah v1 (batch gede 2026-11-01): daftar tab TERPUSAT di sini.
+     *  Tambah tab = tambah satu baris di daftar ini (id, label, ikon, aksi)
+     *  — tidak perlu mengubah AtlasBottomBar maupun layout. Pill mode-switcher
+     *  TIDAK ikut v1 (tile malam belum diputuskan). */
+    private void wireBottomBar(View view) {
+        LinearLayout tabs = view.findViewById(R.id.geomac_bar_tabs);
+        if (tabs == null) return;
+        List<AtlasBottomBar.Tab> list = new ArrayList<>();
+        list.add(new AtlasBottomBar.Tab("search", R.string.atlas_bar_search,
+                R.drawable.search, this::openSearchSheet));
+        list.add(new AtlasBottomBar.Tab("layers", R.string.atlas_bar_layers,
+                R.drawable.map, this::openLayerSheet));
+        bottomBar = new AtlasBottomBar(tabs, list);
+    }
+
+    /** Tandai tab aktif + reset saat sheet-nya ditutup (swipe/backdrop).
+     *  Hook dipasang lewat post() supaya transaksi show() sudah jalan
+     *  (getDialog() baru ada setelah itu); bila dialog null, status aktif
+     *  tetap sampai tab lain diketuk — tidak merusak fungsi. */
+    private void markBarTab(String tabId, Object sheet) {
+        if (bottomBar == null) return;
+        bottomBar.setActive(tabId);
+        View root = getView();
+        if (root == null) return;
+        root.post(() -> {
+            android.app.Dialog d = null;
+            if (sheet instanceof androidx.fragment.app.DialogFragment) {
+                d = ((androidx.fragment.app.DialogFragment) sheet).getDialog();
+            }
+            if (d != null) {
+                d.setOnDismissListener(dlg -> {
+                    if (bottomBar != null) bottomBar.clearActive();
+                });
+            }
+        });
     }
 
     private void wireSearchButton(View view) {
@@ -259,6 +300,7 @@ public class GeoMac extends Fragment {
             }
         }, recentLookupBssids());
         sheet.show(getParentFragmentManager(), "atlas_search");
+        markBarTab("search", sheet);
     }
 
     /** BSSID lookup terakhir (maks 3, terbaru dulu) untuk chip TRY. */
@@ -319,6 +361,7 @@ public class GeoMac extends Fragment {
             }
         });
         sheet.show(getParentFragmentManager(), "atlas_layers");
+        markBarTab("layers", sheet);
     }
 
     private void refreshLayerSheet() {

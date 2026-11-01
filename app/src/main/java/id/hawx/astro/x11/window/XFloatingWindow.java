@@ -51,9 +51,9 @@ public class XFloatingWindow extends FrameLayout {
         this.host = host;
 
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF21A2138);
+        bg.setColor(0xF20B0B10);
         bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), 0xFF3D4A7A);
+        bg.setStroke(dp(1), 0xFFD4AF37);
         setBackground(bg);
         setClipToOutline(true);
         setElevation(dp(10));
@@ -64,19 +64,19 @@ public class XFloatingWindow extends FrameLayout {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(10), 0, dp(4), 0);
         GradientDrawable barBg = new GradientDrawable();
-        barBg.setColor(0xFF232C4E);
+        barBg.setColor(0xFF12121A);
         bar.setBackground(barBg);
         addView(bar, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(32)));
 
         TextView dot = new TextView(ctx);
         dot.setText("●");
         dot.setTextSize(9);
-        dot.setTextColor(0xFF8B93B8);
+        dot.setTextColor(0xFF8A8A95);
         bar.addView(dot);
 
         titleView = new TextView(ctx);
         titleView.setText(title);
-        titleView.setTextColor(0xFFE8EBFA);
+        titleView.setTextColor(0xFFE8E8EA);
         titleView.setTextSize(12);
         titleView.setSingleLine(true);
         titleView.setPadding(dp(6), 0, 0, 0);
@@ -145,7 +145,7 @@ public class XFloatingWindow extends FrameLayout {
         // titik status di chrome: hijau = X terhubung
         // (diambil dari anak pertama bar — TextView dot)
         LinearLayout bar = (LinearLayout) getChildAt(0);
-        ((TextView) bar.getChildAt(0)).setTextColor(connected ? 0xFF3DDC84 : 0xFF8B93B8);
+        ((TextView) bar.getChildAt(0)).setTextColor(connected ? 0xFF00FF88 : 0xFF8A8A95);
     }
 
     @Override
@@ -161,7 +161,7 @@ public class XFloatingWindow extends FrameLayout {
     private TextView chromeButton(String label, OnClickListener onClick) {
         TextView b = new TextView(getContext());
         b.setText(label);
-        b.setTextColor(0xFFD6DBF5);
+        b.setTextColor(0xFFE8E8EA);
         b.setTextSize(14);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(7), dp(2), dp(7), dp(2));

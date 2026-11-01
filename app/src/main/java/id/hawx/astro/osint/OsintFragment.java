@@ -162,7 +162,7 @@ public class OsintFragment extends Fragment {
         progressBar.setVisibility(View.GONE);
         cancelBtn.setVisibility(View.GONE);
         statusText.setText("● IDLE — pilih tool di atas");
-        statusText.setTextColor(0xFF8890A0);
+        statusText.setTextColor(0xFF8A8A95);
     }
 
     private void setRunning(String toolName) {

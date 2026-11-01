@@ -79,7 +79,7 @@ public class GeoMacSearchSheet extends BottomSheetDialogFragment {
         LinearLayout root = new LinearLayout(requireContext());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, pad, pad, Math.round(24 * density));
-        root.setBackgroundColor(color(R.color.dialog_background_color));
+        root.setBackgroundResource(R.drawable.sheet_bg_gold);
         scroll.addView(root);
 
         // Baris judul: SEARCH + tutup.

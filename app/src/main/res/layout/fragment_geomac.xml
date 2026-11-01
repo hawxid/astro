@@ -22,7 +22,7 @@
         app:cardElevation="2dp"
         app:layout_anchor="@id/geomap"
         app:layout_anchorGravity="top|center_horizontal"
-        app:strokeColor="@color/light_lite_contrast"
+        app:strokeColor="@color/osiris_gold"
         app:strokeWidth="1dp">
 
         <LinearLayout
@@ -222,10 +222,11 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:layout_margin="14dp"
+        android:layout_marginBottom="76dp"
         app:cardBackgroundColor="@color/light_contrast"
         app:cardCornerRadius="24dp"
         app:cardElevation="4dp"
-        app:strokeColor="@color/light_lite_contrast"
+        app:strokeColor="@color/osiris_gold"
         app:strokeWidth="1dp">
 
         <LinearLayout
@@ -308,10 +309,12 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
         android:layout_marginStart="14dp"
-        android:layout_marginBottom="22dp"
+        android:layout_marginBottom="84dp"
         app:cardBackgroundColor="#0F0F0F"
         app:cardCornerRadius="14dp"
-        app:cardElevation="4dp">
+        app:cardElevation="4dp"
+        app:strokeColor="@color/osiris_gold"
+        app:strokeWidth="1dp">
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/geomac_counter_text"
@@ -334,12 +337,12 @@
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginStart="12dp"
         android:layout_marginEnd="12dp"
-        android:layout_marginBottom="84dp"
+        android:layout_marginBottom="146dp"
         android:visibility="gone"
         app:cardBackgroundColor="@color/light_contrast"
         app:cardCornerRadius="20dp"
         app:cardElevation="2dp"
-        app:strokeColor="@color/light_lite_contrast"
+        app:strokeColor="@color/osiris_gold"
         app:strokeWidth="1dp">
 
         <LinearLayout
@@ -409,6 +412,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="76dp"
         android:text="@string/geomac_sat_credit"
         android:textColor="@color/grey"
         android:textSize="10sp"
@@ -430,5 +434,34 @@
         app:iconPadding="0dp"
         app:iconSize="20dp"
         app:iconTint="#D4AF37" />
+
+    <!-- Bilah bawah Atlas v1 (batch gede 2026-11-01, gaya OSIRIS):
+         pill gelap + border emas, lebar penuh di dasar layar. Tab
+         dibangun di kode (GeoMac.wireBottomBar -> AtlasBottomBar):
+         tambah tab = tambah satu entri, tanpa mengubah bilah ini.
+         Klaster FAB / counter / kartu traffic / kredit satelit
+         digeser ke atas supaya tidak tertutup bilah ini. -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/geomac_bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="@color/light_contrast"
+        app:cardCornerRadius="26dp"
+        app:cardElevation="4dp"
+        app:strokeColor="@color/osiris_gold"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:id="@+id/geomac_bar_tabs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="4dp" />
+    </com.google.android.material.card.MaterialCardView>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

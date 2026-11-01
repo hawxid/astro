@@ -165,7 +165,7 @@ public class SettingsHomeFragment extends Fragment {
     private android.graphics.drawable.GradientDrawable railSelectedBg() {
         android.graphics.drawable.GradientDrawable g =
                 new android.graphics.drawable.GradientDrawable();
-        g.setColor(0xFF1B2A52);
+        g.setColor(0xFF12121A);
         g.setCornerRadius(10 * getResources().getDisplayMetrics().density);
         return g;
     }

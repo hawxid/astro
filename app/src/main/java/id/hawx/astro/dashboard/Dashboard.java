@@ -244,63 +244,63 @@ public class Dashboard extends Fragment {
                 R.drawable.dashboard_tile_bg_blue, accent, true,
                 () -> receiver.changeFragment(R.id.wifi_item)));
         t.add(new Tool("lan", R.string.local_network, R.drawable.lan,
-                R.drawable.dashboard_tile_bg_purple, 0xFFAB47BC, true,
+                R.drawable.dashboard_tile_bg_purple, accent, true,
                 () -> receiver.changeFragment(R.id.lan_item)));
         t.add(new Tool("handshakes", R.string.dashboard_tile_handshakes, R.drawable.file,
-                R.drawable.dashboard_tile_bg_teal, 0xFF00897B, true,
+                R.drawable.dashboard_tile_bg_teal, accent, true,
                 () -> receiver.changeFragment(R.id.hs_item)));
         t.add(new Tool("exploits", R.string.dashboard_tile_exploits, R.drawable.motion_blur,
-                R.drawable.dashboard_tile_bg_orange, 0xFFEF6C00, true,
+                R.drawable.dashboard_tile_bg_orange, accent, true,
                 () -> receiver.changeFragment(R.id.arsenal_item,
                         ArsenalFragment.forTab(ArsenalFragment.TAB_HUB))));
         t.add(new Tool("searchsploit", R.string.dashboard_tile_searchsploit, R.drawable.database,
-                R.drawable.dashboard_tile_bg_pink, 0xFFD81B60, true,
+                R.drawable.dashboard_tile_bg_pink, accent, true,
                 () -> receiver.changeFragment(R.id.arsenal_item,
                         ArsenalFragment.forTab(ArsenalFragment.TAB_DB))));
         t.add(new Tool("nuclei", R.string.website, R.drawable.webscan,
-                R.drawable.dashboard_tile_bg_indigo, 0xFF3949AB, true,
+                R.drawable.dashboard_tile_bg_indigo, accent, true,
                 () -> receiver.changeFragment(R.id.nuclei_item)));
         t.add(new Tool("geomac", R.string.dashboard_tile_geomac, R.drawable.map,
-                R.drawable.dashboard_tile_bg_cyan, 0xFF00838F, true,
+                R.drawable.dashboard_tile_bg_cyan, accent, true,
                 () -> receiver.changeFragment(R.id.geomac_item)));
         t.add(new Tool("metasploit", R.string.dashboard_tile_metasploit, R.drawable.shield,
-                R.drawable.dashboard_tile_bg_red, 0xFFC62828, true,
+                R.drawable.dashboard_tile_bg_red, accent, true,
                 () -> receiver.changeFragment(R.id.metasploit_item)));
         t.add(new Tool("goose", R.string.dashboard_card_goose_title, R.drawable.ghost,
-                R.drawable.dashboard_tile_bg_green, 0xFF43A047, true,
+                R.drawable.dashboard_tile_bg_green, accent, true,
                 () -> openGooseAi()));
         t.add(new Tool("nmap", R.string.dashboard_tile_nmap, R.drawable.scanner,
-                R.drawable.dashboard_tile_bg_purple, 0xFFAB47BC, false,
+                R.drawable.dashboard_tile_bg_purple, accent, false,
                 () -> receiver.changeFragment(R.id.nmap_item)));
         t.add(new Tool("hid", R.string.dashboard_tile_hid, R.drawable.keyboard,
-                R.drawable.dashboard_tile_bg_red, 0xFFC62828, false,
+                R.drawable.dashboard_tile_bg_red, accent, false,
                 () -> receiver.changeFragment(R.id.hid_item)));
         t.add(new Tool("wordlists", R.string.dashboard_tile_wordlists, R.drawable.summarize,
-                R.drawable.dashboard_tile_bg_indigo, 0xFF5E35B1, false,
+                R.drawable.dashboard_tile_bg_indigo, accent, false,
                 () -> receiver.changeFragment(R.id.wordlists_item)));
         t.add(new Tool("macchanger", R.string.dashboard_tile_macchanger, R.drawable.password,
                 R.drawable.dashboard_tile_bg_blue, accent, false,
                 () -> receiver.changeFragment(R.id.macchanger_item)));
         t.add(new Tool("anon", R.string.dashboard_tile_anon, R.drawable.shield,
-                R.drawable.dashboard_tile_bg_teal, 0xFF00897B, false,
+                R.drawable.dashboard_tile_bg_teal, accent, false,
                 () -> receiver.changeFragment(R.id.anon_item)));
         t.add(new Tool("frida", R.string.dashboard_tile_frida, R.drawable.bug_report,
-                R.drawable.dashboard_tile_bg_red, 0xFFC62828, false,
+                R.drawable.dashboard_tile_bg_red, accent, false,
                 () -> receiver.changeFragment(R.id.frida_item)));
         t.add(new Tool("wpair", R.string.dashboard_tile_wpair, R.drawable.wpair,
-                R.drawable.dashboard_tile_bg_indigo, 0xFF3949AB, false,
+                R.drawable.dashboard_tile_bg_indigo, accent, false,
                 () -> receiver.changeFragment(R.id.wpair_item)));
         t.add(new Tool("vnc", R.string.dashboard_tile_vnc, R.drawable.vnc,
-                R.drawable.dashboard_tile_bg_purple, 0xFF5E35B1, false,
+                R.drawable.dashboard_tile_bg_purple, accent, false,
                 () -> receiver.changeFragment(R.id.vnc_item)));
         t.add(new Tool("usb", R.string.dashboard_tile_usb, R.drawable.usb,
                 R.drawable.dashboard_tile_bg_blue, accent, false,
                 () -> receiver.changeFragment(R.id.usb_arsenal_item)));
         t.add(new Tool("manager", R.string.dashboard_tile_manager, R.drawable.tune,
-                R.drawable.dashboard_tile_bg_teal, 0xFF00897B, false,
+                R.drawable.dashboard_tile_bg_teal, accent, false,
                 () -> receiver.changeFragment(R.id.manager_item)));
         t.add(new Tool("logs", R.string.dashboard_tile_logs, R.drawable.bug_report,
-                R.drawable.dashboard_tile_bg_orange, 0xFFEF6C00, false,
+                R.drawable.dashboard_tile_bg_orange, accent, false,
                 () -> receiver.changeFragment(R.id.logs_item)));
         return t;
     }
@@ -525,7 +525,7 @@ public class Dashboard extends Fragment {
         label.setText(text);
         label.setGravity(android.view.Gravity.CENTER);
         label.setTextSize(11f);
-        label.setTextColor(running ? 0xFF39D98A : 0xFFFFFFFF);
+        label.setTextColor(running ? 0xFF00FF88 : 0xFFE8E8EA);
         label.setShadowLayer(4f, 0f, 1f, 0xCC000000);
         return label;
     }
@@ -576,7 +576,7 @@ public class Dashboard extends Fragment {
         tv.setText(label);
         tv.setTextSize(30);
         tv.setGravity(android.view.Gravity.CENTER);
-        tv.setTextColor(0xFFFFFFFF);
+        tv.setTextColor(0xFFE8E8EA);
         tv.setShadowLayer(5f, 0f, 2f, 0xCC000000);
         tv.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
         return tv;
@@ -690,7 +690,7 @@ public class Dashboard extends Fragment {
         b.setGravity(android.view.Gravity.CENTER);
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
         g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        g.setColor(0xFF1B2440);
+        g.setColor(0xFF12121A);
         b.setBackground(g);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
         lp.setMargins(dp(4), 0, dp(4), 0);
@@ -705,12 +705,12 @@ public class Dashboard extends Fragment {
     private View dockIconBtn(int iconRes, View.OnClickListener cb) {
         ImageView b = new ImageView(context);
         b.setImageResource(iconRes);
-        b.setColorFilter(0xFF9AA0AE);
+        b.setColorFilter(0xFF8A8A95);
         b.setScaleType(ImageView.ScaleType.FIT_CENTER);
         b.setPadding(dp(11), dp(11), dp(11), dp(11));
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
         g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        g.setColor(0xFF1B2440);
+        g.setColor(0xFF12121A);
         b.setBackground(g);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
         lp.setMargins(dp(4), 0, dp(4), 0);
@@ -864,9 +864,9 @@ public class Dashboard extends Fragment {
         b.setContentDescription(e.name != null ? e.name : "Launcher");
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
         g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        g.setColor(0xFF1B2440);
+        g.setColor(0xFF12121A);
         b.setBackground(g);
-        b.setTextColor(0xFFFFFFFF);
+        b.setTextColor(0xFFE8E8EA);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
         lp.setMargins(dp(4), 0, dp(4), 0);
         b.setLayoutParams(lp);
@@ -899,10 +899,10 @@ public class Dashboard extends Fragment {
         b.setContentDescription(di.name != null ? di.name : "Display " + di.display);
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
         g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        g.setColor(min ? 0xFF12182C : 0xFF2A3B6E);
-        b.setTextColor(min ? 0xFF8A93A8 : 0xFFFFFFFF);
+        g.setColor(min ? 0xFF12121A : 0xFFD4AF37);
+        b.setTextColor(min ? 0xFF8A8A95 : 0xFF0B0B10);
         if (!open && !min) { // server hidup, jendela belum ada
-            g.setStroke(dp(1), 0xFF54628F);
+            g.setStroke(dp(1), 0xFFD4AF37);
         }
         b.setBackground(g);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
@@ -964,8 +964,8 @@ public class Dashboard extends Fragment {
         b.setContentDescription(info.title != null ? info.title : "Webview");
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
         g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        g.setColor(info.visible ? 0xFF2A3B6E : 0xFF12182C);
-        b.setTextColor(info.visible ? 0xFFFFFFFF : 0xFF8A93A8);
+        g.setColor(info.visible ? 0xFFD4AF37 : 0xFF12121A);
+        b.setTextColor(info.visible ? 0xFF0B0B10 : 0xFF8A8A95);
         b.setBackground(g);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
         lp.setMargins(dp(4), 0, dp(4), 0);
@@ -1016,8 +1016,8 @@ public class Dashboard extends Fragment {
         b.setContentDescription("Display :0");
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
         g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        g.setColor(0xFF2A3B6E);
-        b.setTextColor(0xFFFFFFFF);
+        g.setColor(0xFFD4AF37);
+        b.setTextColor(0xFF0B0B10);
         b.setBackground(g);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
         lp.setMargins(dp(4), 0, dp(4), 0);
@@ -1079,7 +1079,7 @@ public class Dashboard extends Fragment {
                 slp.setMargins(dp(6), 0, dp(6), 0);
                 slp.gravity = android.view.Gravity.CENTER_VERTICAL;
                 sep.setLayoutParams(slp);
-                sep.setBackgroundColor(0xFF3A4767);
+                sep.setBackgroundColor(0xFF2A2A35);
                 dockBar.addView(sep);
             }
             for (XSessionManager.DisplayInfo di : list)
@@ -1105,7 +1105,7 @@ public class Dashboard extends Fragment {
                             slp.setMargins(dp(6), 0, dp(6), 0);
                             slp.gravity = android.view.Gravity.CENTER_VERTICAL;
                             sep.setLayoutParams(slp);
-                            sep.setBackgroundColor(0xFF3A4767);
+                            sep.setBackgroundColor(0xFF2A2A35);
                             dockBar.addView(sep);
                         }
                         dockBar.addView(dockZeroBtn());

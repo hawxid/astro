@@ -63,7 +63,7 @@
     </style>
 
     <style name="Widget.Astro.AlertDialog" parent="@style/ThemeOverlay.Material3.MaterialAlertDialog">
-        <item name="android:background">@color/light_contrast</item>
+        <item name="android:background">@drawable/dialog_bg_gold</item>
     </style>
 
     <style name="Widget.Astro.Switch" parent="Widget.Material3.CompoundButton.Switch">

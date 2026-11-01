@@ -343,7 +343,7 @@ public class WebOverlayWindows {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(0xF20B0B10);
         bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), 0xFF2A2A35);
+        bg.setStroke(dp(1), 0xFFD4AF37);
         win.setBackground(bg);
         win.setClipToOutline(true);
         win.setElevation(dp(10));
@@ -366,7 +366,7 @@ public class WebOverlayWindows {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView v, String url) {
-                if (dotView != null) dotView.setTextColor(0xFF3DDC84);
+                if (dotView != null) dotView.setTextColor(0xFF00FF88);
                 // State tombol ←: redup (bukan hilang) bila tak ada
                 // history; goBack() selalu memicu page finish, jadi
                 // state ini selalu segar tanpa listener baru.
@@ -430,12 +430,12 @@ public class WebOverlayWindows {
         dotView = new TextView(act);
         dotView.setText("●");
         dotView.setTextSize(9);
-        dotView.setTextColor(0xFF8B93B8);
+        dotView.setTextColor(0xFF8A8A95);
         bar.addView(dotView);
 
         TextView titleView = new TextView(act);
         titleView.setText(title);
-        titleView.setTextColor(0xFFE8EBFA);
+        titleView.setTextColor(0xFFE8E8EA);
         titleView.setTextSize(12);
         titleView.setSingleLine(true);
         titleView.setPadding(dp(6), 0, 0, 0);
@@ -595,7 +595,7 @@ public class WebOverlayWindows {
     private TextView chromeBtn(String label, View.OnClickListener onClick) {
         TextView b = new TextView(activity);
         b.setText(label);
-        b.setTextColor(0xFFD6DBF5);
+        b.setTextColor(0xFFE8E8EA);
         b.setTextSize(14);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(7), dp(2), dp(7), dp(2));
@@ -885,13 +885,13 @@ public class WebOverlayWindows {
         String label = dockLabel;
         if (label == null || label.isEmpty()) label = dockLabelFor("", title);
         icon.setText(label);
-        icon.setTextColor(0xFFE8EBFA);
+        icon.setTextColor(0xFFE8E8EA);
         icon.setTextSize(16);
         icon.setGravity(Gravity.CENTER);
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
         bg.setColor(0xFF0B0B10);
-        bg.setStroke(dp(1), 0xFF2A2A35);
+        bg.setStroke(dp(1), 0xFFD4AF37);
         icon.setBackground(bg);
         icon.setElevation(dp(10));
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(

@@ -16,11 +16,11 @@ import androidx.appcompat.widget.AppCompatEditText;
 
 public class LinedEditText extends AppCompatEditText {
 
-    private static final int COLOR_GUTTER_BG     = 0xFFF4F6FA;
-    private static final int COLOR_GUTTER_BORDER = 0xFFE3E7EE;
-    private static final int COLOR_GUTTER_TEXT   = 0xFF94A3B8;
-    private static final int COLOR_GUTTER_ACTIVE = 0xFF1565C0;
-    private static final int COLOR_CURRENT_LINE  = 0x141565C0;
+    private static final int COLOR_GUTTER_BG     = 0xFF12121A;
+    private static final int COLOR_GUTTER_BORDER = 0xFF2A2A35;
+    private static final int COLOR_GUTTER_TEXT   = 0xFF8A8A95;
+    private static final int COLOR_GUTTER_ACTIVE = 0xFFD4AF37;
+    private static final int COLOR_CURRENT_LINE  = 0x14D4AF37;
     private static final int COLOR_ERROR_LINE    = 0x1FC62828;
     private static final int COLOR_ERROR_STRIPE  = 0xFFC62828;
 

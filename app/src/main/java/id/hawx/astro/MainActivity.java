@@ -593,7 +593,7 @@ public class MainActivity extends AppCompatActivity {
         TextView tv = new TextView(this);
         tv.setText(text);
         tv.setTextSize(12.5f);
-        tv.setTextColor(0xFFE8E6F0);
+        tv.setTextColor(0xFFE8E8EA);
         tv.setGravity(android.view.Gravity.CENTER);
         tv.setPadding(dp(10), dp(6), dp(10), dp(6));
         return tv;
@@ -637,18 +637,18 @@ public class MainActivity extends AppCompatActivity {
         power.setPadding(dp(10), dp(12), dp(10), dp(12));
         power.setScaleType(ImageView.ScaleType.FIT_CENTER);
         power.setImageResource(R.drawable.ic_power);
-        power.setColorFilter(0xFFE8E6F0);
+        power.setColorFilter(0xFFE8E8EA);
         power.setOnClickListener(v -> confirmUnmountMain());
         panel.addView(power);
 
         winTitleS = findViewById(R.id.win_title);
         winIconS = findViewById(R.id.win_icon);
-        if (winIconS != null) winIconS.setColorFilter(0xFFE8E6F0);
+        if (winIconS != null) winIconS.setColorFilter(0xFFE8E8EA);
         TextView winClose = findViewById(R.id.win_close);
         if (winClose != null) {
             android.graphics.drawable.GradientDrawable cg =
                     new android.graphics.drawable.GradientDrawable();
-            cg.setColor(0xFF26314F);
+            cg.setColor(0xFF12121A);
             cg.setCornerRadius(dp(8));
             winClose.setBackground(cg);
             winClose.setOnClickListener(v -> {
@@ -733,9 +733,9 @@ public class MainActivity extends AppCompatActivity {
         if (on) {
             android.graphics.drawable.GradientDrawable g =
                     new android.graphics.drawable.GradientDrawable();
-            g.setColor(0xFF101828);
+            g.setColor(0xFF0B0B10);
             g.setCornerRadius(dp(16));
-            g.setStroke(dp(1), 0xFF2A3A63);
+            g.setStroke(dp(1), 0xFFD4AF37);
             frame.setBackground(g);
             frame.setClipToOutline(true);
         } else {
@@ -761,13 +761,13 @@ public class MainActivity extends AppCompatActivity {
     // a permission axis into functional groups). Control = tools that drive
     // another device (USB gadget, live input, IR remote).
     private static final Object[][] APPS_CATS = {
-            {"\u2B50", "Essentials", 0xFFA088F0, new int[]{R.id.dasboard_item, R.id.terminal_item, R.id.logs_item}},
-            {"\uD83D\uDCF6", "Wireless", 0xFF5B8DEF, new int[]{R.id.wifi_item, R.id.hs_item, R.id.wpair_item, R.id.bt_item}},
-            {"\uD83C\uDF10", "Network", 0xFFE06BC0, new int[]{R.id.lan_item, R.id.nmap_item, R.id.geomac_item, R.id.macchanger_item, R.id.anon_item}},
-            {"\uD83C\uDFAF", "Offensive", 0xFFFF6B6B, new int[]{R.id.nuclei_item, R.id.arsenal_item, R.id.metasploit_item, R.id.hid_item, R.id.osint_item, R.id.frida_item}},
-            {"\uD83E\uDDF0", "Tools", 0xFFA088F0, new int[]{R.id.wordlists_item, R.id.vnc_item, R.id.manager_item}},
-            {"\uD83C\uDFAE", "Control", 0xFFFFA726, new int[]{R.id.usb_arsenal_item, R.id.keysmouse_item, R.id.ir_item}},
-            {"\u2699\uFE0F", "System", 0xFF4CC38A, new int[]{R.id.system_setting_item, R.id.system_desktop_item, R.id.system_taskmgr_item, R.id.about_item}},
+            {"\u2B50", "Essentials", 0xFFD4AF37, new int[]{R.id.dasboard_item, R.id.terminal_item, R.id.logs_item}},
+            {"\uD83D\uDCF6", "Wireless", 0xFFD4AF37, new int[]{R.id.wifi_item, R.id.hs_item, R.id.wpair_item, R.id.bt_item}},
+            {"\uD83C\uDF10", "Network", 0xFFD4AF37, new int[]{R.id.lan_item, R.id.nmap_item, R.id.geomac_item, R.id.macchanger_item, R.id.anon_item}},
+            {"\uD83C\uDFAF", "Offensive", 0xFFD4AF37, new int[]{R.id.nuclei_item, R.id.arsenal_item, R.id.metasploit_item, R.id.hid_item, R.id.osint_item, R.id.frida_item}},
+            {"\uD83E\uDDF0", "Tools", 0xFFD4AF37, new int[]{R.id.wordlists_item, R.id.vnc_item, R.id.manager_item}},
+            {"\uD83C\uDFAE", "Control", 0xFFD4AF37, new int[]{R.id.usb_arsenal_item, R.id.keysmouse_item, R.id.ir_item}},
+            {"\u2699\uFE0F", "System", 0xFFD4AF37, new int[]{R.id.system_setting_item, R.id.system_desktop_item, R.id.system_taskmgr_item, R.id.about_item}},
     };
 
     private android.graphics.drawable.GradientDrawable roundBg(int color, float radiusDp) {
@@ -785,8 +785,8 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(6), dp(6), dp(6), dp(6));
-        android.graphics.drawable.GradientDrawable bg = roundBg(0xFF0B1120, 16);
-        bg.setStroke(dp(1), 0xFF2A3A63);
+        android.graphics.drawable.GradientDrawable bg = roundBg(0xFF0B0B10, 16);
+        bg.setStroke(dp(1), 0xFFD4AF37);
         root.setBackground(bg);
 
         // Kepala menu: elang + nama + versi
@@ -809,12 +809,12 @@ public class MainActivity extends AppCompatActivity {
         nm.setText("Astro");
         nm.setTextSize(15);
         nm.setTypeface(null, android.graphics.Typeface.BOLD);
-        nm.setTextColor(0xFFE8E6F0);
+        nm.setTextColor(0xFFE8E8EA);
         nameCol.addView(nm);
         TextView ver = new TextView(context);
         ver.setText("v" + BuildConfig.VERSION_NAME);
         ver.setTextSize(10.5f);
-        ver.setTextColor(0xFF8B93A7);
+        ver.setTextColor(0xFF8A8A95);
         nameCol.addView(ver);
         head.addView(nameCol);
         root.addView(head);
@@ -823,7 +823,7 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout stat = new LinearLayout(context);
         stat.setOrientation(LinearLayout.HORIZONTAL);
         stat.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        stat.setBackground(roundBg(0xFF0D1424, 10));
+        stat.setBackground(roundBg(0xFF12121A, 10));
         stat.setPadding(dp(10), dp(7), dp(10), dp(7));
         LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -833,14 +833,14 @@ public class MainActivity extends AppCompatActivity {
         android.graphics.drawable.GradientDrawable dg = new android.graphics.drawable.GradientDrawable();
         dg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
         boolean mounted = core != null && Boolean.TRUE.equals(core.isMounted());
-        dg.setColor(mounted ? 0xFF3DDC84 : 0xFF5B6475);
+        dg.setColor(mounted ? 0xFF00FF88 : 0xFF8A8A95);
         dot.setBackground(dg);
         dot.setLayoutParams(new LinearLayout.LayoutParams(dp(8), dp(8)));
         stat.addView(dot);
         TextView stTxt = new TextView(context);
         stTxt.setText(mounted ? "Chroot mounted" : "Chroot not mounted");
         stTxt.setTextSize(11.5f);
-        stTxt.setTextColor(0xFFE8E6F0);
+        stTxt.setTextColor(0xFFE8E8EA);
         LinearLayout.LayoutParams sttLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         sttLp.setMargins(dp(7), 0, 0, 0);
@@ -852,8 +852,8 @@ public class MainActivity extends AppCompatActivity {
         TextView chip = new TextView(context);
         chip.setText("arm64");
         chip.setTextSize(10);
-        chip.setTextColor(0xFF8B93A7);
-        chip.setBackground(roundBg(0xFF182238, 6));
+        chip.setTextColor(0xFF8A8A95);
+        chip.setBackground(roundBg(0xFF12121A, 6));
         chip.setPadding(dp(7), dp(2), dp(7), dp(2));
         stat.addView(chip);
         root.addView(stat);
@@ -869,7 +869,7 @@ public class MainActivity extends AppCompatActivity {
 
             LinearLayout box = new LinearLayout(context);
             box.setOrientation(LinearLayout.VERTICAL);
-            box.setBackgroundColor(0xFF0A0F1E);
+            box.setBackgroundColor(0xFF12121A);
             box.setVisibility(label.equals("Essentials") ? View.VISIBLE : View.GONE);
 
             for (int itemId : ids) {
@@ -883,11 +883,11 @@ public class MainActivity extends AppCompatActivity {
                 android.widget.FrameLayout fr = new android.widget.FrameLayout(context);
                 fr.setLayoutParams(new LinearLayout.LayoutParams(dp(32), dp(32)));
                 View circ = new View(context);
-                circ.setBackground(roundBg(0xFF131D33, 16));
+                circ.setBackground(roundBg(0xFF12121A, 16));
                 fr.addView(circ, new android.widget.FrameLayout.LayoutParams(dp(32), dp(32)));
                 ImageView ic = new ImageView(context);
                 ic.setImageResource(spec.iconRes);
-                ic.setColorFilter(0xFF9AA0AE);
+                ic.setColorFilter(0xFF8A8A95);
                 android.widget.FrameLayout.LayoutParams icLp = new android.widget.FrameLayout.LayoutParams(dp(18), dp(18));
                 icLp.gravity = android.view.Gravity.CENTER;
                 fr.addView(ic, icLp);
@@ -895,7 +895,7 @@ public class MainActivity extends AppCompatActivity {
                 TextView tt = new TextView(context);
                 tt.setText(spec.title);
                 tt.setTextSize(13.5f);
-                tt.setTextColor(0xFFE8E6F0);
+                tt.setTextColor(0xFFE8E8EA);
                 LinearLayout.LayoutParams ttLp = new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
                 ttLp.setMargins(dp(11), 0, 0, 0);
@@ -919,7 +919,7 @@ public class MainActivity extends AppCompatActivity {
             em.setText(emoji);
             em.setTextSize(16);
             em.setGravity(android.view.Gravity.CENTER);
-            em.setBackground(roundBg(0xFF131D33, 17));
+            em.setBackground(roundBg(0xFF12121A, 17));
             em.setLayoutParams(new LinearLayout.LayoutParams(dp(34), dp(34)));
             hdr.addView(em);
             TextView lb = new TextView(context);
@@ -938,12 +938,12 @@ public class MainActivity extends AppCompatActivity {
             TextView cnt = new TextView(context);
             cnt.setText(String.valueOf(ids.length));
             cnt.setTextSize(10.5f);
-            cnt.setTextColor(0xFF5B6475);
+            cnt.setTextColor(0xFF8A8A95);
             hdr.addView(cnt);
             TextView arr = new TextView(context);
             arr.setText(label.equals("Essentials") ? "\u2304" : "\u203A");
             arr.setTextSize(15);
-            arr.setTextColor(0xFF5B6475);
+            arr.setTextColor(0xFF8A8A95);
             LinearLayout.LayoutParams arrLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             arrLp.setMargins(dp(6), 0, 0, 0);
@@ -968,7 +968,7 @@ public class MainActivity extends AppCompatActivity {
         TextView foot = new TextView(context);
         foot.setText("Open-source \u00B7 authorized testing only");
         foot.setTextSize(10);
-        foot.setTextColor(0xFF5B6475);
+        foot.setTextColor(0xFF8A8A95);
         foot.setPadding(dp(14), dp(10), dp(14), dp(6));
         root.addView(foot);
 
@@ -1328,34 +1328,34 @@ public class MainActivity extends AppCompatActivity {
 
     private static java.util.LinkedHashMap<Integer, DrawerSpec> buildDrawerSpecs() {
         java.util.LinkedHashMap<Integer, DrawerSpec> m = new java.util.LinkedHashMap<>();
-        m.put(R.id.dasboard_item,     new DrawerSpec("Dashboard",        R.drawable.home,        0xFF1565C0));
-        m.put(R.id.terminal_item,     new DrawerSpec("Terminal",         R.drawable.terminal,    0xFF1565C0));
-        m.put(R.id.logs_item,         new DrawerSpec("Logs",             R.drawable.bug_report,  0xFF1565C0));
-        m.put(R.id.wifi_item,         new DrawerSpec("WiFi networks",    R.drawable.wifi,        0xFF1565C0));
-        m.put(R.id.hs_item,           new DrawerSpec("Handshakes",       R.drawable.storage,     0xFF00897B));
-        m.put(R.id.macchanger_item,   new DrawerSpec("MAC changer",      R.drawable.password,    0xFF1565C0));
-        m.put(R.id.anon_item,         new DrawerSpec("Mode Anonim",      R.drawable.shield,      0xFF00897B));
-        m.put(R.id.frida_item,        new DrawerSpec("Frida",            R.drawable.bug_report,  0xFFFF6B6B));
-        m.put(R.id.wpair_item,        new DrawerSpec("WhisperPair (BLE)", R.drawable.wpair,      0xFF3949AB));
-        m.put(R.id.bt_item,           new DrawerSpec("Bluetooth", R.drawable.wpair, 0xFF3949AB));
-        m.put(R.id.osint_item,         new DrawerSpec("OSINT Recon",       R.drawable.scanner,    0xFF00E5FF));
-        m.put(R.id.lan_item,          new DrawerSpec("Local network",    R.drawable.lan,         0xFFAB47BC));
-        m.put(R.id.nmap_item,         new DrawerSpec("Nmap",             R.drawable.scanner,     0xFFAB47BC));
-        m.put(R.id.nuclei_item,       new DrawerSpec("Web scanner",      R.drawable.webscan,     0xFF3949AB));
-        m.put(R.id.arsenal_item,      new DrawerSpec("Arsenal",          R.drawable.motion_blur, 0xFFEF6C00));
-        m.put(R.id.hid_item,          new DrawerSpec("HID Attacks",      R.drawable.keyboard,    0xFFC62828));
-        m.put(R.id.keysmouse_item,    new DrawerSpec("Keys + Mouse",     R.drawable.keyboard,    0xFF1565C0));
-        m.put(R.id.metasploit_item,   new DrawerSpec("Metasploit",       R.drawable.shield,      0xFFC62828));
-        m.put(R.id.wordlists_item,    new DrawerSpec("Wordlists",        R.drawable.summarize,   0xFF5E35B1));
-        m.put(R.id.geomac_item,       new DrawerSpec("GeoMac",           R.drawable.map,         0xFF00838F));
-        m.put(R.id.vnc_item,          new DrawerSpec("VNC desktop",      R.drawable.vnc,         0xFF5E35B1));
-        m.put(R.id.usb_arsenal_item,  new DrawerSpec("USB Arsenal",      R.drawable.usb,         0xFF1565C0));
-        m.put(R.id.manager_item,      new DrawerSpec("Core manager",     R.drawable.tune,        0xFF5E35B1));
-        m.put(R.id.about_item,        new DrawerSpec("About",            R.drawable.info_outlined, 0xFF1565C0));
-        m.put(R.id.ir_item,           new DrawerSpec("IR Blaster",       R.drawable.remote,      0xFFFFA726));
-        m.put(R.id.system_setting_item, new DrawerSpec("Setting",        R.drawable.settings,    0xFF4CC38A));
-        m.put(R.id.system_desktop_item, new DrawerSpec("Desktop",        R.drawable.tune,        0xFF4CC38A));
-        m.put(R.id.system_taskmgr_item, new DrawerSpec("Task Manager",   R.drawable.analytics,   0xFF4CC38A));
+        m.put(R.id.dasboard_item,     new DrawerSpec("Dashboard",        R.drawable.home,        0xFFD4AF37));
+        m.put(R.id.terminal_item,     new DrawerSpec("Terminal",         R.drawable.terminal,    0xFFD4AF37));
+        m.put(R.id.logs_item,         new DrawerSpec("Logs",             R.drawable.bug_report,  0xFFD4AF37));
+        m.put(R.id.wifi_item,         new DrawerSpec("WiFi networks",    R.drawable.wifi,        0xFFD4AF37));
+        m.put(R.id.hs_item,           new DrawerSpec("Handshakes",       R.drawable.storage,     0xFFD4AF37));
+        m.put(R.id.macchanger_item,   new DrawerSpec("MAC changer",      R.drawable.password,    0xFFD4AF37));
+        m.put(R.id.anon_item,         new DrawerSpec("Mode Anonim",      R.drawable.shield,      0xFFD4AF37));
+        m.put(R.id.frida_item,        new DrawerSpec("Frida",            R.drawable.bug_report,  0xFFD4AF37));
+        m.put(R.id.wpair_item,        new DrawerSpec("WhisperPair (BLE)", R.drawable.wpair,      0xFFD4AF37));
+        m.put(R.id.bt_item,           new DrawerSpec("Bluetooth", R.drawable.wpair, 0xFFD4AF37));
+        m.put(R.id.osint_item,         new DrawerSpec("OSINT Recon",       R.drawable.scanner,    0xFFD4AF37));
+        m.put(R.id.lan_item,          new DrawerSpec("Local network",    R.drawable.lan,         0xFFD4AF37));
+        m.put(R.id.nmap_item,         new DrawerSpec("Nmap",             R.drawable.scanner,     0xFFD4AF37));
+        m.put(R.id.nuclei_item,       new DrawerSpec("Web scanner",      R.drawable.webscan,     0xFFD4AF37));
+        m.put(R.id.arsenal_item,      new DrawerSpec("Arsenal",          R.drawable.motion_blur, 0xFFD4AF37));
+        m.put(R.id.hid_item,          new DrawerSpec("HID Attacks",      R.drawable.keyboard,    0xFFD4AF37));
+        m.put(R.id.keysmouse_item,    new DrawerSpec("Keys + Mouse",     R.drawable.keyboard,    0xFFD4AF37));
+        m.put(R.id.metasploit_item,   new DrawerSpec("Metasploit",       R.drawable.shield,      0xFFD4AF37));
+        m.put(R.id.wordlists_item,    new DrawerSpec("Wordlists",        R.drawable.summarize,   0xFFD4AF37));
+        m.put(R.id.geomac_item,       new DrawerSpec("GeoMac",           R.drawable.map,         0xFFD4AF37));
+        m.put(R.id.vnc_item,          new DrawerSpec("VNC desktop",      R.drawable.vnc,         0xFFD4AF37));
+        m.put(R.id.usb_arsenal_item,  new DrawerSpec("USB Arsenal",      R.drawable.usb,         0xFFD4AF37));
+        m.put(R.id.manager_item,      new DrawerSpec("Core manager",     R.drawable.tune,        0xFFD4AF37));
+        m.put(R.id.about_item,        new DrawerSpec("About",            R.drawable.info_outlined, 0xFFD4AF37));
+        m.put(R.id.ir_item,           new DrawerSpec("IR Blaster",       R.drawable.remote,      0xFFD4AF37));
+        m.put(R.id.system_setting_item, new DrawerSpec("Setting",        R.drawable.settings,    0xFFD4AF37));
+        m.put(R.id.system_desktop_item, new DrawerSpec("Desktop",        R.drawable.tune,        0xFFD4AF37));
+        m.put(R.id.system_taskmgr_item, new DrawerSpec("Task Manager",   R.drawable.analytics,   0xFFD4AF37));
         return m;
     }
 
