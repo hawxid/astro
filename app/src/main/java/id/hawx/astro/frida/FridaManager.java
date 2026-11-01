@@ -35,9 +35,12 @@ import java.util.UUID;
  *
  * Aturan keras (dari diskusi keamanan 2026-11-01):
  * - Localhost-only di semua tempat; tidak ada flag/bind 0.0.0.0.
- * - Binary resmi Frida saja: asset frida-server-17.25.0 yang
- *   dibundel (MD5 .xz ce63c5aeebfc1187e36a5b629de5abcd, sama
- *   dengan binary PoC Hawx) — TIDAK ADA download-on-demand.
+ * - Binary MANUAL, bukan bundel (Batch18, arahan Hawx):
+ *   user menaruh sendiri binary resmi Frida di
+ *   filesDir/frida-server (versi PoC: 17.25.0). Manager TIDAK
+ *   PERNAH mengunduh, menyalin asset, atau mengekstrak. Aset
+ *   .xz DIHAPUS dari repo/APK (bloated + beban download tiap
+ *   test) — APK kembali ~18 MB.
  * - On-demand + kill-after: tidak ada autostart, tidak ada daemon
  *   boot, tidak ada proses permanen. start() idempotent (komponen
  *   yang sudah jalan tidak di-start ulang); stop() best-effort
@@ -79,12 +82,9 @@ public final class FridaManager {
      *  pemakai 18081 di codebase; bluez memakai 18923). */
     public static final int BRIDGE_PORT = 18081;
 
-    /** Asset binary resmi (versi = versi PoC Hawx, 17.25.0). */
-    private static final String FRIDA_ASSET = "frida-server-17.25.0-android-arm64.xz";
+    /** Binary frida-server: DITARUH MANUAL user di filesDir
+     *  (bukan asset) — lihat ensureBinaryPresent(). */
     private static final String BRIDGE_ASSET = "astro_frida_bridge.py";
-    /** Ukuran biner hasil ekstrak (byte) — cek integritas murah:
-     *  bila filesDir/frida-server ukurannya beda, ekstrak ulang. */
-    private static final long FRIDA_BIN_SIZE = 84850200L;
     private static final String BRIDGE_CHROOT_PATH = "/tmp/astro_frida_bridge.py";
     private static final String CHROOT_ROOT = "/data/local/astro/release";
     private static final int POLL_TRIES = 10;
@@ -121,10 +121,6 @@ public final class FridaManager {
         return new File(appContext.getFilesDir(), "frida-server");
     }
 
-    private File fridaXzFile() {
-        return new File(appContext.getFilesDir(), "frida-server.xz");
-    }
-
     private File fridaPidFile() {
         return new File(appContext.getFilesDir(), "frida-server.pid");
     }
@@ -138,15 +134,16 @@ public final class FridaManager {
     /**
      * Start on-demand (idempotent). Komponen yang sudah listening
      * tidak di-start ulang. Melempar IOException dengan pesan jelas
-     * bila ada komponen gagal hidup (binary gagal ekstrak, chroot
-     * belum terpasang, port tidak menjawab). WAJIB thread latar.
+     * bila ada komponen gagal hidup (binary tidak ditemukan di
+     * filesDir, chroot belum terpasang, port tidak menjawab).
+     * WAJIB thread latar.
      */
     public synchronized Status start() throws IOException {
         Status cur = status();
         boolean serverUp = cur.serverRunning;
         boolean bridgeUp = cur.bridgeRunning;
         if (!serverUp) {
-            ensureBinary();
+            ensureBinaryPresent();
             startServer();
             serverUp = waitListening(FRIDA_PORT);
             if (!serverUp) {
@@ -230,32 +227,26 @@ public final class FridaManager {
     // ---------------- frida-server ----------------
 
     /**
-     * Pastikan binary siap di filesDir: sudah ada + ukuran cocok +
-     * executable = pakai; selain itu ekstrak ulang dari asset .xz
-     * lewat busybox unxz (applet terbukti ada di busybox64 yang
-     * dibundel). TIDAK ADA download — gagal = IOException jelas.
+     * Manager-only (Batch18): binary TIDAK PERNAH diunduh,
+     * disalin dari asset, atau diekstrak. User menaruh sendiri
+     * binary resmi Frida di filesDir/frida-server; manager hanya
+     * memastikan file itu ada + bisa dieksekusi. Bila tidak ada,
+     * gagal dengan pesan jelas (bukan ekstrak diam-diam).
      */
-    private void ensureBinary() throws IOException {
+    private void ensureBinaryPresent() throws IOException {
         File bin = fridaBinFile();
-        if (bin.length() == FRIDA_BIN_SIZE && bin.canExecute()) return;
-        File xz = fridaXzFile();
-        copyAsset(FRIDA_ASSET, xz);
-        if (!Core.extractBusybox(appContext)) {
-            throw new IOException("busybox tidak bisa diekstrak — "
-                    + "dekompresi frida-server gagal");
+        if (!bin.exists()) {
+            throw new IOException("frida-server tidak ditemukan di "
+                    + bin.getAbsolutePath() + " — taruh binary manual "
+                    + "di situ lalu Start lagi");
         }
-        File part = new File(appContext.getFilesDir(), "frida-server.part");
-        String cmd = Core.BUSYBOX + "unxz -c " + Apt.shellQuote(xz.getAbsolutePath())
-                + " > " + Apt.shellQuote(part.getAbsolutePath())
-                + " && chmod 700 " + Apt.shellQuote(part.getAbsolutePath())
-                + " && mv " + Apt.shellQuote(part.getAbsolutePath())
-                + " " + Apt.shellQuote(bin.getAbsolutePath())
-                + " || rm -f " + Apt.shellQuote(part.getAbsolutePath());
-        core.executeCommand(cmd);
-        if (!(bin.length() == FRIDA_BIN_SIZE && bin.canExecute())) {
-            throw new IOException("frida-server gagal diekstrak (ukuran tidak "
-                    + "cocok dengan 17.25.0) — hapus filesDir/frida-server "
-                    + "dan ulangi start");
+        if (!bin.canExecute()) {
+            bin.setExecutable(true);
+        }
+        if (!bin.canExecute()) {
+            throw new IOException("frida-server di "
+                    + bin.getAbsolutePath() + " tidak bisa dieksekusi "
+                    + "— chmod +x lalu Start lagi");
         }
     }
 
