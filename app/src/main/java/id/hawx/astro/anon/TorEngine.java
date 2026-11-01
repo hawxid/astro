@@ -25,11 +25,24 @@ import java.util.regex.Pattern;
  * Datadir + dir induk di-chown ke debian-tor supaya daemon bisa menulis
  * log/pidfile; torrc tetap milik root 644 (bisa dibaca daemon).
  *
- * Aturan nat/OUTPUT (IPv4 saja di v1, sama seperti kill switch WG):
- * owner-RETURN UID 104 (trafik Tor sendiri lolos), lo-RETURN (layanan
- * lokal tidak ikut di-redirect), DNS REDIRECT ke 5353, TCP REDIRECT ke
- * 9040. Aturan dipasang SEBELUM bootstrap 100%: fail-closed — selama
- * menghubungkan, trafik menunggu sirkuit, bukan bocor langsung.
+ * Aturan (Android-side, dipasang SEBELUM bootstrap 100%: fail-closed):
+ * nat/OUTPUT: owner-RETURN UID 104 (trafik Tor sendiri lolos),
+ * lo-RETURN (layanan lokal tidak ikut di-redirect), DNS REDIRECT ke
+ * 5353, TCP REDIRECT ke 9040.
+ * filter/OUTPUT (penutup bocor UDP): 127.0.0.1-ACCEPT (paket hasil
+ * REDIRECT + layanan lokal), UID 104-ACCEPT (trafik Tor sendiri),
+ * lalu DROP — UDP non-DNS (termasuk QUIC 443) dan ICMP ikut
+ * terblokir, bukan bocor langsung. Tradeoff: NTP (UDP 123) juga
+ * terblokir selama Tor aktif (sinkronisasi waktu lanjut lewat
+ * NITZ/carrier; QUIC jatuh ke TCP lewat Tor). Spesifikasi aturan
+ * filter ini sengaja TIDAK memakai "-o lo" supaya tidak bentrok
+ * dengan aturan kill switch WG (mode eksklusif, tapi spesifikasi
+ * yang berbeda membuat cleanup masing-masing tidak saling hapus).
+ * ip6tables/OUTPUT (penutup bocor IPv6): lo-ACCEPT lalu DROP —
+ * tanpa ini, IPv6 keluar langsung tanpa lewat Tor (celah yang sama
+ * masih ada di kill switch WG, yang hanya IPv4).
+ * Bila ip6tables tidak tersedia, up() GAGAL dengan pesan jelas
+ * (fail-closed) daripada diam-diam membiarkan IPv6 bocor.
  * Daemon diluncurkan terpisah (setsid) lewat threadChrootCommand; status
  * dibaca dari pidfile + log (parse "Bootstrapped X% (stage)").
  */
@@ -74,6 +87,7 @@ public class TorEngine {
         public String lastLog = "";
         public boolean daemonAlive = false;
         public boolean rulesActive = false;
+        public boolean leakPlugActive = false;
     }
 
     private static ArrayList<String> run(Core core, String cmd) {
@@ -106,6 +120,26 @@ public class TorEngine {
         return runAndroid(core, "command -v iptables").contains("/iptables");
     }
 
+    private static boolean androidIp6tablesOk(Core core) {
+        return runAndroid(core, "command -v ip6tables").contains("/ip6tables");
+    }
+
+    /** Penutup bocor Tor terpasang: filter UID 104 + DROP, dan ip6 lo + DROP. */
+    private static boolean filterActive(Core core) {
+        String out = runAndroid(core, "iptables -S OUTPUT");
+        return out.contains("--uid-owner " + TOR_UID + " -j ACCEPT")
+                && out.contains("-j DROP");
+    }
+
+    private static boolean ip6Active(Core core) {
+        String out = runAndroid(core, "ip6tables -S OUTPUT");
+        return out.contains("-o lo -j ACCEPT") && out.contains("-j DROP");
+    }
+
+    private static boolean leakPlugActive(Core core) {
+        return filterActive(core) && ip6Active(core);
+    }
+
     /** Daemon hidup: pidfile ada dan PID-nya masih jalan. */
     public static boolean daemonAlive(Core core) {
         String out = join(run(core,
@@ -122,7 +156,7 @@ public class TorEngine {
                 && out.contains("-j REDIRECT --to-ports 9040");
     }
 
-    /** Cabut aturan Tor: hapus 4 aturan by-spec (toleran bila tak ada). */
+    /** Cabut aturan Tor: hapus nat + filter + ip6 by-spec (toleran bila tak ada). */
     public static void removeRules(Core core) {
         runAndroid(core, "iptables -t nat -D OUTPUT -m owner --uid-owner "
                 + TOR_UID + " -j RETURN 2>/dev/null; true");
@@ -131,12 +165,22 @@ public class TorEngine {
                 + "-j REDIRECT --to-ports 5353 2>/dev/null; true");
         runAndroid(core, "iptables -t nat -D OUTPUT -p tcp "
                 + "-j REDIRECT --to-ports 9040 2>/dev/null; true");
+        runAndroid(core, "iptables -D OUTPUT -d 127.0.0.1 -j ACCEPT 2>/dev/null; true");
+        runAndroid(core, "iptables -D OUTPUT -m owner --uid-owner "
+                + TOR_UID + " -j ACCEPT 2>/dev/null; true");
+        runAndroid(core, "iptables -D OUTPUT -j DROP 2>/dev/null; true");
+        runAndroid(core, "ip6tables -D OUTPUT -o lo -j ACCEPT 2>/dev/null; true");
+        runAndroid(core, "ip6tables -D OUTPUT -j DROP 2>/dev/null; true");
     }
 
-    /** Pasang aturan Tor: bersih dulu, sisip 4 aturan, verifikasi live. */
+    /** Pasang aturan Tor: bersih dulu, sisip nat + filter + ip6, verifikasi live. */
     public static Result applyRules(Core core) {
         if (!androidIptablesOk(core)) {
             return new Result(false, "iptables tidak tersedia");
+        }
+        if (!androidIp6tablesOk(core)) {
+            return new Result(false,
+                    "ip6tables tidak tersedia — IPv6 tidak bisa diblokir");
         }
         removeRules(core);
         // Sisip berurutan di posisi 1: hasil akhir = owner, lo, DNS, TCP.
@@ -145,7 +189,15 @@ public class TorEngine {
         runAndroid(core, "iptables -t nat -I OUTPUT 1 -o lo -j RETURN");
         runAndroid(core, "iptables -t nat -I OUTPUT 1 -m owner --uid-owner "
                 + TOR_UID + " -j RETURN");
-        if (rulesActive(core)) {
+        // Filter: hasil akhir = 127-ACCEPT, UID-ACCEPT, DROP.
+        runAndroid(core, "iptables -I OUTPUT 1 -j DROP");
+        runAndroid(core, "iptables -I OUTPUT 1 -m owner --uid-owner "
+                + TOR_UID + " -j ACCEPT");
+        runAndroid(core, "iptables -I OUTPUT 1 -d 127.0.0.1 -j ACCEPT");
+        // IPv6: hasil akhir = lo-ACCEPT, DROP.
+        runAndroid(core, "ip6tables -I OUTPUT 1 -j DROP");
+        runAndroid(core, "ip6tables -I OUTPUT 1 -o lo -j ACCEPT");
+        if (rulesActive(core) && leakPlugActive(core)) {
             return new Result(true, "aturan aktif");
         }
         removeRules(core);
@@ -226,18 +278,19 @@ public class TorEngine {
         Status s = new Status();
         s.daemonAlive = daemonAlive(core);
         s.rulesActive = rulesActive(core);
+        s.leakPlugActive = leakPlugActive(core);
         String log = join(run(core, "tail -n 80 " + LOG + " 2>/dev/null"));
         parseLog(s, log);
-        if (!s.daemonAlive && !s.rulesActive) {
+        if (!s.daemonAlive && !s.rulesActive && !s.leakPlugActive) {
             s.state = State.OFF;
-        } else if (!s.daemonAlive || !s.rulesActive) {
-            // Daemon mati + aturan masih ada = fail-closed (diblokir, bukan
-            // bocor); daemon hidup tanpa aturan = tidak melindungi.
-            s.state = State.BROKEN;
-        } else if (s.percent >= 100) {
-            s.state = State.ON;
+        } else if (s.daemonAlive && s.rulesActive && s.leakPlugActive) {
+            s.state = s.percent >= 100 ? State.ON : State.CONNECTING;
         } else {
-            s.state = State.CONNECTING;
+            // BROKEN mencakup dua arah: daemon mati + aturan masih ada =
+            // fail-closed (diblokir, bukan bocor); daemon hidup tapi
+            // penutup bocor hilang = perlindungan tidak lengkap (UDP/IPv6
+            // bisa bocor) — bukan ON.
+            s.state = State.BROKEN;
         }
         return s;
     }
@@ -252,6 +305,16 @@ public class TorEngine {
     public static Result up(Core core) {
         if (!toolsOk(core)) {
             return new Result(false, "tor belum terpasang");
+        }
+        // Tor lain (mis. sisa PoC) yang masih jalan = konflik port yang
+        // gagalnya generik ("daemon gagal jalan") — gagal cepat dengan
+        // pesan jelas. pgrep diasumsikan ada (sama seperti pkill di
+        // stopDaemon); bila tidak ada, cek ini lolos begitu saja.
+        String other = join(run(core, "pgrep -f "
+                + Apt.shellQuote("tor -f") + " 2>/dev/null"));
+        if (!other.trim().isEmpty()) {
+            return new Result(false,
+                    "tor lain sedang jalan — matikan dulu (tor PoC?)");
         }
         // Idempotent: bersihkan sisa dari crash sebelumnya.
         removeRules(core);
@@ -290,7 +353,7 @@ public class TorEngine {
     public static Result down(Core core) {
         removeRules(core);
         stopDaemon(core);
-        if (rulesActive(core)) {
+        if (rulesActive(core) || leakPlugActive(core)) {
             return new Result(false, "aturan masih ada setelah dimatikan");
         }
         if (daemonAlive(core)) {

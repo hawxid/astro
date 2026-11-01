@@ -1618,6 +1618,7 @@ manager</string>
     <string name="anon_btn_off">Matikan mode anonim</string>
     <string name="anon_btn_refresh">Periksa status</string>
     <string name="anon_btn_repair">Perbaiki rute</string>
+    <string name="anon_btn_processing">Memproses…</string>
     <string name="anon_mode_label">Mode</string>
     <string name="anon_mode_wg">WireGuard</string>
     <string name="anon_mode_vpn">VPN standar (segera)</string>

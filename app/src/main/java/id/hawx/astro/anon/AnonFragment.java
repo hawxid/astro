@@ -81,7 +81,7 @@ public class AnonFragment extends Fragment {
     private MaterialTextView torLogFullText;
     private MaterialButton torExitBtn;
     private final AtomicBoolean torPolling = new AtomicBoolean(false);
-    private long torConnectStartMs = 0;
+    private final AtomicBoolean torStarting = new AtomicBoolean(false);
     private int torLastPercent = -1;
     private long torLastProgressMs = 0;
 
@@ -294,6 +294,10 @@ public class AnonFragment extends Fragment {
 
     private void renderTorStatus(TorEngine.Status s) {
         if (!uiReady()) return;
+        // Selama up() masih jalan, kartu optimistis dipertahankan: status
+        // yang dibaca di tengah jalan (daemon hidup tapi aturan belum
+        // terpasang) akan terlihat BROKEN padahal itu keadaan transien.
+        if (torStarting.get() && s.state != TorEngine.State.ON) return;
         switch (s.state) {
             case ON:
                 statusText.setText(R.string.tor_status_on);
@@ -312,8 +316,6 @@ public class AnonFragment extends Fragment {
                 torProgress.setProgress(s.percent);
                 torPercentText.setText(s.percent + "%");
                 String stage = torStageLabel(s.stageTag);
-                long elapsed = torConnectStartMs > 0
-                        ? (System.currentTimeMillis() - torConnectStartMs) / 1000 : 0;
                 if (s.percent != torLastPercent) {
                     torLastPercent = s.percent;
                     torLastProgressMs = System.currentTimeMillis();
@@ -321,7 +323,7 @@ public class AnonFragment extends Fragment {
                         && System.currentTimeMillis() - torLastProgressMs > 180000) {
                     stage += getString(R.string.tor_stage_stuck);
                 }
-                torStageText.setText(stage + " (" + elapsed + " dtk)");
+                torStageText.setText(stage);
                 if (s.lastLog != null && !s.lastLog.isEmpty()) {
                     torLogText.setText(s.lastLog);
                 }
@@ -346,6 +348,24 @@ public class AnonFragment extends Fragment {
                 stopTorPolling();
                 break;
         }
+        // Umpan balik tombol dipulihkan di sini (bukan di pemanggil) agar
+        // tidak ada jendela tombol aktif dengan teks "Memproses…".
+        toggleBtn.setEnabled(true);
+        repairBtn.setEnabled(true);
+        repairBtn.setText(R.string.anon_btn_repair);
+    }
+
+    /** Kartu connecting optimistis: tampil sejak tap, sebelum up() kembali. */
+    private void showTorOptimistic() {
+        if (!uiReady()) return;
+        statusText.setText(R.string.tor_status_connecting);
+        torConnecting.setVisibility(View.VISIBLE);
+        torLogBtn.setVisibility(View.VISIBLE);
+        torProgress.setProgress(0);
+        torPercentText.setText("0%");
+        torStageText.setText(R.string.tor_stage_start);
+        torLogText.setText("");
+        warnText.setText(R.string.tor_warn);
     }
 
     private void refreshTorStatus() {
@@ -402,6 +422,9 @@ public class AnonFragment extends Fragment {
                         warnText.setText(R.string.anon_warn);
                     }
                 }
+                toggleBtn.setEnabled(true);
+                repairBtn.setEnabled(true);
+                repairBtn.setText(R.string.anon_btn_repair);
             });
         });
     }
@@ -430,6 +453,11 @@ public class AnonFragment extends Fragment {
 
     private void onToggle() {
         if (busy.getAndSet(true)) return;
+        runUi(() -> {
+            toggleBtn.setEnabled(false);
+            repairBtn.setEnabled(false);
+            toggleBtn.setText(R.string.anon_btn_processing);
+        });
         runBg(() -> {
             try {
                 if (TorEngine.MODE_TOR.equals(mode)) {
@@ -462,10 +490,12 @@ public class AnonFragment extends Fragment {
             toast(getString(R.string.tor_toast_tools_first));
             return;
         }
-        torConnectStartMs = System.currentTimeMillis();
         torLastPercent = -1;
         torLastProgressMs = System.currentTimeMillis();
+        torStarting.set(true);
+        runUi(() -> showTorOptimistic());
         TorEngine.Result r = TorEngine.up(core);
+        torStarting.set(false);
         if (r.ok) {
             toast(getString(R.string.tor_toast_up_start));
         } else {
@@ -499,6 +529,11 @@ public class AnonFragment extends Fragment {
 
     private void onRepair() {
         if (busy.getAndSet(true)) return;
+        runUi(() -> {
+            toggleBtn.setEnabled(false);
+            repairBtn.setEnabled(false);
+            repairBtn.setText(R.string.anon_btn_processing);
+        });
         runBg(() -> {
             try {
                 if (TorEngine.MODE_TOR.equals(mode)) {
@@ -507,10 +542,12 @@ public class AnonFragment extends Fragment {
                         toast(getString(R.string.tor_toast_tools_first));
                         return;
                     }
-                    torConnectStartMs = System.currentTimeMillis();
                     torLastPercent = -1;
                     torLastProgressMs = System.currentTimeMillis();
+                    torStarting.set(true);
+                    runUi(() -> showTorOptimistic());
                     TorEngine.Result r = TorEngine.up(core);
+                    torStarting.set(false);
                     toast(r.ok ? getString(R.string.tor_toast_up_start)
                             : getString(R.string.tor_toast_up_fail) + " " + r.message);
                     return;
