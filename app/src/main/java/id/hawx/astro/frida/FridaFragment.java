@@ -89,8 +89,8 @@ public class FridaFragment extends Fragment {
         alive.set(true);
         bindViews(view);
         startFailedText = getString(R.string.frida_start_failed);
-        startBtn.setOnClickListener(v -> onStart());
-        stopBtn.setOnClickListener(v -> onStop());
+        startBtn.setOnClickListener(v -> startServers());
+        stopBtn.setOnClickListener(v -> stopServers());
         refreshStatus();
     }
 
@@ -113,7 +113,7 @@ public class FridaFragment extends Fragment {
         stopBtn = view.findViewById(R.id.frida_stop_btn);
     }
 
-    private void onStart() {
+    private void startServers() {
         if (!busy.compareAndSet(false, true)) return;
         setButtonsEnabled(false);
         runBg(() -> {
@@ -129,7 +129,7 @@ public class FridaFragment extends Fragment {
         });
     }
 
-    private void onStop() {
+    private void stopServers() {
         if (!busy.compareAndSet(false, true)) return;
         setButtonsEnabled(false);
         runBg(() -> {
