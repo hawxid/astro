@@ -34,8 +34,12 @@ import id.hawx.astro.AstroApp;
  * berkas: chrome (judul + seret + grip resize + —/✕) + WebView
  * dengan ToolsBridge yang sama (AstroBridge). Dipilih lewat
  * checkbox "floating" entri launcher; tanpa itu tetap GhostViz.
- * — = lepas dari WindowManager saja (WebView hidup, bisa dibuka
- * lagi); ✕ = hancurkan WebView + tutup.
+ * — = MINIMIZE ke ikon kecil melayang (ronde Frida, 2026-11-01):
+ * window dilepas dari WindowManager saja (WebView hidup, bisa
+ * dibuka lagi lewat ikon ATAU dock); ✕ = hancurkan WebView +
+ * tutup (+ hapus ikon bila ada). Ikon bisa digeser (biar tidak
+ * menutupi gameplay/aplikasi di bawah) dan tap = pulihkan window
+ * utuh. Jendela X TIDAK disentuh ronde ini.
  */
 public class WebOverlayWindows {
 
@@ -209,6 +213,16 @@ public class WebOverlayWindows {
     // false — tidak ada self-reference.
     private boolean focusInputMode;
     private boolean kbSeenOpen;
+    // Ikon minimize melayang (ronde Frida, 2026-11-01): view +
+    // params-nya, di-assign di showIcon() SEBELUM listener sentuh
+    // dipasang (pola dua langkah skill definite assignment — tidak
+    // ada lambda yang membaca field selagi dibuat). null bila
+    // tidak diminimize; iconShown = sumber kebenaran (bukan null
+    // view semata, supaya removeView gagal tidak meninggalkan
+    // state setengah).
+    private View iconView;
+    private WindowManager.LayoutParams iconLp;
+    private boolean iconShown;
 
     // ---------------- statis ----------------
 
@@ -270,6 +284,19 @@ public class WebOverlayWindows {
     public static void hideForPath(String path) {
         WebOverlayWindows o = sByPath.get(path);
         if (o != null) o.hide();
+    }
+
+    /** Minimize window ke ikon melayang (ronde Frida). No-op bila
+     *  tidak ada overlay untuk path itu / sudah diminimize. */
+    public static void minimizeByPath(String path) {
+        WebOverlayWindows o = sByPath.get(path);
+        if (o != null) o.minimize();
+    }
+
+    /** Apakah overlay untuk path ini sedang diminimize (ikon tampil). */
+    public static boolean isMinimized(String path) {
+        WebOverlayWindows o = sByPath.get(path);
+        return o != null && o.iconShown;
     }
 
     // ---------------- instance ----------------
@@ -434,7 +461,12 @@ public class WebOverlayWindows {
         // Fallback manual mode ketik — jalur auto (focusin halaman)
         // memanggil enterInputMode() yang sama di bawah.
         bar.addView(chromeBtn("⌨", v -> enterInputMode()));
-        bar.addView(chromeBtn("—", v -> hide()));
+        // — = MINIMIZE ke ikon melayang (ronde Frida, 2026-11-01):
+        // dulu hide() polos (pulihkan cuma lewat dock); sekarang
+        // hide() + ikon kecil yang bisa digeser, tap = pulihkan.
+        // Server webui tetap hidup (onClose TIDAK jalan — sama
+        // seperti hide() dulu, dan seperti semantik X).
+        bar.addView(chromeBtn("—", v -> minimize()));
         // JANGAN pasang listener di dalam inisialisasi maxBtn:
         // lambda-nya membaca maxBtn sendiri, padahal assignment
         // baru selesai setelah chromeBtn() kembali — javac
@@ -736,6 +768,9 @@ public class WebOverlayWindows {
     }
 
     private void raise() {
+        // Pulihkan lewat dock saat diminimize: ikon ikut hilang
+        // (satu-satunya affordance restore selain tap ikon).
+        if (iconShown) removeIcon();
         if (!attached) {
             wm.addView(container, wlp);
             attached = true;
@@ -790,7 +825,172 @@ public class WebOverlayWindows {
         }
     }
 
+    // ---------------- minimize ke ikon (ronde Frida, 2026-11-01) ----------------
+
+    /**
+     * Minimize: window dilepas (hide — WebView + halaman HIDUP,
+     * tidak di-destroy, tidak di-reload) lalu ikon kecil melayang
+     * ditampilkan. No-op bila window sudah tidak attached (sudah
+     * diminimize / disembunyikan) — tap ganda tidak melahirkan
+     * ikon kedua. Server webui TIDAK disentuh (onClose hanya jalan
+     * di close()).
+     */
+    private void minimize() {
+        if (!attached || iconShown) return;
+        hide();
+        showIcon();
+    }
+
+    /** Pulihkan dari ikon: hapus ikon, tampilkan lagi window utuh
+     *  (raise() me-re-add container yang sama — WebView + halaman
+     *  dipertahankan, tanpa reload). No-op bila tidak diminimize. */
+    private void restoreFromIcon() {
+        if (!iconShown) return;
+        removeIcon();
+        raise();
+    }
+
+    /** Hapus ikon bila ada. Idempotent; gagal removeView tidak
+     *  boleh meninggalkan state setengah (iconShown dibersihkan
+     *  DULU, view/null sesudahnya). */
+    private void removeIcon() {
+        if (!iconShown) return;
+        iconShown = false;
+        if (iconView != null) {
+            try {
+                wm.removeView(iconView);
+            } catch (Throwable ignored) {
+            }
+        }
+        iconView = null;
+        iconLp = null;
+    }
+
+    /**
+     * Tampilkan ikon minimize: lingkaran kecil (label dock / huruf
+     * judul) sebagai overlay sistem — jadi ia melayang di atas
+     * aplikasi apa pun termasuk game fullscreen, sama seperti
+     * window webview sendiri. Posisi awal = pojok kanan-atas
+     * window yang baru diminimize (mudah ditemukan sesudah tap —),
+     * lalu bisa digeser bebas. Dua langkah sesuai skill definite
+     * assignment: view + params di-assign ke field DULU, listener
+     * sentuh dipasang SESUDAHNYA (listener hanya membaca field
+     * saat event, bukan saat dibuat).
+     */
+    private void showIcon() {
+        if (iconShown) return;
+        Activity act = activity;
+        int size = dp(52);
+        TextView icon = new TextView(act);
+        String label = dockLabel;
+        if (label == null || label.isEmpty()) label = dockLabelFor("", title);
+        icon.setText(label);
+        icon.setTextColor(0xFFE8EBFA);
+        icon.setTextSize(16);
+        icon.setGravity(Gravity.CENTER);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(0xFF232C4E);
+        bg.setStroke(dp(1), 0xFF3D4A7A);
+        icon.setBackground(bg);
+        icon.setElevation(dp(10));
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                size, size,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT);
+        lp.gravity = Gravity.TOP | Gravity.START;
+        DisplayMetrics m = new DisplayMetrics();
+        wm.getDefaultDisplay().getRealMetrics(m);
+        int x = wlp.x + wlp.width - size;
+        int y = wlp.y;
+        lp.x = Math.max(0, Math.min(x, m.widthPixels - size));
+        lp.y = Math.max(0, Math.min(y, m.heightPixels - size));
+        iconView = icon;
+        iconLp = lp;
+        icon.setOnTouchListener(new IconTouchListener());
+        try {
+            wm.addView(icon, lp);
+        } catch (Throwable ignored) {
+            // Ikon gagal tampil (mis. izin overlay dicabut di tengah
+            // jalan): window tetap tersembunyi tapi bisa dipulihkan
+            // lewat dock — jangan pernah crash dari tap minimize.
+            iconView = null;
+            iconLp = null;
+            return;
+        }
+        iconShown = true;
+    }
+
+    /** Geser vs tap pada ikon: geser > dp(10) = drag (pindah ikon,
+     *  dijepit di layar); UP tanpa geser = tap = pulihkan window.
+     *  Sentuhan ikon selalu di-consume (tidak tembus ke app bawah).
+     *  Panggilan ke outer memakai WebOverlayWindows.this eksplisit
+     *  (bare this di sini = listener itu sendiri). */
+    private class IconTouchListener implements View.OnTouchListener {
+        private boolean dragging;
+        private float downX, downY;
+        private int startX, startY;
+
+        @Override
+        public boolean onTouch(View v, android.view.MotionEvent e) {
+            switch (e.getAction()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    dragging = false;
+                    downX = e.getRawX();
+                    downY = e.getRawY();
+                    if (WebOverlayWindows.this.iconLp != null) {
+                        startX = WebOverlayWindows.this.iconLp.x;
+                        startY = WebOverlayWindows.this.iconLp.y;
+                    }
+                    return true;
+                case android.view.MotionEvent.ACTION_MOVE:
+                    if (WebOverlayWindows.this.iconLp == null) return true;
+                    if (Math.abs(e.getRawX() - downX) > WebOverlayWindows.this.dp(10)
+                            || Math.abs(e.getRawY() - downY) > WebOverlayWindows.this.dp(10)) {
+                        dragging = true;
+                    }
+                    if (dragging) {
+                        DisplayMetrics m = new DisplayMetrics();
+                        WebOverlayWindows.this.wm.getDefaultDisplay().getRealMetrics(m);
+                        int size = WebOverlayWindows.this.dp(52);
+                        int nx = startX + Math.round(e.getRawX() - downX);
+                        int ny = startY + Math.round(e.getRawY() - downY);
+                        nx = Math.max(0, Math.min(nx, m.widthPixels - size));
+                        ny = Math.max(0, Math.min(ny, m.heightPixels - size));
+                        if (nx != WebOverlayWindows.this.iconLp.x
+                                || ny != WebOverlayWindows.this.iconLp.y) {
+                            WebOverlayWindows.this.iconLp.x = nx;
+                            WebOverlayWindows.this.iconLp.y = ny;
+                            WebOverlayWindows.this.wm.updateViewLayout(
+                                    WebOverlayWindows.this.iconView,
+                                    WebOverlayWindows.this.iconLp);
+                        }
+                    }
+                    return true;
+                case android.view.MotionEvent.ACTION_UP:
+                    if (!dragging) {
+                        WebOverlayWindows.this.restoreFromIcon();
+                    }
+                    dragging = false;
+                    return true;
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    dragging = false;
+                    return true;
+                default:
+                    return true;
+            }
+        }
+    }
+
     private void close() {
+        // Ikon yatim tidak boleh tertinggal: ✕ menghapus ikon
+        // dulu, baru window dihancurkan (urutan ini juga yang
+        // membuat onClose Frida (stop server) tetap jadi langkah
+        // terakhir yang aman — window sudah tidak bisa dipulihkan
+        // saat server dimatikan).
+        removeIcon();
         hide();
         // Hook tutup HANYA di sini (✕ / closeByPath) — hide() di atas
         // tidak menjalankannya, jadi server webui tetap hidup saat
