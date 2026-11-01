@@ -1,6 +1,6 @@
-# ASTRO_FRIDA_BRIDGE_VERSION = 2
+# ASTRO_FRIDA_BRIDGE_VERSION = 3
 #!/usr/bin/env python3
-"""Astro Frida bridge LENGKAP (Batch19, 2026-11-01).
+"""Astro Frida bridge LENGKAP (Batch19-fix, 2026-11-01).
 
 Web UI Frida server-rendered: bridge chroot Python ini melayani
 halaman HTML + endpoint Frida untuk webview melayang di atas game.
@@ -83,7 +83,7 @@ PORT = 18081
 SESSION_TOKEN = ""
 # Angka ini HARUS sama dengan marker komentar di baris 1 — manager
 # Java membaca marker itu untuk memutuskan overwrite filesDir.
-BRIDGE_VERSION = 2
+BRIDGE_VERSION = 3
 TOKEN_HEADER = "X-Astro-Token"
 TABLES_DIR = "/tmp/astro_frida_tables"
 SCAN_MATCH_CAP = 5000
@@ -452,34 +452,95 @@ def get_modules():
     return out
 
 
+RANGE_PROTECTIONS = ("r--", "rw-", "rwx", "r-x", "--x", "---")
+
+
 def get_ranges():
+    """Daftar semua range memori proses yang di-attach.
+
+    API Python Frida yang benar: range di-enumerate PER MODUL
+    (Module.enumerate_ranges), BUKAN Session.enumerate_ranges —
+    metode itu tidak ada di Session modern (batch19 memakainya,
+    sehingga halaman Range selalu error). Bila binding tidak punya
+    Module.enumerate_ranges, fallback ke agent JS
+    Process.enumerateRangesSync per proteksi."""
     sess = ensure_session()
     try:
-        ranges = sess.enumerate_ranges()
-    except TypeError:
-        # Binding lama yang mewajibkan argumen proteksi: gabungkan
-        # tiga proteksi baca yang umum.
-        ranges = []
-        for prot in ("r--", "rw-", "rwx"):
+        mods = sess.enumerate_modules()
+    except Exception as exc:
+        raise FridaError("gagal enumerate modul: %s" % exc)
+    seen = set()
+    out = []
+    have_method = False
+    for mod in mods:
+        enum = getattr(mod, "enumerate_ranges", None)
+        if enum is None:
+            continue
+        have_method = True
+        for prot in RANGE_PROTECTIONS:
             try:
-                ranges.extend(sess.enumerate_ranges(prot))
+                ranges = enum(prot)
             except Exception:
                 continue
+            for rng in ranges or []:
+                try:
+                    base = int(rng.base_address)
+                    size = int(rng.size)
+                except Exception:
+                    continue
+                if size <= 0 or (base, size) in seen:
+                    continue
+                seen.add((base, size))
+                out.append({"base": base, "size": size,
+                            "protection": str(rng.protection)})
+    if have_method:
+        return out
+    # Fallback: agent JS (Process.enumerateRangesSync ada di Frida 17).
+    agent = r"""
+(function () {
+  var prots = ['r--', 'rw-', 'rwx', 'r-x', '--x', '---'];
+  var out = [];
+  for (var i = 0; i < prots.length; i++) {
+    try {
+      var rs = Process.enumerateRangesSync(prots[i]);
+      for (var j = 0; j < rs.length; j++) {
+        out.push({base: rs[j].base.toString(), size: rs[j].size,
+                  protection: rs[j].protection});
+      }
+    } catch (e) { /* proteksi ini tidak didukung, lewati */ }
+  }
+  send({ranges: out});
+})();
+"""
+    try:
+        payload = run_agent_once(agent, action="range-fallback")
     except Exception as exc:
-        raise FridaError("gagal enumerate range: %s" % exc)
-    out = []
-    for rng in ranges:
+        raise FridaError("fallback range via agent gagal: %s" % exc)
+    for r in payload.get("ranges", []):
         try:
-            prot = str(rng.protection)
-            out.append({"base": int(rng.base_address), "size": int(rng.size),
-                        "protection": prot})
+            base = int(r["base"], 16)
+            size = int(r["size"])
         except Exception:
             continue
+        if size <= 0 or (base, size) in seen:
+            continue
+        seen.add((base, size))
+        out.append({"base": base, "size": size,
+                    "protection": str(r["protection"])})
+    if not out:
+        raise FridaError(
+            "binding frida tidak menyediakan enumerate_ranges "
+            "(bukan di Module maupun di agent) — update frida-tools")
     return out
 
 
 def readable_ranges():
-    return [r for r in get_ranges() if "r" in r["protection"]]
+    out = []
+    for r in get_ranges():
+        prot = str(r["protection"]).lower()
+        if "r" in prot or "read" in prot:
+            out.append(r)
+    return out
 
 
 def resolve_module(addr):
@@ -502,9 +563,12 @@ def resolve_absolute(module, offset):
     return None
 
 
-def run_agent_once(js_code, timeout=AGENT_TIMEOUT_SEC):
+def run_agent_once(js_code, timeout=AGENT_TIMEOUT_SEC, action="agent"):
     """Jalankan agent, tunggu SATU pesan send/error. Kembalikan
-    payload (dict) atau raise FridaError."""
+    payload (dict) atau raise FridaError. `action` hanya label
+    (scan/snapshot/baca/tulis/il2cpp) supaya halaman error menyebut
+    fungsi mana yang gagal — batch19 tidak melabelinya sehingga
+    error agent tidak bisa dilacak ke tombolnya."""
     sess = ensure_session()
     script = None
     box = {"event": threading.Event(), "messages": []}
@@ -518,14 +582,14 @@ def run_agent_once(js_code, timeout=AGENT_TIMEOUT_SEC):
         script.on("message", on_message)
         script.load()
     except Exception as exc:
-        raise FridaError("gagal load agent: %s" % exc)
+        raise FridaError("gagal load %s: %s" % (action, exc))
     try:
         if not box["event"].wait(timeout):
-            raise FridaError("agent timeout (%d dtk)" % timeout)
+            raise FridaError("timeout %s (%d dtk)" % (action, timeout))
         msg = box["messages"][0]
         if msg.get("type") == "error":
-            raise FridaError("agent error: %s"
-                             % msg.get("description", "?"))
+            raise FridaError("agent error [%s]: %s"
+                             % (action, msg.get("description", "?")))
         return msg.get("payload")
     finally:
         try:
@@ -768,7 +832,7 @@ def run_scan(vtype, value_text, unknown):
         data = {"ranges": ranges, "type": vtype, "step": step,
                 "cap": SNAP_ENTRY_CAP, "range_max": SNAP_RANGE_MAX}
         payload = run_agent_once(SNAP_AGENT.replace(
-            "__DATA__", json.dumps(data)))
+            "__DATA__", json.dumps(data)), action="snapshot")
         entries = []
         for addr_s, val in payload.get("entries", []):
             addr = int(addr_s, 16)
@@ -788,7 +852,7 @@ def run_scan(vtype, value_text, unknown):
     pattern = encode_pattern(vtype, value)
     data = {"ranges": ranges, "pattern": pattern, "cap": SCAN_MATCH_CAP}
     payload = run_agent_once(SCAN_AGENT.replace(
-        "__DATA__", json.dumps(data)))
+        "__DATA__", json.dumps(data)), action="scan")
     entries = []
     for addr_s in payload.get("matches", []):
         addr = int(addr_s, 16)
@@ -820,7 +884,7 @@ def read_values(entries):
     values = {}
     if todo:
         payload = run_agent_once(READ_AGENT.replace(
-            "__DATA__", json.dumps({"addrs": todo})))
+            "__DATA__", json.dumps({"addrs": todo})), action="baca")
         vals = payload.get("values", [])
         j = 0
         for i, item in enumerate(addrs):
@@ -856,7 +920,7 @@ def write_entries(writes):
     if not jobs:
         return ["tidak ada entri untuk ditulis"]
     payload = run_agent_once(WRITE_AGENT.replace(
-        "__DATA__", json.dumps({"writes": jobs})))
+        "__DATA__", json.dumps({"writes": jobs})), action="tulis")
     return payload.get("errors", [])
 
 
@@ -1501,7 +1565,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 self._html(200, render_script(token, None))
             elif path == "/il2cpp":
                 ensure_session()
-                result = run_agent_once(IL2CPP_AGENT)
+                result = run_agent_once(IL2CPP_AGENT, action="il2cpp")
                 self._html(200, render_il2cpp(token, result, ""))
             else:
                 self._html(404, render_error(token, "halaman tidak ada"))
