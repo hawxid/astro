@@ -1628,6 +1628,17 @@ manager</string>
     <string name="anon_btn_refresh">Periksa status</string>
     <string name="anon_btn_repair">Perbaiki rute</string>
     <string name="anon_btn_processing">Memproses…</string>
+    <string name="dashboard_tile_frida">Frida</string>
+    <string name="frida_subtitle">Panel kontrol frida-server dan bridge — start/stop saja.</string>
+    <string name="frida_server_label">frida-server</string>
+    <string name="frida_bridge_label">Bridge</string>
+    <string name="frida_on">ON</string>
+    <string name="frida_off">OFF</string>
+    <string name="frida_checking">…</string>
+    <string name="frida_start">Start</string>
+    <string name="frida_stop">Stop</string>
+    <string name="frida_note">ON berarti ada yang listening di port itu — belum tentu di-start dari panel ini.</string>
+    <string name="frida_start_failed">Start Frida gagal.</string>
     <string name="anon_mode_label">Mode</string>
     <string name="anon_mode_wg">WireGuard</string>
     <string name="anon_mode_vpn">VPN standar (segera)</string>

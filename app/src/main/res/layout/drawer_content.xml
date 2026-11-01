@@ -307,6 +307,10 @@
             android:id="@+id/anon_item"
             layout="@layout/drawer_row" />
 
+        <include
+            android:id="@+id/frida_item"
+            layout="@layout/drawer_row" />
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
