@@ -19,16 +19,29 @@ isAllunmounted=0
 #######################
 
 ### Kill all running services and processes ###
-f_kill_pids() {
-    echo "[!] Killing all running services..."
+# SIGTERM dulu, beri waktu keluar bersih, baru SIGKILL untuk yang
+# membandel — kill -9 langsung membuat proses tak sempat menutup file
+# dan soket (sumber unmount nyangkut). Pindai diulang setelah TERM:
+# proses yang sudah keluar tidak ikut dibunuh kedua kalinya.
+f_mnt_pids() {
     lsof_full=$($BUSYBOX lsof 2> /dev/null | awk '{print $1}' | grep -c '^lsof')
     if [ "${lsof_full}" -eq 0 ]; then
-        pids=$($BUSYBOX lsof 2> /dev/null | grep "$MNT" | awk '{print $1}' | uniq)
+        $BUSYBOX lsof 2> /dev/null | grep "$MNT" | awk '{print $1}' | uniq
     else
-        pids=$($BUSYBOX lsof 2> /dev/null | grep "$MNT" | awk '{print $2}' | uniq)
+        $BUSYBOX lsof 2> /dev/null | grep "$MNT" | awk '{print $2}' | uniq
     fi
+}
+
+f_kill_pids() {
+    echo "[!] Killing all running services..."
+    pids=$(f_mnt_pids)
     if [ -n "${pids}" ]; then
-        kill -9 ${pids} 2> /dev/null
+        kill ${pids} 2> /dev/null
+        sleep 2
+        survivors=$(f_mnt_pids)
+        if [ -n "${survivors}" ]; then
+            kill -9 ${survivors} 2> /dev/null
+        fi
     fi
     return 0
 }

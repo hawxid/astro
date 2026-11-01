@@ -682,6 +682,25 @@ public class MainActivity extends AppCompatActivity {
                 .setMessage(R.string.settings_unmount_confirm_message)
                 .setPositiveButton(R.string.settings_unmount_title, (d, w) -> {
                     new Thread(() -> {
+                        // Bunuh server X dulu: server sisi-Android lolos
+                        // sapuan lsof killroot (sapu itu hanya menangkap
+                        // proses chroot), jadi display yatim bikin unmount
+                        // gagal/nyangkut. Pool display Astro :0-:4.
+                        // Batas 10 detik: unmount tetap jalan walau satu
+                        // display bandel. App ditutup juga di jalur sukses,
+                        // jadi mematikan sesi di sini bukan regresi.
+                        try {
+                            id.hawx.astro.x11.XSessionManager xsm =
+                                    id.hawx.astro.x11.XSessionManager.get(MainActivity.this);
+                            java.util.concurrent.CountDownLatch latch =
+                                    new java.util.concurrent.CountDownLatch(5);
+                            for (int disp = 0; disp <= 4; disp++) {
+                                final int dd = disp;
+                                xsm.stopDisplay(dd, (ok, msg) -> latch.countDown());
+                            }
+                            latch.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (Exception ignored) {
+                        }
                         boolean ok = core.unmountCore();
                         if (ok) {
                             core.toaster(getString(R.string.settings_unmount_success));

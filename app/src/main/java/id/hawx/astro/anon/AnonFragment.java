@@ -540,30 +540,33 @@ public class AnonFragment extends Fragment {
                     TorEngine.down(core);
                     if (!TorEngine.toolsOk(core)) {
                         toast(getString(R.string.tor_toast_tools_first));
-                        return;
+                    } else {
+                        torLastPercent = -1;
+                        torLastProgressMs = System.currentTimeMillis();
+                        torStarting.set(true);
+                        runUi(() -> showTorOptimistic());
+                        TorEngine.Result r = TorEngine.up(core);
+                        torStarting.set(false);
+                        toast(r.ok ? getString(R.string.tor_toast_up_start)
+                                : getString(R.string.tor_toast_up_fail) + " " + r.message);
                     }
-                    torLastPercent = -1;
-                    torLastProgressMs = System.currentTimeMillis();
-                    torStarting.set(true);
-                    runUi(() -> showTorOptimistic());
-                    TorEngine.Result r = TorEngine.up(core);
-                    torStarting.set(false);
-                    toast(r.ok ? getString(R.string.tor_toast_up_start)
-                            : getString(R.string.tor_toast_up_fail) + " " + r.message);
-                    return;
+                } else {
+                    WgEngine.down(core);
+                    WgConfig c = WgConfig.load(core);
+                    if (!c.isComplete()) {
+                        toast(getString(R.string.anon_toast_need_config));
+                    } else {
+                        WgEngine.Result r = WgEngine.up(core, c);
+                        toast(r.ok ? getString(R.string.anon_toast_up_ok)
+                                : getString(R.string.anon_toast_up_fail) + " " + r.message);
+                    }
                 }
-                WgEngine.down(core);
-                WgConfig c = WgConfig.load(core);
-                if (!c.isComplete()) {
-                    toast(getString(R.string.anon_toast_need_config));
-                    return;
-                }
-                WgEngine.Result r = WgEngine.up(core, c);
-                toast(r.ok ? getString(R.string.anon_toast_up_ok)
-                        : getString(R.string.anon_toast_up_fail) + " " + r.message);
             } finally {
                 busy.set(false);
             }
+            // WAJIB selalu jalan: return dini di dalam try akan melewati
+            // baris ini (bug: UI beku di kartu optimistis + tombol
+            // "Memproses…" setelah Perbaiki Tor, padahal engine sudah 100%).
             refreshStatus();
         });
     }

@@ -4,7 +4,9 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -24,6 +26,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
@@ -38,6 +41,7 @@ import id.hawx.astro.R;
 import id.hawx.astro.dashboard.Dashboard;
 import id.hawx.astro.geomac.io.GeoExporter;
 import id.hawx.astro.geomac.layers.AtlasLayers;
+import id.hawx.astro.geomac.layers.GpsLive;
 import id.hawx.astro.geomac.layers.LayerStore;
 import id.hawx.astro.geomac.layers.EsriTiles;
 import id.hawx.astro.geomac.layers.TrafficLive;
@@ -85,6 +89,7 @@ public class GeoMac extends Fragment {
     private CircularProgressIndicator busy;
     private AtlasLayers layers;
     private TrafficLive trafficLive;
+    private GpsLive gpsLive;
     private LayerStore layerStore;
     private LayerSheet layerSheet;
     private TextView satCredit;
@@ -95,6 +100,8 @@ public class GeoMac extends Fragment {
     private static final String PREF_CRACKED_FILTER = "geomac_cracked_filter";
     private static final String PREF_MAPILLARY_TOKEN = "mapillary_token";
     private static final String PREF_WINDY_KEY = "windy_key";
+    private static final String PREF_OPEN_CELL_KEY = "opencellid_key";
+    private static final int REQ_GPS = 0x4750;
 
     private final AtomicBoolean alive = new AtomicBoolean(false);
 
@@ -131,12 +138,24 @@ public class GeoMac extends Fragment {
         satCredit.setVisibility(layerStore.isSatellite() ? View.VISIBLE : View.GONE);
         layers = new AtlasLayers(activity, context, map,
                 () -> alive.get() && isAdded(), layerCredit,
-                () -> core == null ? "" : core.getString(PREF_WINDY_KEY));
+                new AtlasLayers.KeyProvider() {
+                    @Override
+                    public String windyKey() {
+                        return core == null ? "" : core.getString(PREF_WINDY_KEY);
+                    }
+
+                    @Override
+                    public String opencellidKey() {
+                        return core == null ? "" : core.getString(PREF_OPEN_CELL_KEY);
+                    }
+                });
         trafficLive = new TrafficLive(activity, context, map,
                 () -> alive.get() && isAdded(),
                 view.findViewById(R.id.geomac_traffic_card),
                 view.findViewById(R.id.geomac_traffic_rows),
                 view.findViewById(R.id.geomac_traffic_empty));
+        gpsLive = new GpsLive(activity, context, map,
+                () -> alive.get() && isAdded());
 
         wireSearch(view);
         wireFilterChips(view);
@@ -155,6 +174,7 @@ public class GeoMac extends Fragment {
         if (map != null) map.onResume();
         if (layers != null) layers.onResume();
         if (trafficLive != null) trafficLive.onResume();
+        if (gpsLive != null) gpsLive.onResume();
     }
 
     @Override
@@ -162,6 +182,7 @@ public class GeoMac extends Fragment {
         super.onPause();
         if (layers != null) layers.onPause();
         if (trafficLive != null) trafficLive.onPause();
+        if (gpsLive != null) gpsLive.onPause();
         if (map != null) map.onPause();
     }
 
@@ -178,6 +199,10 @@ public class GeoMac extends Fragment {
         if (trafficLive != null) {
             trafficLive.hideAll();
             trafficLive = null;
+        }
+        if (gpsLive != null) {
+            gpsLive.hideAll();
+            gpsLive = null;
         }
         alive.set(false);
         super.onDestroyView();
@@ -263,6 +288,23 @@ public class GeoMac extends Fragment {
             refreshLayerSheet();
             return;
         }
+        if (LayerStore.CELLTOWERS.equals(id) && on
+                && (core == null || core.getString(PREF_OPEN_CELL_KEY).isEmpty())) {
+            askOpenCellIdKey();
+            refreshLayerSheet();
+            return;
+        }
+        // GPS: izin runtime dulu, sebelum store diubah — sakelar kembali
+        // mati sendiri lewat refresh bila dialog izin muncul/ditolak.
+        if (LayerStore.GPS.equals(id) && on
+                && (context == null || ContextCompat.checkSelfPermission(context,
+                        Manifest.permission.ACCESS_FINE_LOCATION)
+                        != PackageManager.PERMISSION_GRANTED)) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    REQ_GPS);
+            refreshLayerSheet();
+            return;
+        }
         layerStore.setLayer(id, on);
         if (LayerStore.WEATHER.equals(id)) {
             if (layers != null) layers.toggle(AtlasLayers.Layer.WEATHER, on);
@@ -272,10 +314,37 @@ public class GeoMac extends Fragment {
             if (layers != null) layers.toggle(AtlasLayers.Layer.QUAKES, on);
         } else if (LayerStore.CAMERAS.equals(id)) {
             if (layers != null) layers.toggle(AtlasLayers.Layer.CAMERAS, on);
+        } else if (LayerStore.CELLTOWERS.equals(id)) {
+            if (layers != null) layers.toggle(AtlasLayers.Layer.CELLTOWERS, on);
         } else if (LayerStore.TRAFFIC.equals(id)) {
             if (trafficLive != null) trafficLive.setOn(on);
+        } else if (LayerStore.GPS.equals(id)) {
+            // Provider mati (GPS + jaringan dua-duanya off) = gagal:
+            // store dibatalkan + toast, sakelar kembali mati lewat refresh.
+            if (gpsLive != null && on && !gpsLive.setOn(true)) {
+                layerStore.setLayer(id, false);
+                Toast.makeText(context, R.string.geomac_gps_disabled,
+                        Toast.LENGTH_SHORT).show();
+            } else if (gpsLive != null) {
+                gpsLive.setOn(on);
+            }
         }
         refreshLayerSheet();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == REQ_GPS) {
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (layerStore != null) layerStore.setLayer(LayerStore.GPS, true);
+                if (gpsLive != null) gpsLive.setOn(true);
+            }
+            refreshLayerSheet();
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     private void wirePanel(View view) {
@@ -321,6 +390,29 @@ public class GeoMac extends Fragment {
                         layerStore.setLayer(LayerStore.CAMERAS, true);
                     }
                     if (layers != null) layers.toggle(AtlasLayers.Layer.CAMERAS, true);
+                    refreshLayerSheet();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void askOpenCellIdKey() {
+        if (core == null) return;
+        final EditText input = new EditText(context);
+        input.setHint(R.string.geomac_opencellid_key_hint);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.geomac_opencellid_key_title)
+                .setMessage(R.string.geomac_opencellid_key_message)
+                .setView(input)
+                .setPositiveButton(R.string.geomac_streetview_token_save, (d2, w) -> {
+                    String t = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (t.isEmpty()) return;
+                    core.putString(PREF_OPEN_CELL_KEY, t);
+                    if (layerStore != null) {
+                        layerStore.setLayer(LayerStore.CELLTOWERS, true);
+                    }
+                    if (layers != null) layers.toggle(AtlasLayers.Layer.CELLTOWERS, true);
                     refreshLayerSheet();
                 })
                 .setNegativeButton(android.R.string.cancel, null)

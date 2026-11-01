@@ -54,19 +54,26 @@ public final class AtlasLayers {
 
     public interface KeyProvider {
         String windyKey();
+
+        /** Default kosong: pemanggil lama (lambda satu metode) tetap valid. */
+        default String opencellidKey() {
+            return "";
+        }
     }
 
     public enum Layer {
-        WEATHER, FLIGHTS, QUAKES, CAMERAS
+        WEATHER, FLIGHTS, QUAKES, CAMERAS, CELLTOWERS
     }
 
     private static final long FLIGHTS_REFRESH_MS = 60_000L;
     private static final long QUAKES_REFRESH_MS = 600_000L;
     private static final long WEATHER_REFRESH_MS = 600_000L;
+    private static final long CAMERAS_REFRESH_MS = 600_000L;
+    private static final long CELLTOWERS_REFRESH_MS = 600_000L;
     private static final int MAX_FLIGHTS = 300;
     private static final int MAX_QUAKES = 500;
-    private static final long CAMERAS_REFRESH_MS = 600_000L;
     private static final int MAX_CAMERAS = 100;
+    private static final int MAX_CELLS = 50;
 
     private final Activity activity;
     private final Context context;
@@ -80,17 +87,20 @@ public final class AtlasLayers {
     private boolean flightsOn;
     private boolean quakesOn;
     private boolean camerasOn;
+    private boolean celltowersOn;
 
     private TilesOverlay weatherOverlay;
     private ItemizedIconOverlay<OverlayItem> flightsOverlay;
     private ItemizedIconOverlay<OverlayItem> quakesOverlay;
     private ItemizedIconOverlay<OverlayItem> camerasOverlay;
+    private ItemizedIconOverlay<OverlayItem> celltowersOverlay;
     private final ArrayList<String> cameraIds = new ArrayList<>();
 
     private Runnable flightsPending;
     private Runnable quakesPending;
     private Runnable weatherPending;
     private Runnable camerasPending;
+    private Runnable celltowersPending;
 
     public AtlasLayers(Activity activity, Context context, MapView map, Alive alive,
                        TextView creditView, KeyProvider keyProvider) {
@@ -145,6 +155,16 @@ public final class AtlasLayers {
                     cancelCameras();
                 }
                 break;
+            case CELLTOWERS:
+                if (on == celltowersOn) return;
+                celltowersOn = on;
+                if (on) {
+                    fetchCelltowers(false);
+                    scheduleCelltowersRefresh();
+                } else {
+                    cancelCelltowers();
+                }
+                break;
         }
     }
 
@@ -172,6 +192,10 @@ public final class AtlasLayers {
             fetchCameras(true);
             scheduleCamerasRefresh();
         }
+        if (celltowersOn) {
+            fetchCelltowers(true);
+            scheduleCelltowersRefresh();
+        }
     }
 
     /** Removes every layer overlay and stops every loop (view destroyed). */
@@ -180,10 +204,12 @@ public final class AtlasLayers {
         flightsOn = false;
         quakesOn = false;
         camerasOn = false;
+        celltowersOn = false;
         cancelWeather();
         cancelFlights();
         cancelQuakes();
         cancelCameras();
+        cancelCelltowers();
     }
 
     private void cancelPendingOnly() {
@@ -191,10 +217,12 @@ public final class AtlasLayers {
         if (quakesPending != null) handler.removeCallbacks(quakesPending);
         if (weatherPending != null) handler.removeCallbacks(weatherPending);
         if (camerasPending != null) handler.removeCallbacks(camerasPending);
+        if (celltowersPending != null) handler.removeCallbacks(celltowersPending);
         flightsPending = null;
         quakesPending = null;
         weatherPending = null;
         camerasPending = null;
+        celltowersPending = null;
     }
 
     private void cancelWeather() {
@@ -228,6 +256,15 @@ public final class AtlasLayers {
         if (camerasOverlay != null) map.getOverlays().remove(camerasOverlay);
         camerasOverlay = null;
         cameraIds.clear();
+        updateCredit();
+        map.invalidate();
+    }
+
+    private void cancelCelltowers() {
+        if (celltowersPending != null) handler.removeCallbacks(celltowersPending);
+        celltowersPending = null;
+        if (celltowersOverlay != null) map.getOverlays().remove(celltowersOverlay);
+        celltowersOverlay = null;
         updateCredit();
         map.invalidate();
     }
@@ -272,6 +309,20 @@ public final class AtlasLayers {
         };
         camerasPending = r;
         handler.postDelayed(r, CAMERAS_REFRESH_MS);
+    }
+
+    private void scheduleCelltowersRefresh() {
+        if (celltowersPending != null) handler.removeCallbacks(celltowersPending);
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                if (!celltowersOn || !alive.isAlive()) return;
+                fetchCelltowers(true);
+                scheduleCelltowersRefresh();
+            }
+        };
+        celltowersPending = r;
+        handler.postDelayed(r, CELLTOWERS_REFRESH_MS);
     }
 
     private void scheduleWeatherRefresh() {
@@ -530,6 +581,144 @@ public final class AtlasLayers {
                 map.invalidate();
             });
         }, "atlas-cameras").start();
+    }
+
+    private void fetchCelltowers(final boolean quiet) {
+        BoundingBox box = map.getBoundingBox();
+        // OpenCellID menolak bbox > 4.000.000 m2 (error code 3): pakai
+        // kotak maks ~2x2 km di tengah tampilan; bila tampilan sudah
+        // lebih kecil, pakai tampilannya apa adanya. Tanpa ini, zoom
+        // jauh selalu gagal — bukan data kosong.
+        double south = clampLat(box.getLatSouth());
+        double north = clampLat(box.getLatNorth());
+        double west = clampLon(box.getLonWest());
+        double east = clampLon(box.getLonEast());
+        double centerLat = (south + north) / 2.0;
+        double centerLon;
+        double spanLon;
+        if (west <= east) {
+            centerLon = (west + east) / 2.0;
+            spanLon = east - west;
+        } else {
+            // Melewati antimeridian.
+            spanLon = east + 360.0 - west;
+            centerLon = west + spanLon / 2.0;
+            if (centerLon > 180.0) centerLon -= 360.0;
+        }
+        double halfLat = Math.min((north - south) / 2.0, 0.009);
+        double cos = Math.max(Math.cos(Math.toRadians(centerLat)), 0.2);
+        double halfLon = Math.min(spanLon / 2.0, 0.009 / cos);
+        double bSouth = clampLat(centerLat - halfLat);
+        double bNorth = clampLat(centerLat + halfLat);
+        double bWest = clampLon(centerLon - halfLon);
+        double bEast = clampLon(centerLon + halfLon);
+        if (bWest > bEast) {
+            double tmp = bWest;
+            bWest = bEast;
+            bEast = tmp;
+        }
+        final double fSouth = bSouth;
+        final double fNorth = bNorth;
+        final double fWest = bWest;
+        final double fEast = bEast;
+        new Thread(() -> {
+            String key = keyProvider == null ? "" : keyProvider.opencellidKey();
+            if (key == null || key.isEmpty()) return;
+            ArrayList<OverlayItem> items = new ArrayList<>();
+            try {
+                // Default format API ini KML — format=json wajib eksplisit.
+                String url = "https://opencellid.org/cell/getInArea?key=" + key
+                        + "&BBOX=" + fSouth + "," + fWest + "," + fNorth + "," + fEast
+                        + "&format=json&limit=" + MAX_CELLS;
+                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient();
+                okhttp3.Request req = new okhttp3.Request.Builder().url(url).build();
+                try (okhttp3.Response resp = client.newCall(req).execute()) {
+                    if (resp.body() == null) {
+                        if (!quiet) postToast(R.string.geomac_layer_failed);
+                        return;
+                    }
+                    JSONObject root = new JSONObject(resp.body().string());
+                    if (root.has("error")) {
+                        // Error bisa datang dengan HTTP 200 — cek body,
+                        // bukan status saja. Code 7 = limit harian habis.
+                        if (!quiet) {
+                            if (root.optInt("code", 0) == 7 || resp.code() == 429) {
+                                postToast(R.string.geomac_opencellid_limit);
+                            } else {
+                                postToast(R.string.geomac_layer_failed);
+                            }
+                        }
+                        return;
+                    }
+                    if (!resp.isSuccessful()) {
+                        if (!quiet) {
+                            if (resp.code() == 429) {
+                                postToast(R.string.geomac_opencellid_limit);
+                            } else {
+                                postToast(R.string.geomac_layer_failed);
+                            }
+                        }
+                        return;
+                    }
+                    JSONArray cells = root.optJSONArray("cells");
+                    if (cells == null) return;
+                    for (int i = 0; i < cells.length() && items.size() < MAX_CELLS; i++) {
+                        JSONObject c = cells.optJSONObject(i);
+                        if (c == null) continue;
+                        double lat = c.optDouble("lat", Double.NaN);
+                        double lon = c.optDouble("lon", Double.NaN);
+                        if (Double.isNaN(lat) || Double.isNaN(lon)) continue;
+                        String radio = c.optString("radio", "");
+                        int mcc = c.optInt("mcc", 0);
+                        int mnc = c.optInt("mnc", 0);
+                        long lac = c.optLong("lac", 0);
+                        long cellid = c.optLong("cellid", 0);
+                        int range = c.optInt("range", 0);
+                        int samples = c.optInt("samples", 0);
+                        // Posisi = estimasi crowdsourcing, BUKAN lokasi
+                        // tiang survei; range = perkiraan, bukan radius
+                        // jaminan cakupan. Label "perkiraan" wajib ada.
+                        String title = (radio.isEmpty() ? "Sel" : radio)
+                                + " · " + mcc + "-" + mnc;
+                        String snippet = "LAC/TAC " + lac + " · Sel " + cellid;
+                        if (range > 0) snippet += " · ±" + range + " m (perkiraan)";
+                        if (samples > 0) snippet += " · " + samples + " sampel";
+                        OverlayItem item = new OverlayItem(title, snippet,
+                                new GeoPoint(lat, lon));
+                        item.setMarker(LayerMarkers.dot(context, cellColor(radio), 12));
+                        item.setMarkerHotspot(OverlayItem.HotspotPlace.CENTER);
+                        items.add(item);
+                    }
+                }
+            } catch (Exception ex) {
+                if (!quiet) postToast(R.string.geomac_layer_failed);
+                return;
+            }
+            final ArrayList<OverlayItem> finalItems = items;
+            final boolean empty = items.isEmpty();
+            postToUi(() -> {
+                if (!celltowersOn) return;
+                if (celltowersOverlay != null) map.getOverlays().remove(celltowersOverlay);
+                celltowersOverlay = buildMarkerOverlay(finalItems);
+                map.getOverlays().add(celltowersOverlay);
+                updateCredit();
+                map.invalidate();
+                if (empty && !quiet) {
+                    // Kosong = tidak ada record di dataset, BUKAN berarti
+                    // tidak ada sinyal di area itu (dokumen resmi).
+                    Toast.makeText(context, R.string.geomac_opencellid_empty,
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        }, "atlas-celltowers").start();
+    }
+
+    private static int cellColor(String radio) {
+        if ("LTE".equals(radio)) return Color.parseColor("#1E88E5");
+        if ("NR".equals(radio)) return Color.parseColor("#8E24AA");
+        if ("UMTS".equals(radio)) return Color.parseColor("#FB8C00");
+        if ("GSM".equals(radio)) return Color.parseColor("#43A047");
+        return Color.parseColor("#757575");
     }
 
     private boolean fetchCameraPage(String key, double north, double east, double south,
@@ -954,6 +1143,10 @@ public final class AtlasLayers {
         if (camerasOn) {
             if (sb.length() > 0) sb.append(" · ");
             sb.append(context.getString(R.string.geomac_layer_credit_cameras));
+        }
+        if (celltowersOn) {
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append(context.getString(R.string.geomac_layer_credit_celltowers));
         }
         if (sb.length() == 0) {
             creditView.setVisibility(View.GONE);

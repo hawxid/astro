@@ -21,8 +21,11 @@ import java.util.regex.Pattern;
  * posisi 1-4 OUTPUT (loopback + via-tunnel + handshake UDP ke endpoint
  * diizinkan, sisanya DROP), dipasang saat tunnel naik dan dicabut saat
  * tunnel mati. Fail-closed: bila aturan gagal diterapkan, up()
- * dibatalkan (rollback), bukan jalan tanpa proteksi. Cakupan IPv4 saja;
- * IPv6 masih bisa lolos (limitasi dicatat).
+ * dibatalkan (rollback), bukan jalan tanpa proteksi.
+ * Sejak batch 1+2: kill switch juga memblok IPv6 (ip6tables: loopback
+ * diizinkan, sisanya DROP) — tanpa ini IPv6 lolos langsung lewat carrier
+ * meski kill switch menyala. Aturan IPv6 terikat sakelar yang sama:
+ * sakelar mati = tidak ada aturan IPv6 (perilaku lama).
  */
 public class WgEngine {
 
@@ -125,15 +128,26 @@ public class WgEngine {
         return runAndroid(core, "command -v iptables").contains("/iptables");
     }
 
-    /** Kill switch sedang terpasang (verifikasi live, bukan setelan). */
-    public static boolean killSwitchActive(Core core) {
-        String out = runAndroid(core, "iptables -S OUTPUT");
-        return out.contains("-o " + IFACE + " -j ACCEPT")
-                && out.contains("-j DROP");
+    private static boolean androidIp6tablesOk(Core core) {
+        return runAndroid(core, "command -v ip6tables").contains("/ip6tables");
     }
 
-    /** Cabut kill switch: hapus 4 aturan by-spec (toleran bila tak ada).
-     * Endpoint/port dibaca dari pref runtime (disimpan saat up()). */
+    /** Kill switch sedang terpasang (verifikasi live, bukan setelan).
+     * Sejak batch 1+2: mencakup aturan IPv6 — sakelar dianggap aktif
+     * hanya bila filter IPv4 DAN IPv6 dua-duanya terpasang. */
+    public static boolean killSwitchActive(Core core) {
+        String out = runAndroid(core, "iptables -S OUTPUT");
+        if (!(out.contains("-o " + IFACE + " -j ACCEPT")
+                && out.contains("-j DROP"))) {
+            return false;
+        }
+        String out6 = runAndroid(core, "ip6tables -S OUTPUT");
+        return out6.contains("-o lo -j ACCEPT") && out6.contains("-j DROP");
+    }
+
+    /** Cabut kill switch: hapus 4 aturan IPv4 + 2 aturan IPv6 by-spec
+     * (toleran bila tak ada). Endpoint/port dibaca dari pref runtime
+     * (disimpan saat up()). */
     public static void removeKillSwitch(Core core) {
         String endpointIp = core.getString(WgConfig.P_RT_ENDPOINT_IP);
         String port = core.getString(WgConfig.P_RT_PORT);
@@ -147,16 +161,23 @@ public class WgEngine {
             runAndroid(core, ep + " -j ACCEPT 2>/dev/null; true");
         }
         runAndroid(core, "iptables -D OUTPUT -j DROP 2>/dev/null; true");
+        runAndroid(core, "ip6tables -D OUTPUT -o lo -j ACCEPT 2>/dev/null; true");
+        runAndroid(core, "ip6tables -D OUTPUT -j DROP 2>/dev/null; true");
     }
 
     /**
      * Pasang kill switch: bersihkan sisa crash dulu, lalu sisip 4 aturan
-     * di posisi 1-4 OUTPUT (loopback, via-tunnel, handshake UDP ke
-     * endpoint, DROP). Gagal = rollback aturan + Result gagal.
+     * IPv4 di posisi 1-4 OUTPUT (loopback, via-tunnel, handshake UDP ke
+     * endpoint, DROP) plus 2 aturan IPv6 (loopback, DROP — IPv6 tidak
+     * pernah lewat tunnel, jadi satu-satunya pilihan aman adalah blokir
+     * total saat sakelar menyala). Gagal = rollback aturan + Result gagal.
      */
     public static Result applyKillSwitch(Core core, String endpointIp, String port) {
         if (!androidIptablesOk(core)) {
             return new Result(false, "iptables tidak tersedia");
+        }
+        if (!androidIp6tablesOk(core)) {
+            return new Result(false, "ip6tables tidak tersedia — IPv6 tidak bisa diblokir");
         }
         removeKillSwitch(core);
         runAndroid(core, "iptables -I OUTPUT 1 -o lo -j ACCEPT");
@@ -167,6 +188,8 @@ public class WgEngine {
         }
         runAndroid(core, ep + " -j ACCEPT");
         runAndroid(core, "iptables -I OUTPUT 4 -j DROP");
+        runAndroid(core, "ip6tables -I OUTPUT 1 -j DROP");
+        runAndroid(core, "ip6tables -I OUTPUT 1 -o lo -j ACCEPT");
         if (killSwitchActive(core)) {
             return new Result(true, "kill switch aktif");
         }

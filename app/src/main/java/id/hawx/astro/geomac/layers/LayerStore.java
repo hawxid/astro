@@ -24,6 +24,8 @@ public final class LayerStore {
     public static final String QUAKES = "quakes";
     public static final String CAMERAS = "cameras";
     public static final String TRAFFIC = "traffic";
+    public static final String GPS = "gps";
+    public static final String CELLTOWERS = "celltowers";
 
     private static final String PREF_SATELLITE = "geomac_satellite";
 
@@ -43,6 +45,10 @@ public final class LayerStore {
                 AtlasLayer.Kind.MARKER, "Windy"));
         layers.put(TRAFFIC, new AtlasLayer(TRAFFIC, R.string.geomac_layer_traffic,
                 AtlasLayer.Kind.FEATURE, "Perangkat"));
+        layers.put(GPS, new AtlasLayer(GPS, R.string.geomac_layer_gps,
+                AtlasLayer.Kind.FEATURE, "GPS"));
+        layers.put(CELLTOWERS, new AtlasLayer(CELLTOWERS, R.string.geomac_layer_celltowers,
+                AtlasLayer.Kind.MARKER, "OpenCellID"));
         satellite = core != null && core.getBoolean(PREF_SATELLITE);
     }
 

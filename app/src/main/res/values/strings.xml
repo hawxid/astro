@@ -889,6 +889,15 @@ manager</string>
     <string name="geomac_layer_credit">Weather data by RainViewer</string>
     <string name="geomac_layer_cameras">Cameras</string>
     <string name="geomac_layer_traffic">Traffic</string>
+    <string name="geomac_layer_gps">GPS live</string>
+    <string name="geomac_gps_disabled">Lokasi tidak tersedia — nyalakan GPS atau lokasi jaringan</string>
+    <string name="geomac_layer_celltowers">Cell towers</string>
+    <string name="geomac_layer_credit_celltowers">Cell data: OpenCellID (CC BY-SA 4.0)</string>
+    <string name="geomac_opencellid_key_title">OpenCellID API key</string>
+    <string name="geomac_opencellid_key_message">Paste a free OpenCellID API key (from your opencellid.org account) to load cell towers. It is stored only on this device.</string>
+    <string name="geomac_opencellid_key_hint">OpenCellID API key</string>
+    <string name="geomac_opencellid_empty">Tidak ada data menara di area ini — bukan berarti tidak ada sinyal</string>
+    <string name="geomac_opencellid_limit">Limit harian OpenCellID habis — coba lagi besok</string>
     <string name="geomac_layer_satellite">Satellite</string>
     <string name="atlas_sheet_title">Lapisan Atlas</string>
     <string name="atlas_sheet_basemap">Peta dasar</string>
