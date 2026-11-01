@@ -59,6 +59,14 @@ public final class AtlasLayers {
         default String opencellidKey() {
             return "";
         }
+
+        /**
+         * Default kosong: dipanggil saat server menolak key OpenCellID
+         * (code 2 / HTTP 401, mis. token dihapus di dashboard). Pemanggil
+         * yang peduli menimpa ini untuk membuka lagi dialog key.
+         */
+        default void onOpenCellIdKeyInvalid() {
+        }
     }
 
     public enum Layer {
@@ -640,12 +648,24 @@ public final class AtlasLayers {
                     JSONObject root = new JSONObject(resp.body().string());
                     if (root.has("error")) {
                         // Error bisa datang dengan HTTP 200 — cek body,
-                        // bukan status saja. Code 7 = limit harian habis.
+                        // bukan status saja. Code 7 = limit harian habis,
+                        // code 2 = key tidak dikenal (mis. token dihapus
+                        // di dashboard): buka lagi dialog key supaya key
+                        // bisa dikoreksi, bukan cuma toast gagal. Hanya
+                        // fetch manual (bukan timer) yang membuka dialog.
+                        int errCode = root.optInt("code", 0);
                         if (!quiet) {
-                            if (root.optInt("code", 0) == 7 || resp.code() == 429) {
+                            if (errCode == 7 || resp.code() == 429) {
                                 postToast(R.string.geomac_opencellid_limit);
                             } else {
                                 postToast(R.string.geomac_layer_failed);
+                            }
+                            if (errCode == 2 || resp.code() == 401) {
+                                postToUi(() -> {
+                                    if (keyProvider != null) {
+                                        keyProvider.onOpenCellIdKeyInvalid();
+                                    }
+                                });
                             }
                         }
                         return;
@@ -656,6 +676,13 @@ public final class AtlasLayers {
                                 postToast(R.string.geomac_opencellid_limit);
                             } else {
                                 postToast(R.string.geomac_layer_failed);
+                            }
+                            if (resp.code() == 401) {
+                                postToUi(() -> {
+                                    if (keyProvider != null) {
+                                        keyProvider.onOpenCellIdKeyInvalid();
+                                    }
+                                });
                             }
                         }
                         return;

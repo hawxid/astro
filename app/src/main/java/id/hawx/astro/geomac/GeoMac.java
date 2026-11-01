@@ -148,6 +148,25 @@ public class GeoMac extends Fragment {
                     public String opencellidKey() {
                         return core == null ? "" : core.getString(PREF_OPEN_CELL_KEY);
                     }
+
+                    @Override
+                    public void onOpenCellIdKeyInvalid() {
+                        // Key ditolak server (mis. token dihapus di
+                        // dashboard): matikan dulu layernya supaya alur
+                        // Save dialog sama persis seperti gate key kosong
+                        // (setLayer + toggle ON memicu fetch ulang dengan
+                        // key baru). Tanpa ini, toggle ON sudah aktif jadi
+                        // Save tidak memicu fetch apa-apa.
+                        if (!alive.get() || !isAdded()) return;
+                        if (layerStore != null) {
+                            layerStore.setLayer(LayerStore.CELLTOWERS, false);
+                        }
+                        if (layers != null) {
+                            layers.toggle(AtlasLayers.Layer.CELLTOWERS, false);
+                        }
+                        refreshLayerSheet();
+                        askOpenCellIdKey();
+                    }
                 });
         trafficLive = new TrafficLive(activity, context, map,
                 () -> alive.get() && isAdded(),
