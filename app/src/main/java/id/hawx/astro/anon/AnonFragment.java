@@ -10,6 +10,7 @@ import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -27,11 +28,12 @@ import id.hawx.astro.utils.Core;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Mode Anonim Batch 1: toggle + WireGuard saja.
- * VPN standar dan Tor tampil sebagai chip nonaktif ("segera") — bukan
- * fungsi palsu, keduanya menyusul di batch berikutnya.
+ * Mode Anonim: toggle + WireGuard + Tor (satu mode aktif).
+ * VPN standar masih chip nonaktif ("segera") — bukan fungsi palsu.
  *
  * Backend WG = kernel wg0 lewat wireguard-tools di chroot (root).
+ * Backend Tor = daemon chroot sebagai debian-tor + transparent proxy
+ * iptables dari su sisi-Android (pola kill switch WG).
  * Semua perintah chroot jalan di thread latar; kunci privat tidak pernah
  * ditulis ke log (engine memakai nolog=true).
  */
@@ -66,6 +68,23 @@ public class AnonFragment extends Fragment {
     private MaterialTextView toolsText;
     private MaterialButton installToolsBtn;
 
+    private String mode = TorEngine.MODE_WG;
+    private View wgCard;
+    private View torCard;
+    private View torConnecting;
+    private ProgressBar torProgress;
+    private MaterialTextView torPercentText;
+    private MaterialTextView torStageText;
+    private MaterialTextView torLogText;
+    private MaterialButton torLogBtn;
+    private View torLogBox;
+    private MaterialTextView torLogFullText;
+    private MaterialButton torExitBtn;
+    private final AtomicBoolean torPolling = new AtomicBoolean(false);
+    private long torConnectStartMs = 0;
+    private int torLastPercent = -1;
+    private long torLastProgressMs = 0;
+
     private boolean uiReady() {
         return alive.get() && activity != null && isAdded();
     }
@@ -99,10 +118,11 @@ public class AnonFragment extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle saved) {
         alive.set(true);
         bindViews(view);
-        chipWg.setChecked(true);
         chipWg.setEnabled(true);
         chipVpn.setEnabled(false);
-        chipTor.setEnabled(false);
+        chipTor.setEnabled(true);
+        chipWg.setOnClickListener(v -> selectMode(TorEngine.MODE_WG));
+        chipTor.setOnClickListener(v -> selectMode(TorEngine.MODE_TOR));
 
         toggleBtn.setOnClickListener(v -> onToggle());
         refreshBtn.setOnClickListener(v -> refreshStatus());
@@ -117,15 +137,19 @@ public class AnonFragment extends Fragment {
         saveBtn.setOnClickListener(v -> onSave());
         importBtn.setOnClickListener(v -> onImport());
         installToolsBtn.setOnClickListener(v -> onInstallTools());
+        torLogBtn.setOnClickListener(v -> toggleTorLog());
+        torExitBtn.setOnClickListener(v -> onShowTorExit());
 
         fillFields(WgConfig.load(core));
-        refreshTools();
-        refreshStatus();
+        String savedMode = core.getString(TorEngine.P_MODE);
+        selectMode(TorEngine.MODE_TOR.equals(savedMode)
+                ? TorEngine.MODE_TOR : TorEngine.MODE_WG);
     }
 
     @Override
     public void onDestroyView() {
         alive.set(false);
+        stopTorPolling();
         super.onDestroyView();
     }
 
@@ -151,6 +175,17 @@ public class AnonFragment extends Fragment {
         importBtn = view.findViewById(R.id.anon_import_btn);
         toolsText = view.findViewById(R.id.anon_tools_text);
         installToolsBtn = view.findViewById(R.id.anon_install_tools_btn);
+        wgCard = view.findViewById(R.id.anon_wg_card);
+        torCard = view.findViewById(R.id.anon_tor_card);
+        torConnecting = view.findViewById(R.id.anon_tor_connecting);
+        torProgress = view.findViewById(R.id.anon_tor_progress);
+        torPercentText = view.findViewById(R.id.anon_tor_percent);
+        torStageText = view.findViewById(R.id.anon_tor_stage);
+        torLogText = view.findViewById(R.id.anon_tor_log);
+        torLogBtn = view.findViewById(R.id.anon_tor_log_btn);
+        torLogBox = view.findViewById(R.id.anon_tor_log_box);
+        torLogFullText = view.findViewById(R.id.anon_tor_log_full);
+        torExitBtn = view.findViewById(R.id.anon_tor_exit_btn);
     }
 
     private String textOf(TextInputEditText in) {
@@ -187,7 +222,159 @@ public class AnonFragment extends Fragment {
         setText(inPrivkey, c.privateKey);
     }
 
+    /** Ganti mode tampilan (WG vs Tor): kartu + sakelar kill switch ikut. */
+    private void selectMode(String m) {
+        mode = TorEngine.MODE_TOR.equals(m) ? TorEngine.MODE_TOR : TorEngine.MODE_WG;
+        core.putString(TorEngine.P_MODE, mode);
+        boolean tor = TorEngine.MODE_TOR.equals(mode);
+        wgCard.setVisibility(tor ? View.GONE : View.VISIBLE);
+        torCard.setVisibility(tor ? View.VISIBLE : View.GONE);
+        killSwitch.setVisibility(tor ? View.GONE : View.VISIBLE);
+        chipWg.setChecked(!tor);
+        chipTor.setChecked(tor);
+        stopTorPolling();
+        refreshStatus();
+        refreshTools();
+    }
+
+    private void stopTorPolling() {
+        torPolling.set(false);
+    }
+
+    /** Polling bootstrap Tor tiap 2 detik selama CONNECTING. */
+    private void startTorPolling() {
+        if (torPolling.getAndSet(true)) return;
+        runBg(() -> {
+            try {
+                while (alive.get() && torPolling.get()
+                        && TorEngine.MODE_TOR.equals(mode)) {
+                    TorEngine.Status s = TorEngine.status(core);
+                    runUi(() -> renderTorStatus(s));
+                    if (s.state != TorEngine.State.CONNECTING) break;
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ignored) {
+                        break;
+                    }
+                }
+            } finally {
+                torPolling.set(false);
+            }
+        });
+    }
+
+    private String torStageLabel(String tag) {
+        if (tag == null) return getString(R.string.tor_stage_unknown);
+        switch (tag) {
+            case "starting":
+                return getString(R.string.tor_stage_start);
+            case "conn":
+            case "conn_done":
+                return getString(R.string.tor_stage_conn);
+            case "handshake":
+            case "handshake_done":
+                return getString(R.string.tor_stage_handshake);
+            case "requesting_status":
+            case "loading_status":
+            case "loading_keys":
+                return getString(R.string.tor_stage_status);
+            case "requesting_descriptors":
+            case "loading_descriptors":
+                return getString(R.string.tor_stage_descriptors);
+            case "enough_dirinfo":
+            case "ap_handshake_done":
+            case "circuit_create":
+                return getString(R.string.tor_stage_circuit);
+            case "done":
+                return getString(R.string.tor_stage_done);
+            default:
+                return getString(R.string.tor_stage_unknown);
+        }
+    }
+
+    private void renderTorStatus(TorEngine.Status s) {
+        if (!uiReady()) return;
+        switch (s.state) {
+            case ON:
+                statusText.setText(R.string.tor_status_on);
+                toggleBtn.setText(R.string.tor_btn_off);
+                torConnecting.setVisibility(View.GONE);
+                torLogBtn.setVisibility(View.GONE);
+                torLogBox.setVisibility(View.GONE);
+                warnText.setText(R.string.tor_warn_on);
+                stopTorPolling();
+                break;
+            case CONNECTING:
+                statusText.setText(R.string.tor_status_connecting);
+                toggleBtn.setText(R.string.tor_btn_cancel);
+                torConnecting.setVisibility(View.VISIBLE);
+                torLogBtn.setVisibility(View.VISIBLE);
+                torProgress.setProgress(s.percent);
+                torPercentText.setText(s.percent + "%");
+                String stage = torStageLabel(s.stageTag);
+                long elapsed = torConnectStartMs > 0
+                        ? (System.currentTimeMillis() - torConnectStartMs) / 1000 : 0;
+                if (s.percent != torLastPercent) {
+                    torLastPercent = s.percent;
+                    torLastProgressMs = System.currentTimeMillis();
+                } else if (torLastProgressMs > 0
+                        && System.currentTimeMillis() - torLastProgressMs > 180000) {
+                    stage += getString(R.string.tor_stage_stuck);
+                }
+                torStageText.setText(stage + " (" + elapsed + " dtk)");
+                if (s.lastLog != null && !s.lastLog.isEmpty()) {
+                    torLogText.setText(s.lastLog);
+                }
+                warnText.setText(R.string.tor_warn);
+                startTorPolling();
+                break;
+            case BROKEN:
+                statusText.setText(R.string.tor_status_broken);
+                toggleBtn.setText(R.string.tor_btn_off);
+                torConnecting.setVisibility(View.GONE);
+                torLogBtn.setVisibility(View.VISIBLE);
+                warnText.setText(R.string.tor_warn_broken);
+                stopTorPolling();
+                break;
+            default:
+                statusText.setText(R.string.tor_status_off);
+                toggleBtn.setText(R.string.tor_btn_on);
+                torConnecting.setVisibility(View.GONE);
+                torLogBtn.setVisibility(View.GONE);
+                torLogBox.setVisibility(View.GONE);
+                warnText.setText(R.string.tor_warn);
+                stopTorPolling();
+                break;
+        }
+    }
+
+    private void refreshTorStatus() {
+        runBg(() -> {
+            TorEngine.Status s = TorEngine.status(core);
+            runUi(() -> renderTorStatus(s));
+        });
+    }
+
+    private void toggleTorLog() {
+        if (torLogBox.getVisibility() == View.VISIBLE) {
+            torLogBox.setVisibility(View.GONE);
+            return;
+        }
+        runBg(() -> {
+            String tail = TorEngine.logTail(core, 30);
+            runUi(() -> {
+                torLogFullText.setText(tail == null || tail.isEmpty()
+                        ? getString(R.string.tor_log_empty) : tail);
+                torLogBox.setVisibility(View.VISIBLE);
+            });
+        });
+    }
+
     private void refreshStatus() {
+        if (TorEngine.MODE_TOR.equals(mode)) {
+            refreshTorStatus();
+            return;
+        }
         runBg(() -> {
             WgEngine.Status s = WgEngine.status(core);
             boolean ksActive = WgEngine.killSwitchActive(core);
@@ -220,10 +407,22 @@ public class AnonFragment extends Fragment {
     }
 
     private void refreshTools() {
+        if (TorEngine.MODE_TOR.equals(mode)) {
+            runBg(() -> {
+                boolean ok = TorEngine.toolsOk(core);
+                runUi(() -> {
+                    toolsText.setText(ok ? R.string.tor_tools_ok : R.string.tor_tools_missing);
+                    installToolsBtn.setText(R.string.tor_btn_install_tools);
+                    installToolsBtn.setVisibility(ok ? View.GONE : View.VISIBLE);
+                });
+            });
+            return;
+        }
         runBg(() -> {
             boolean ok = WgEngine.toolsOk(core);
             runUi(() -> {
                 toolsText.setText(ok ? R.string.anon_tools_ok : R.string.anon_tools_missing);
+                installToolsBtn.setText(R.string.anon_btn_install_tools);
                 installToolsBtn.setVisibility(ok ? View.GONE : View.VISIBLE);
             });
         });
@@ -233,20 +432,10 @@ public class AnonFragment extends Fragment {
         if (busy.getAndSet(true)) return;
         runBg(() -> {
             try {
-                WgEngine.Status s = WgEngine.status(core);
-                if (s.up) {
-                    WgEngine.Result r = WgEngine.down(core);
-                    toast(r.ok ? getString(R.string.anon_toast_down_ok) : r.message);
+                if (TorEngine.MODE_TOR.equals(mode)) {
+                    onToggleTor();
                 } else {
-                    WgConfig c = readFields();
-                    if (!c.isComplete()) {
-                        toast(getString(R.string.anon_toast_need_config));
-                        return;
-                    }
-                    c.save(core);
-                    WgEngine.Result r = WgEngine.up(core, c);
-                    toast(r.ok ? getString(R.string.anon_toast_up_ok)
-                            : getString(R.string.anon_toast_up_fail) + " " + r.message);
+                    onToggleWg();
                 }
             } finally {
                 busy.set(false);
@@ -255,10 +444,77 @@ public class AnonFragment extends Fragment {
         });
     }
 
+    private void onToggleTor() {
+        TorEngine.Status s = TorEngine.status(core);
+        if (s.state == TorEngine.State.ON || s.state == TorEngine.State.CONNECTING) {
+            TorEngine.Result r = TorEngine.down(core);
+            toast(r.ok ? getString(R.string.tor_toast_down_ok) : r.message);
+            stopTorPolling();
+            return;
+        }
+        // Pindah mode: matikan WG dulu bila sedang jalan.
+        WgEngine.Status ws = WgEngine.status(core);
+        if (ws.up) {
+            WgEngine.down(core);
+            toast(getString(R.string.tor_toast_wg_down));
+        }
+        if (!TorEngine.toolsOk(core)) {
+            toast(getString(R.string.tor_toast_tools_first));
+            return;
+        }
+        torConnectStartMs = System.currentTimeMillis();
+        torLastPercent = -1;
+        torLastProgressMs = System.currentTimeMillis();
+        TorEngine.Result r = TorEngine.up(core);
+        if (r.ok) {
+            toast(getString(R.string.tor_toast_up_start));
+        } else {
+            toast(getString(R.string.tor_toast_up_fail) + " " + r.message);
+        }
+    }
+
+    private void onToggleWg() {
+        WgEngine.Status s = WgEngine.status(core);
+        if (s.up) {
+            WgEngine.Result r = WgEngine.down(core);
+            toast(r.ok ? getString(R.string.anon_toast_down_ok) : r.message);
+        } else {
+            // Pindah mode: matikan Tor dulu bila sedang jalan.
+            TorEngine.Status ts = TorEngine.status(core);
+            if (ts.state != TorEngine.State.OFF) {
+                TorEngine.down(core);
+                toast(getString(R.string.tor_toast_tor_down));
+            }
+            WgConfig c = readFields();
+            if (!c.isComplete()) {
+                toast(getString(R.string.anon_toast_need_config));
+                return;
+            }
+            c.save(core);
+            WgEngine.Result r = WgEngine.up(core, c);
+            toast(r.ok ? getString(R.string.anon_toast_up_ok)
+                    : getString(R.string.anon_toast_up_fail) + " " + r.message);
+        }
+    }
+
     private void onRepair() {
         if (busy.getAndSet(true)) return;
         runBg(() -> {
             try {
+                if (TorEngine.MODE_TOR.equals(mode)) {
+                    TorEngine.down(core);
+                    if (!TorEngine.toolsOk(core)) {
+                        toast(getString(R.string.tor_toast_tools_first));
+                        return;
+                    }
+                    torConnectStartMs = System.currentTimeMillis();
+                    torLastPercent = -1;
+                    torLastProgressMs = System.currentTimeMillis();
+                    TorEngine.Result r = TorEngine.up(core);
+                    toast(r.ok ? getString(R.string.tor_toast_up_start)
+                            : getString(R.string.tor_toast_up_fail) + " " + r.message);
+                    return;
+                }
                 WgEngine.down(core);
                 WgConfig c = WgConfig.load(core);
                 if (!c.isComplete()) {
@@ -383,11 +639,51 @@ public class AnonFragment extends Fragment {
 
     private void onInstallTools() {
         runBg(() -> {
+            if (TorEngine.MODE_TOR.equals(mode)) {
+                String cmd = TextUtils.join("; ", Apt.env()) + "; " + Apt.install("tor");
+                core.customChrootCommand(cmd, true);
+                boolean ok = TorEngine.toolsOk(core);
+                toast(ok ? getString(R.string.tor_tools_ok) : getString(R.string.tor_toast_up_fail));
+                refreshTools();
+                return;
+            }
             String cmd = TextUtils.join("; ", Apt.env()) + "; " + Apt.install("wireguard-tools");
             core.customChrootCommand(cmd, true);
             boolean ok = WgEngine.toolsOk(core);
             toast(ok ? getString(R.string.anon_tools_ok) : getString(R.string.anon_toast_up_fail));
             refreshTools();
+        });
+    }
+
+    private void onShowTorExit() {
+        runBg(() -> {
+            TorEngine.Status s = TorEngine.status(core);
+            if (s.state != TorEngine.State.ON) {
+                toast(getString(R.string.tor_toast_not_on));
+                return;
+            }
+            String ip = TorEngine.exitIp(core);
+            if (ip == null) {
+                toast(getString(R.string.tor_toast_exit_fail));
+                return;
+            }
+            runUi(() -> new MaterialAlertDialogBuilder(context)
+                    .setTitle(R.string.tor_exit_title)
+                    .setMessage(ip)
+                    .setPositiveButton(R.string.anon_btn_copy, (d, w) -> {
+                        try {
+                            ClipboardManager cm = (ClipboardManager)
+                                    context.getSystemService(Context.CLIPBOARD_SERVICE);
+                            if (cm != null) {
+                                cm.setPrimaryClip(ClipData.newPlainText("tor-exit-ip", ip));
+                            }
+                            toast(getString(R.string.tor_toast_exit_copied));
+                        } catch (Exception ignored) {
+                            // Clipboard gagal: IP tetap terlihat di dialog.
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show());
         });
     }
 }
