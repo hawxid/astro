@@ -70,7 +70,7 @@
                             android:layout_height="22dp"
                             android:layout_gravity="center"
                             android:src="@drawable/rocket_launch"
-                            app:tint="#E53935" />
+                            app:tint="#D4AF37" />
                     </FrameLayout>
 
                     <LinearLayout
@@ -193,7 +193,7 @@
             android:layout_height="52dp"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:backgroundTint="#E53935"
+            android:backgroundTint="#D4AF37"
             android:text="@string/msf_values_launch"
             android:textColor="@color/light_contrast"
             app:cornerRadius="14dp"

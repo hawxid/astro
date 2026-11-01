@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OSIRIS gold tile (re-UI 2026-11-01): pasangan dashboard_tile_bg_red
+     untuk permukaan Atlas — emas tembus pandang di atas tema gelap. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="16dp" />
+    <solid android:color="#33D4AF37" />
+</shape>

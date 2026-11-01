@@ -46,7 +46,7 @@
                             android:layout_height="20dp"
                             android:layout_gravity="center"
                             android:src="@drawable/key"
-                            app:tint="#E53935" />
+                            app:tint="#D4AF37" />
                     </com.facebook.shimmer.ShimmerFrameLayout>
                 </FrameLayout>
 
@@ -464,7 +464,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
                     android:text="16"
-                    android:textColor="#E53935"
+                    android:textColor="#D4AF37"
                     android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -479,9 +479,9 @@
                 android:value="16"
                 android:valueFrom="1"
                 android:valueTo="64"
-                app:thumbColor="#E53935"
+                app:thumbColor="#D4AF37"
                 app:tickColor="@color/light_lite_contrast"
-                app:trackColorActive="#E53935"
+                app:trackColorActive="#D4AF37"
                 app:trackColorInactive="@color/light_lite_contrast" />
 
             <com.google.android.material.chip.ChipGroup
@@ -518,7 +518,7 @@
                 android:layout_marginEnd="16dp"
                 android:indeterminate="true"
                 android:visibility="gone"
-                app:indicatorColor="#E53935"
+                app:indicatorColor="#D4AF37"
                 app:trackColor="@color/light_lite_contrast"
                 app:trackCornerRadius="2dp" />
 
@@ -615,7 +615,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:backgroundTint="#E53935"
+                    android:backgroundTint="#D4AF37"
                     android:maxLines="1"
                     android:text="@string/hydra_btn_launch"
                     android:textColor="@color/light_contrast"

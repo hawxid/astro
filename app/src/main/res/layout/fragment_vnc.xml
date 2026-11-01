@@ -203,7 +203,7 @@
             android:letterSpacing="0.08"
             android:text="@string/vnc_section_log"
             android:textAllCaps="true"
-            android:textColor="#E53935"
+            android:textColor="#D4AF37"
             android:textSize="12sp"
             android:textStyle="bold"
             android:visibility="gone" />

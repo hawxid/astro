@@ -155,7 +155,7 @@
             android:letterSpacing="0.08"
             android:text="WIRELESS"
             android:textAllCaps="true"
-            android:textColor="#3949AB"
+            android:textColor="#D4AF37"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -188,7 +188,7 @@
             android:letterSpacing="0.08"
             android:text="NETWORK"
             android:textAllCaps="true"
-            android:textColor="#AB47BC"
+            android:textColor="#D4AF37"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -209,7 +209,7 @@
             android:letterSpacing="0.08"
             android:text="OFFENSIVE"
             android:textAllCaps="true"
-            android:textColor="#C62828"
+            android:textColor="#D4AF37"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -234,7 +234,7 @@
             android:letterSpacing="0.08"
             android:text="TOOLS"
             android:textAllCaps="true"
-            android:textColor="#5E35B1"
+            android:textColor="#D4AF37"
             android:textSize="11sp"
             android:textStyle="bold" />
 

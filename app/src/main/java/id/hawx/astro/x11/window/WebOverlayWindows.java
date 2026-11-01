@@ -341,9 +341,9 @@ public class WebOverlayWindows {
 
         win = new FrameLayout(act);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF21A2138);
+        bg.setColor(0xF20B0B10);
         bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), 0xFF3D4A7A);
+        bg.setStroke(dp(1), 0xFF2A2A35);
         win.setBackground(bg);
         win.setClipToOutline(true);
         win.setElevation(dp(10));
@@ -422,7 +422,7 @@ public class WebOverlayWindows {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(10), 0, dp(4), 0);
         GradientDrawable barBg = new GradientDrawable();
-        barBg.setColor(0xFF232C4E);
+        barBg.setColor(0xFF0B0B10);
         bar.setBackground(barBg);
         col.addView(bar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(32)));
@@ -890,8 +890,8 @@ public class WebOverlayWindows {
         icon.setGravity(Gravity.CENTER);
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(0xFF232C4E);
-        bg.setStroke(dp(1), 0xFF3D4A7A);
+        bg.setColor(0xFF0B0B10);
+        bg.setStroke(dp(1), 0xFF2A2A35);
         icon.setBackground(bg);
         icon.setElevation(dp(10));
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(

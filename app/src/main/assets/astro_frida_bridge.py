@@ -1,6 +1,6 @@
-# ASTRO_FRIDA_BRIDGE_VERSION = 3
+# ASTRO_FRIDA_BRIDGE_VERSION = 4
 #!/usr/bin/env python3
-"""Astro Frida bridge LENGKAP (Batch19-fix, 2026-11-01).
+"""Astro Frida bridge LENGKAP (Batch19-fix + tema OSIRIS, 2026-11-01).
 
 Web UI Frida server-rendered: bridge chroot Python ini melayani
 halaman HTML + endpoint Frida untuk webview melayang di atas game.
@@ -83,7 +83,7 @@ PORT = 18081
 SESSION_TOKEN = ""
 # Angka ini HARUS sama dengan marker komentar di baris 1 — manager
 # Java membaca marker itu untuk memutuskan overwrite filesDir.
-BRIDGE_VERSION = 3
+BRIDGE_VERSION = 4
 TOKEN_HEADER = "X-Astro-Token"
 TABLES_DIR = "/tmp/astro_frida_tables"
 SCAN_MATCH_CAP = 5000
@@ -182,20 +182,20 @@ def token_ok(supplied, expected):
 
 
 CSS = (
-    "body{background:#121212;color:#E0E0E0;font-family:sans-serif;"
-    "margin:0;padding:12px} a{color:#90CAF9} h1{font-size:20px}"
-    "h2{font-size:16px} .card{background:#1E1E1E;border:1px solid"
-    " #333;border-radius:12px;padding:12px;margin:10px 0}"
-    "button{background:#E53935;color:#fff;border:0;border-radius:8px;"
+    "body{background:#050508;color:#E8E8EA;font-family:sans-serif;"
+    "margin:0;padding:12px} a{color:#22D3EE} h1{font-size:20px}"
+    "h2{font-size:16px} .card{background:#0B0B10;border:1px solid"
+    " #2A2A35;border-radius:12px;padding:12px;margin:10px 0}"
+    "button{background:#D4AF37;color:#0B0B10;border:0;border-radius:8px;"
     "padding:8px 14px;margin:2px;cursor:pointer}"
-    "button.sec{background:#333} input,select{background:#222;color:"
-    "#eee;border:1px solid #444;border-radius:6px;padding:6px;"
+    "button.sec{background:#1A1A24;color:#E8E8EA} input,select{background:#12121A;color:"
+    "#E8E8EA;border:1px solid #2A2A35;border-radius:6px;padding:6px;"
     "margin:2px} table{border-collapse:collapse;width:100%}"
-    "td,th{border:1px solid #333;padding:5px;text-align:left;"
+    "td,th{border:1px solid #2A2A35;padding:5px;text-align:left;"
     "font-size:13px} code{font-size:12px;word-break:break-all}"
-    ".ok{color:#43A047} .bad{color:#EF5350} .dim{color:#9E9E9E}"
+    ".ok{color:#00FF88} .bad{color:#EF5350} .dim{color:#8A8A95}"
     ".mono{font-family:monospace} pre{white-space:pre-wrap;"
-    "word-break:break-all;background:#111;padding:8px;"
+    "word-break:break-all;background:#0B0B10;padding:8px;"
     "border-radius:8px}"
 )
 

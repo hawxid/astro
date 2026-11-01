@@ -175,7 +175,7 @@
                         android:layout_marginStart="12dp"
                         android:layout_marginEnd="12dp"
                         android:indeterminate="true"
-                        app:indicatorColor="#E53935"
+                        app:indicatorColor="#D4AF37"
                         app:trackColor="@color/light_lite_contrast"
                         app:trackCornerRadius="2dp" />
 

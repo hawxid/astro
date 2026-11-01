@@ -421,7 +421,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         }
         if (ekView.getParent() != null)
             ((ViewGroup) ekView.getParent()).removeView(ekView);
-        ekView.setBackgroundColor(0xF7232C4E);
+        ekView.setBackgroundColor(0xF70B0B10);
         int hPx = stripHeightPx();
         stripHpx = hPx;
         sEkLp = new android.view.WindowManager.LayoutParams(
@@ -495,7 +495,7 @@ public class XWindowActivity extends Activity implements XWindowHost.Listener {
         ekPopup = new PopupWindow(ekView, wPx, hPx, false);
         ekPopup.setTouchable(true);
         ekPopup.setOutsideTouchable(false);
-        ekPopup.setBackgroundDrawable(new ColorDrawable(0xF7232C4E));
+        ekPopup.setBackgroundDrawable(new ColorDrawable(0xF70B0B10));
         ekPopup.setAnimationStyle(0);
         // Posisi dari TEPI ATAS KEYBOARD (bukan dasar jendela — jangkar lama
         // bikin strip kadang nangkring DI ATAS keyboard): insets IME jendela

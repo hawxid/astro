@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="dialog_background_color">#101828</color>
-    <color name="astro_accent_contrast">#00E5FF</color>
-    <color name="astro_accent">#A088F0</color>
-    <color name="astro_logo_accent">#FFFFFF</color>
+    <color name="dialog_background_color">#0B0B10</color>
+    <color name="astro_accent_contrast">#22D3EE</color>
+    <color name="astro_accent">#D4AF37</color>
+    <color name="astro_logo_accent">#D4AF37</color>
     <color name="yellow">#F9A825</color>
-    <color name="red">#C62828</color>
+    <color name="red">#EF5350</color>
     <color name="green">#2E7D32</color>
     <color name="welcome_ink">#FFFFFF</color>
     <color name="welcome_line_1">#C4B5FD</color>
@@ -19,17 +19,17 @@
     <color name="intro_line_2">#00E5FF</color>
     <color name="intro_line_3">#FFFFFF</color>
 
-    <color name="light_contrast">#070B16</color>
-    <color name="night_contrast">#FFFFFF</color>
-    <color name="night_contrast_2">#D9FFFFFF</color>
-    <color name="light_lite_contrast">#0C1322</color>
-    <color name="grey">#BCBCBC</color>
+    <color name="light_contrast">#0B0B10</color>
+    <color name="night_contrast">#E8E8EA</color>
+    <color name="night_contrast_2">#E8E8EA</color>
+    <color name="light_lite_contrast">#12121A</color>
+    <color name="grey">#8A8A95</color>
     <color name="local_circle">#101828</color>
     <color name="device_img">#FFFFFF</color>
     <color name="console">#ffffff</color>
     <color name="itemcolor">#101828</color>
-    <color name="toolbar_color">#070B16</color>
-    <color name="toolbar_darkness_color">#070B16</color>
+    <color name="toolbar_color">#050508</color>
+    <color name="toolbar_darkness_color">#050508</color>
 
     <color name="accent_wifi">#42A5F5</color>
     <color name="accent_local">#CE93D8</color>
@@ -49,7 +49,7 @@
 
     <color name="row_locked">#61BCBCBC</color>
 
-    <color name="icon_tile_neutral">#131D33</color>
+    <color name="icon_tile_neutral">#1A1A24</color>
     <color name="tile_blue">#332196F3</color>
     <color name="tile_cyan">#3300BCD4</color>
     <color name="tile_green">#334CAF50</color>
@@ -75,15 +75,28 @@
     <color name="intro_surface">#D90A1524</color>
     <color name="intro_outline">#33A8CCEE</color>
 
-    <color name="dash_surface">#101828</color>
-    <color name="dash_surface_high">#182238</color>
+    <color name="dash_surface">#0B0B10</color>
+    <color name="dash_surface_high">#12121A</color>
 
-    <color name="dash_secondary">#9E9E9E</color>
+    <color name="dash_secondary">#8A8A95</color>
     <!-- Cyberpunk accents -->
     <color name="cyber_cyan">#00E5FF</color>
     <color name="cyber_magenta">#FF2D78</color>
     <color name="cyber_violet">#A088F0</color>
     <color name="cyber_green">#7EE787</color>
     <color name="cyber_border">#00E5FF</color>
-    <color name="astro_stroke">#24365E</color>
+    <color name="astro_stroke">#2A2A35</color>
+    <!-- OSIRIS night-ops palette (re-UI 2026-11-01; hex = estimasi visual
+         dari screenshot + inspeksi browser, bukan nilai resmi OSIRIS) -->
+    <color name="osiris_bg">#050508</color>
+    <color name="osiris_panel">#0B0B10</color>
+    <color name="osiris_panel_high">#12121A</color>
+    <color name="osiris_text">#E8E8EA</color>
+    <color name="osiris_text_dim">#8A8A95</color>
+    <color name="osiris_gold">#D4AF37</color>
+    <color name="osiris_cyan">#22D3EE</color>
+    <color name="osiris_green">#00FF88</color>
+    <color name="osiris_red">#EF5350</color>
+    <color name="osiris_border">#2A2A35</color>
+    <color name="osiris_tile">#1A1A24</color>
 </resources>

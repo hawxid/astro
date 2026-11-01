@@ -19,7 +19,7 @@
 
     <style name="Widget.Astro.Button" parent="Widget.Material3.Button">
         <item name="android:fontFamily">@font/lato</item>
-        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textColor">#0B0B10</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Astro.Pill</item>
     </style>
 
@@ -71,7 +71,11 @@
     </style>
 
     <style name="ThemeOverlay.App.Switch" parent="">
-        <item name="colorOnSurface">#B54F46E5</item>
+        <!-- OSIRIS: sakelar aktif = putih terang (knob kanan + trek terang),
+             bukan warna aksen; nonaktif = abu gelap. -->
+        <item name="colorPrimary">#E8E8EA</item>
+        <item name="colorOnPrimary">#0B0B10</item>
+        <item name="colorOnSurface">#8A8A95</item>
         <item name="colorSecondary">@color/astro_accent</item>
     </style>
 

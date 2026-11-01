@@ -905,6 +905,13 @@ manager</string>
     <string name="atlas_sheet_features">Fitur</string>
     <string name="atlas_sheet_basemap_street">Jalan</string>
     <string name="atlas_btn_layers">Lapisan</string>
+    <string name="atlas_search_button">Cari BSSID…</string>
+    <string name="atlas_search_title">SEARCH</string>
+    <string name="atlas_search_start_here">START HERE</string>
+    <string name="atlas_search_your_location">Your location</string>
+    <string name="atlas_search_your_location_sub">Fly to where you are</string>
+    <string name="atlas_search_try">TRY</string>
+    <string name="atlas_search_no_recent">Belum ada lookup tersimpan — BSSID yang pernah ditemukan akan muncul di sini.</string>
     <string name="geomac_layer_group_overlay">Overlay</string>
     <string name="geomac_layer_group_features">Features</string>
     <string name="geomac_camera_timelapse">Timelapse</string>

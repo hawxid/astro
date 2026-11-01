@@ -749,7 +749,7 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp"
             android:text="@string/settings_section_local"
-            android:textColor="#AB47BC"
+            android:textColor="#D4AF37"
             android:textSize="14sp"
             android:textStyle="bold"
             android:textAllCaps="true"
@@ -791,7 +791,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/screen_search_desktop"
-                        app:tint="#AB47BC" />
+                        app:tint="#D4AF37" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -852,7 +852,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/analytics"
-                        app:tint="#AB47BC" />
+                        app:tint="#D4AF37" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -913,7 +913,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/devices"
-                        app:tint="#AB47BC" />
+                        app:tint="#D4AF37" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -975,7 +975,7 @@
             android:letterSpacing="0.08"
             android:text="@string/settings_section_geo"
             android:textAllCaps="true"
-            android:textColor="#7E57C2"
+            android:textColor="#D4AF37"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -1015,7 +1015,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/wifi"
-                        app:tint="#7E57C2" />
+                        app:tint="#D4AF37" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -1069,7 +1069,7 @@
             android:letterSpacing="0.08"
             android:text="@string/settings_section_msf"
             android:textAllCaps="true"
-            android:textColor="#E53935"
+            android:textColor="#D4AF37"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -1109,7 +1109,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/shield"
-                        app:tint="#E53935" />
+                        app:tint="#D4AF37" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -1214,7 +1214,7 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp"
             android:text="@string/settings_section_privacy"
-            android:textColor="#00897B"
+            android:textColor="#D4AF37"
             android:textSize="14sp"
             android:textStyle="bold"
             android:textAllCaps="true"
@@ -1251,7 +1251,7 @@
                     android:background="@drawable/settings_icon_bg"
                     android:padding="10dp"
                     android:src="@drawable/visibility_off"
-                    app:tint="#00897B" />
+                    app:tint="#D4AF37" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -1301,7 +1301,7 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp"
             android:text="@string/settings_section_system"
-            android:textColor="#5E35B1"
+            android:textColor="#D4AF37"
             android:textSize="14sp"
             android:textStyle="bold"
             android:textAllCaps="true"
@@ -1343,7 +1343,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/bug_report"
-                        app:tint="#5E35B1" />
+                        app:tint="#D4AF37" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -1403,7 +1403,7 @@
                         android:background="@drawable/settings_icon_bg"
                         android:padding="10dp"
                         android:src="@drawable/logout"
-                        app:tint="#5E35B1" />
+                        app:tint="#D4AF37" />
 
                     <LinearLayout
                         android:layout_width="0dp"

@@ -253,7 +253,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
             android.view.View ek = host.extraKeysView();
             if (ek.getParent() != null)
                 ((ViewGroup) ek.getParent()).removeView(ek);
-            ek.setBackgroundColor(0xF7232C4E);
+            ek.setBackgroundColor(0xF70B0B10);
             ekBox.removeAllViews();
             ekBox.addView(ek, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -330,7 +330,7 @@ public class XWindowLayer extends FrameLayout implements XFloatingWindow.Listene
     private LinearLayout buildEkStrip(Context ctx) {
         LinearLayout root = new LinearLayout(ctx);
         root.setOrientation(LinearLayout.HORIZONTAL);
-        root.setBackgroundColor(0xF7232C4E);
+        root.setBackgroundColor(0xF70B0B10);
         root.setGravity(Gravity.CENTER_VERTICAL);
         ekBox = new FrameLayout(ctx);
         root.addView(ekBox, new LinearLayout.LayoutParams(

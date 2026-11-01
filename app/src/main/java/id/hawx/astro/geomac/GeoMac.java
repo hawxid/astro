@@ -34,8 +34,6 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
-import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textfield.TextInputLayout;
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.dashboard.Dashboard;
@@ -48,6 +46,7 @@ import id.hawx.astro.geomac.layers.TrafficLive;
 import id.hawx.astro.geomac.model.GeoPin;
 import id.hawx.astro.geomac.store.GeoStore;
 import id.hawx.astro.geomac.ui.GeoMarkers;
+import id.hawx.astro.geomac.ui.GeoMacSearchSheet;
 import id.hawx.astro.geomac.ui.LayerSheet;
 import id.hawx.astro.utils.Core;
 
@@ -92,6 +91,7 @@ public class GeoMac extends Fragment {
     private GpsLive gpsLive;
     private LayerStore layerStore;
     private LayerSheet layerSheet;
+    private GeoMacSearchSheet searchSheet;
     private TextView satCredit;
 
     private GeoPin.Category filter = null;
@@ -176,7 +176,7 @@ public class GeoMac extends Fragment {
         gpsLive = new GpsLive(activity, context, map,
                 () -> alive.get() && isAdded());
 
-        wireSearch(view);
+        wireSearchButton(view);
         wireFilterChips(view);
         wirePanel(view);
         wireLayersButton(view);
@@ -234,19 +234,47 @@ public class GeoMac extends Fragment {
         super.onDestroy();
     }
 
-    private void wireSearch(View view) {
-        TextInputLayout searchLayout = view.findViewById(R.id.geomac_search_layout);
-        TextInputEditText search = view.findViewById(R.id.geomac_search);
-        searchLayout.setEndIconOnClickListener(v -> {
-            String q = search.getText() == null ? "" : search.getText().toString().trim();
-            if (q.isEmpty()) return;
-            runLookup(q);
-        });
-        search.setOnEditorActionListener((v, actionId, event) -> {
-            String q = search.getText() == null ? "" : search.getText().toString().trim();
-            if (!q.isEmpty()) runLookup(q);
-            return true;
-        });
+    private void wireSearchButton(View view) {
+        MaterialButton btn = view.findViewById(R.id.geomac_btn_search);
+        if (btn != null) {
+            btn.setOnClickListener(v -> openSearchSheet());
+        }
+    }
+
+    private void openSearchSheet() {
+        if (!isAdded() || store == null) return;
+        GeoMacSearchSheet sheet = new GeoMacSearchSheet();
+        searchSheet = sheet;
+        sheet.bind(new GeoMacSearchSheet.Host() {
+            @Override
+            public void onSearchQuery(String q) {
+                runLookup(q);
+            }
+
+            @Override
+            public void onYourLocation() {
+                // Gate GPS/B6 yang sudah ada: izin runtime dulu, provider
+                // mati ditolak + toast, sudah ON = follow jalan terus.
+                applyLayerToggle(LayerStore.GPS, true);
+            }
+        }, recentLookupBssids());
+        sheet.show(getParentFragmentManager(), "atlas_search");
+    }
+
+    /** BSSID lookup terakhir (maks 3, terbaru dulu) untuk chip TRY. */
+    private List<String> recentLookupBssids() {
+        List<String> out = new ArrayList<>();
+        if (store == null) return out;
+        List<GeoPin> pins = new ArrayList<>(store.all());
+        pins.sort((a, b) -> Long.compare(b.timestampMs, a.timestampMs));
+        for (GeoPin pin : pins) {
+            if (pin.category != GeoPin.Category.LOOKUP) continue;
+            if (pin.bssid == null || pin.bssid.isEmpty()) continue;
+            if (out.contains(pin.bssid)) continue;
+            out.add(pin.bssid);
+            if (out.size() >= 3) break;
+        }
+        return out;
     }
 
     private void wireFilterChips(View view) {

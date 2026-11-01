@@ -43,14 +43,14 @@
                 <FrameLayout
                     android:layout_width="40dp"
                     android:layout_height="40dp"
-                    android:background="@drawable/dashboard_tile_bg_red">
+                    android:background="@drawable/dashboard_tile_bg_gold">
 
                     <ImageView
                         android:layout_width="20dp"
                         android:layout_height="20dp"
                         android:layout_gravity="center"
                         android:src="@drawable/point"
-                        app:tint="#E53935" />
+                        app:tint="#D4AF37" />
                 </FrameLayout>
 
                 <LinearLayout
@@ -86,7 +86,7 @@
                     android:layout_height="22dp"
                     android:indeterminate="true"
                     android:visibility="gone"
-                    app:indicatorColor="#E53935"
+                    app:indicatorColor="#D4AF37"
                     app:indicatorSize="22dp"
                     app:trackThickness="2dp" />
 
@@ -120,31 +120,18 @@
                 android:paddingStart="14dp"
                 android:paddingEnd="14dp">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/geomac_search_layout"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:layout_width="0dp"
+                <!-- Pemicu panel pencarian (re-UI 2026-11-01): field inline lama
+                     diganti tombol ini; ketuk -> GeoMacSearchSheet (bottom sheet
+                     gaya OSIRIS). Mesin runLookup tidak berubah. -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/geomac_btn_search"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="@string/geomac_search_hint"
-                    app:boxCornerRadiusBottomEnd="14dp"
-                    app:boxCornerRadiusBottomStart="14dp"
-                    app:boxCornerRadiusTopEnd="14dp"
-                    app:boxCornerRadiusTopStart="14dp"
-                    app:endIconDrawable="@drawable/search"
-                    app:endIconMode="custom"
-                    app:endIconTint="#E53935">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/geomac_search"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:imeOptions="actionSearch"
-                        android:importantForAutofill="no"
-                        android:inputType="textNoSuggestions|textCapCharacters"
-                        android:maxLines="1" />
-                </com.google.android.material.textfield.TextInputLayout>
+                    android:text="@string/atlas_search_button"
+                    app:cornerRadius="14dp"
+                    app:icon="@drawable/search"
+                    app:iconTint="#D4AF37" />
             </LinearLayout>
 
             <HorizontalScrollView
@@ -260,7 +247,7 @@
                 app:icon="@drawable/expand_icon"
                 app:iconPadding="0dp"
                 app:iconSize="20dp"
-                app:iconTint="#E53935" />
+                app:iconTint="#D4AF37" />
 
             <View
                 android:layout_width="1dp"
@@ -442,6 +429,6 @@
         app:icon="@drawable/map"
         app:iconPadding="0dp"
         app:iconSize="20dp"
-        app:iconTint="#E53935" />
+        app:iconTint="#D4AF37" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -86,14 +86,14 @@
                             android:layout_height="24dp"
                             android:layout_gravity="center"
                             android:src="@drawable/download"
-                            app:tint="#E53935" />
+                            app:tint="#D4AF37" />
 
                         <ProgressBar
                             android:id="@+id/msf_status_spinner"
                             android:layout_width="22dp"
                             android:layout_height="22dp"
                             android:layout_gravity="center"
-                            android:indeterminateTint="#E53935"
+                            android:indeterminateTint="#D4AF37"
                             android:visibility="gone" />
                     </FrameLayout>
 
@@ -133,7 +133,7 @@
                     android:layout_marginBottom="14dp"
                     android:indeterminate="true"
                     android:visibility="gone"
-                    app:indicatorColor="#E53935"
+                    app:indicatorColor="#D4AF37"
                     app:trackColor="@color/light_lite_contrast"
                     app:trackCornerRadius="2dp" />
             </LinearLayout>
@@ -204,7 +204,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:backgroundTint="#E53935"
+            android:backgroundTint="#D4AF37"
             android:maxLines="1"
             android:text="@string/msf_install_btn_start"
             android:textColor="@color/light_contrast"
