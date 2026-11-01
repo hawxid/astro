@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -14,18 +15,20 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textview.MaterialTextView;
 import id.hawx.astro.R;
 import id.hawx.astro.utils.Core;
+import id.hawx.astro.x11.window.WebOverlayWindows;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Panel kontrol Frida (Batch17) — start/stop/status SAJA.
+ * Panel kontrol Frida (Batch17) + tombol Buka WebUI (Batch19).
  *
- * BUKAN web UI Frida (pilih proses, cari/saring/tulis nilai, freeze,
- * tabel cheat — semua itu masih parkir). Panel ini hanya memasang
- * FridaManager (Batch16) ke UI supaya start/stop server gampang:
- * dua baris status (frida-server, bridge) + tombol Start + tombol
- * Stop. Token sesi TIDAK PERNAH ditampilkan (status saja).
+ * Panel ini memasang FridaManager (Batch16) ke UI supaya start/stop
+ * server gampang: dua baris status (frida-server, bridge) + tombol
+ * Start + tombol Stop + tombol Buka WebUI (webui lengkap hidup di
+ * bridge v2 — pilih proses, cari/saring/tulis nilai, freeze, tabel
+ * cheat, script runner, auto-attach). Token sesi TIDAK PERNAH
+ * ditampilkan (status saja).
  *
  * Threading (pola AnonFragment): start()/stop()/status() FridaManager
  * WAJIB thread latar; pembaruan UI lewat runOnUiThread dengan guard
@@ -50,9 +53,11 @@ public class FridaFragment extends Fragment {
     private MaterialTextView bridgeValue;
     private MaterialButton startBtn;
     private MaterialButton stopBtn;
+    private MaterialButton webuiBtn;
     /** Teks fallback error, di-resolve di UI thread (onViewCreated)
      *  supaya thread latar tidak pernah memanggil getString(). */
     private String startFailedText;
+    private String noTokenText;
 
     private boolean uiReady() {
         return alive.get() && activity != null && isAdded();
@@ -89,8 +94,10 @@ public class FridaFragment extends Fragment {
         alive.set(true);
         bindViews(view);
         startFailedText = getString(R.string.frida_start_failed);
+        noTokenText = getString(R.string.frida_no_token);
         startBtn.setOnClickListener(v -> startServers());
         stopBtn.setOnClickListener(v -> stopServers());
+        webuiBtn.setOnClickListener(v -> openWebUi());
         refreshStatus();
     }
 
@@ -111,6 +118,7 @@ public class FridaFragment extends Fragment {
         bridgeValue = view.findViewById(R.id.frida_bridge_value);
         startBtn = view.findViewById(R.id.frida_start_btn);
         stopBtn = view.findViewById(R.id.frida_stop_btn);
+        webuiBtn = view.findViewById(R.id.frida_open_webui_btn);
     }
 
     private void startServers() {
@@ -135,6 +143,53 @@ public class FridaFragment extends Fragment {
         runBg(() -> {
             try {
                 manager.stop();
+            } finally {
+                busy.set(false);
+                refreshStatus();
+            }
+        });
+    }
+
+    /**
+     * Buka WebUI Frida di jendela melayang (batch19). Bila belum ON
+     * semua, start dulu (busy guard yang sama). Token sesi TIDAK
+     * PERNAH ditampilkan — ia hanya dipasang sebagai cookie sesi
+     * untuk URL bridge, supaya navigasi GET polos (link menu) lolos
+     * auth; form POST membawa token sebagai hidden field dari sisi
+     * bridge. onClose = closeHook(): ✕ jendela menghentikan server.
+     * Bila token null (bridge jalan dari pihak lain, bukan dari
+     * panel ini), jendela tidak dibuka — Stop lalu Start dari panel
+     * akan regenerasi token (stop mematikan bridge lama).
+     */
+    private void openWebUi() {
+        if (!busy.compareAndSet(false, true)) return;
+        setButtonsEnabled(false);
+        runBg(() -> {
+            try {
+                FridaManager.Status s = manager.status();
+                if (!(s.serverRunning && s.bridgeRunning)) {
+                    manager.start();
+                    s = manager.status();
+                }
+                final String token = manager.sessionToken();
+                if (token == null) {
+                    toast(noTokenText);
+                    return;
+                }
+                runUi(() -> {
+                    if (!uiReady()) return;
+                    CookieManager cookies = CookieManager.getInstance();
+                    cookies.setAcceptCookie(true);
+                    cookies.setCookie("http://127.0.0.1:18081/",
+                            "session=" + token + "; Path=/");
+                    cookies.flush();
+                    WebOverlayWindows.show(context, "Frida",
+                            "http://127.0.0.1:18081/",
+                            manager.closeHook());
+                });
+            } catch (IOException e) {
+                String msg = e.getMessage();
+                toast(msg != null ? msg : startFailedText);
             } finally {
                 busy.set(false);
                 refreshStatus();
@@ -167,12 +222,14 @@ public class FridaFragment extends Fragment {
         boolean b = busy.get();
         startBtn.setEnabled(!b && !(s.serverRunning && s.bridgeRunning));
         stopBtn.setEnabled(!b && (s.serverRunning || s.bridgeRunning));
+        webuiBtn.setEnabled(!b);
     }
 
     private void setButtonsEnabled(boolean enabled) {
         runUi(() -> {
             startBtn.setEnabled(enabled);
             stopBtn.setEnabled(enabled);
+            webuiBtn.setEnabled(enabled);
         });
     }
 }

@@ -118,6 +118,14 @@
                         android:layout_weight="1"
                         android:text="@string/frida_stop" />
                 </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/frida_open_webui_btn"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/frida_open_webui" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

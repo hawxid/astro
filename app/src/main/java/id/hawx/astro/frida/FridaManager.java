@@ -8,11 +8,13 @@ import id.hawx.astro.engine.Apt;
 import id.hawx.astro.utils.Core;
 import id.hawx.astro.x11.WebUiLauncher;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -278,11 +280,80 @@ public final class FridaManager {
 
     // ---------------- bridge ----------------
 
+    /**
+     * GOTCHA KRITIS (batch19): filesDir/astro_frida_bridge.py SUDAH ADA
+     * di HP user sejak batch16 (versi 1, tanpa marker). ensureBridgeScript
+     * versi lama hanya menyalin asset bila filesDir belum ada — jadi
+     * bridge baru TIDAK AKAN PERNAH ter-deploy ke HP yang sudah punya
+     * versi lama.
+     *
+     * Solusi berversi: baris pertama skrip membawa marker
+     * "# ASTRO_FRIDA_BRIDGE_VERSION = N". Manager membaca versi asset
+     * (APK) dan versi filesDir, lalu menimpa filesDir HANYA bila asset
+     * lebih baru. Bila versi sama, filesDir dipertahankan apa adanya —
+     * tweak lokal user (warna/teks/susunan) selamat.
+     *
+     * Konsekuensi yang harus diketahui user: bila dia mengedit filesDir
+     * dan tidak sengaja menghapus baris marker, versi filesDir terbaca
+     * 1 (pra-marker) dan Start berikutnya menimpa tweak-nya dengan
+     * asset. Jadi: JANGAN hapus baris versi saat tweak lokal.
+     *
+     * Aturan baca versi: file tidak ada = 0; marker hilang / tidak
+     * bisa dibaca = 1 (versi pra-marker batch16/17/18); asset yang
+     * tidak bisa dibaca / tanpa marker = IOException (gagal start
+     * dengan pesan jelas, bukan diam-diam menjalankan bridge lama).
+     */
+    private static final String BRIDGE_VERSION_MARKER = "ASTRO_FRIDA_BRIDGE_VERSION";
+
+    /** Baca versi dari 10 baris pertama stream; -1 bila marker tak ada. */
+    private int readBridgeVersion(InputStream in) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, "UTF-8"));
+        for (int i = 0; i < 10; i++) {
+            String line = reader.readLine();
+            if (line == null) break;
+            int marker = line.indexOf(BRIDGE_VERSION_MARKER);
+            if (marker < 0) continue;
+            int eq = line.indexOf('=', marker);
+            if (eq < 0) continue;
+            try {
+                return Integer.parseInt(line.substring(eq + 1).trim());
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    /** Versi filesDir: tidak ada = 0, marker hilang / tak terbaca = 1. */
+    private int readFilesBridgeVersion(File script) {
+        if (script == null || !script.exists()) return 0;
+        try (InputStream in = new FileInputStream(script)) {
+            int version = readBridgeVersion(in);
+            return version < 0 ? 1 : version;
+        } catch (IOException ignored) {
+            return 1;
+        }
+    }
+
+    /** Versi asset APK; IOException bila asset tak bisa dibaca. */
+    private int readAssetBridgeVersion() throws IOException {
+        try (InputStream in = appContext.getAssets().open(BRIDGE_ASSET)) {
+            int version = readBridgeVersion(in);
+            if (version < 0) {
+                throw new IOException("Asset bridge tanpa marker versi");
+            }
+            return version;
+        }
+    }
+
     /** Salin skrip bridge asset -> filesDir -> chroot /tmp (pola
-     *  BluezKeysMouseTransport.ensureScript persis). */
+     *  BluezKeysMouseTransport.ensureScript persis), dengan update
+     *  berversi: filesDir hanya ditimpa bila asset lebih baru. */
     private void ensureBridgeScript() throws IOException {
         File filesScript = new File(appContext.getFilesDir(), BRIDGE_ASSET);
-        if (!filesScript.exists()) {
+        int filesVersion = readFilesBridgeVersion(filesScript);
+        int assetVersion = readAssetBridgeVersion();
+        if (!filesScript.exists() || assetVersion > filesVersion) {
             copyAsset(BRIDGE_ASSET, filesScript);
         }
         core.copyFile(filesScript.getAbsolutePath(), CHROOT_ROOT + BRIDGE_CHROOT_PATH);
