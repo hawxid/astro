@@ -71,17 +71,22 @@ import java.util.ArrayList;
  * - On-demand + kill-after: tidak ada autostart, tidak ada
  *   daemon permanen. start() idempotent; stop() best-effort
  *   dan tidak pernah throw.
- * - stop() hanya membunuh instance MILIK MANAJER (PID file);
- *   server asing TIDAK PERNAH dibunuh — satu-satunya
- *   pengecualian sempit: `pkill -x kismet` HANYA bila PID file
- *   cocok dengan proses yang masih hidup (force-kill proses
- *   milik sendiri yang menolak SIGTERM).
+ * - stop() membunuh via PID file dulu; PENGECUALIAN DISETUJUI
+ *   USER (2026-11-02, koreksi atas bug "Stop tidak mematikan
+ *   server"): Stop eksplisit dari menu BOLEH membunuh kismet
+ *   apa pun yang listen di 2501 (termasuk dari terminal) bila
+ *   PID-file kill gagal / tidak ada PID — karena di HP user
+ *   semua kismet = miliknya. Aturan Frida "jangan bunuh server
+ *   asing" TIDAK berlaku untuk Kismet atas keputusan ini.
+ *   Fallback ini dipicu HANYA oleh verifikasi port (masih
+ *   listen sesudah PID kill), bukan membabi buta.
  * - VIF tidak pernah DIBUAT; VIF sisa (wlan0mon) hanya DIHAPUS.
  *
  * Semantik status yang jujur (cerminan Frida):
  * - kismetRunning = "ada yang listening di 2501", BUKAN
- *   "di-start panel ini". Server manual/asing tampil ON dan
- *   stop() memang tidak membunuhnya.
+ *   "di-start panel ini". Server manual/asing tampil ON;
+ *   stop() eksplisit akan membunuhnya juga lewat fallback
+ *   verifikasi port (keputusan user 2026-11-02, lihat bawah).
  * - owned = PID file cocok dengan proses yang masih hidup.
  * - wifiType/wifiChannel dari `iw dev` (channel ada =
  *   terasosiasi; tanpa channel = belum naik / belum asosiasi).
@@ -151,6 +156,20 @@ public final class KismetManager {
      * di 2501, tidak di-start ulang (bisa jadi server asing).
      * Melempar IOException dengan pesan jelas bila monitor gagal
      * atau server tidak menjawab. WAJIB thread latar.
+     *
+     * Capture PID: `setsid` bisa fork bila sudah jadi group
+     * leader, sehingga `$!` yang tercatat bisa jadi parent yang
+     * sudah mati (bug perangkat 2026-11-02: Stop tidak mematikan
+     * server karena isPidAlive false lalu kill dilewati). Karena
+     * itu sesudah server menjawab, PID beneran diambil ulang via
+     * `pgrep -f "kismet -c wlan[0]"` dan ditulis menimpa PID
+     * file. Trik bracket `[0]` WAJIB: tanpa itu, cmdline shell
+     * `sh -c "pgrep -f 'kismet -c wlan0'"` mengandung substring
+     * pola dan ikut ter-match. PID pertama hasil pgrep = proses
+     * utama kismet (helper capture bernama kismet_cap_linux_wifi,
+     * cmdline-nya beda, tidak ikut match). Bila pgrep kosong,
+     * `$!` dipertahankan sebagai fallback — start tidak digagalkan
+     * hanya karena pgrep kosong.
      */
     public synchronized Status start() throws IOException {
         Status cur = status();
@@ -199,17 +218,40 @@ public final class KismetManager {
             throw new IOException("Kismet tidak menjawab di 127.0.0.1:"
                     + KISMET_PORT + " — cek log chroot: " + LOG_DIR + "/kismet.log");
         }
+        // Perbaiki PID file: $! dari setsid bisa jadi parent mati
+        // (fork). Ambil PID beneran via pgrep; bila kosong, $!
+        // dipertahankan (jangan gagalkan start).
+        try {
+            Integer realPid = readKismetPid();
+            if (realPid != null) {
+                chroot("echo " + realPid + " > " + LOG_DIR + "/kismet.pid");
+            }
+        } catch (Throwable ignored) {
+        }
         return status();
     }
 
     /**
-     * Stop bersih, best-effort, TIDAK PERNAH throw. Urutan: bunuh
-     * milik manager (PID file; pkill -x hanya bila PID file cocok
-     * dengan proses yang masih hidup) -> hapus VIF sisa -> restore
-     * wlan0 ke managed (jeda + retry + verifikasi tipe). TIDAK
-     * PERNAH `ip link set ... up`: UP dilakukan pengguna via
-     * toggle WiFi di Quick Settings (framework yang menaikkan +
-     * mengasosiasikan). WAJIB thread latar.
+     * Stop bersih, best-effort, TIDAK PERNAH throw. Urutan baru
+     * (perbaikan bug perangkat 2026-11-02 — Stop/✕ hanya
+     * merestore managed, server tetap jalan):
+     * (a) kill via PID file (kill -> sleep 1 -> bila masih hidup
+     * pkill -x kismet -> sleep 1 -> bila masih hidup kill -9);
+     * (b) verifikasi port: bila 2501 masih listen (tidak ada PID
+     * file, PID meleset, atau server asing), fallback
+     * `pkill -x kismet` -> sleep 1 -> bila masih listen,
+     * `pkill -9 -x kismet` -> sleep 1 -> verifikasi akhir
+     * (hasil verifikasi tidak mengubah perilaku lain);
+     * (c) BARU sesudah itu: rm PID file -> hapus VIF sisa ->
+     * restore wlan0 ke managed (jeda + retry + verifikasi tipe).
+     * Fallback (b) adalah keputusan user: Stop eksplisit dari
+     * menu BOLEH membunuh kismet apa pun di 2501, karena di HP
+     * user semua kismet = miliknya (aturan Frida "jangan bunuh
+     * server asing" tidak berlaku untuk Kismet).
+     * TIDAK PERNAH `ip link set ... up`: UP dilakukan pengguna
+     * via toggle WiFi di Quick Settings (framework yang menaikkan
+     * + mengasosiasikan). Restore tetap dieksekusi walau semua
+     * kill gagal total. WAJIB thread latar.
      */
     public synchronized void stop() {
         try {
@@ -224,6 +266,26 @@ public final class KismetManager {
                 if (isPidAlive(pid)) {
                     chroot("kill -9 " + pid + "; sleep 1");
                 }
+            }
+        } catch (Throwable ignored) {
+        }
+        // Verifikasi port + fallback (perbaikan bug 2026-11-02):
+        // bila 2501 masih listen — tidak ada PID file, PID meleset
+        // (setsid fork), atau server asing — Stop eksplisit tetap
+        // mematikan servernya (keputusan user). Best-effort.
+        try {
+            if (WebUiLauncher.isListening(KISMET_PORT)) {
+                chroot("pkill -x kismet; sleep 1");
+            }
+            if (WebUiLauncher.isListening(KISMET_PORT)) {
+                chroot("pkill -9 -x kismet; sleep 1");
+            }
+            // Verifikasi akhir (hasil sengaja tidak dipakai —
+            // stop tetap best-effort, restore jalan apa pun).
+            boolean stillRunning = WebUiLauncher.isListening(KISMET_PORT);
+            if (stillRunning) {
+                // Tidak ada aksi lanjutan: kill sudah maksimal
+                // (SIGKILL via nama); restore tetap jalan bawah.
             }
         } catch (Throwable ignored) {
         }
@@ -297,6 +359,29 @@ public final class KismetManager {
     private Integer readPid() {
         try {
             for (String line : chroot("cat " + LOG_DIR + "/kismet.pid")) {
+                String pid = line.trim();
+                if (pid.isEmpty()) continue;
+                try {
+                    return Integer.parseInt(pid);
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * PID utama kismet via pgrep (pola bracket anti-self-match),
+     * atau null bila tidak ditemukan. PID pertama = proses utama
+     * (helper kismet_cap_linux_wifi cmdline-nya beda, tidak match).
+     * Dipakai start() untuk memperbaiki PID file dari $! setsid
+     * yang bisa jadi parent mati (fork).
+     */
+    private Integer readKismetPid() {
+        try {
+            for (String line : chroot("pgrep -f \"kismet -c wlan[0]\"")) {
                 String pid = line.trim();
                 if (pid.isEmpty()) continue;
                 try {
