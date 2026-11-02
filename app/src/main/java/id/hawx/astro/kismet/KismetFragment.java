@@ -287,14 +287,14 @@ public class KismetFragment extends Fragment {
                 // lewat cookie: cookie host 127.0.0.1 berlaku
                 // semua port, jadi JS di :2501 bisa membaca
                 // token untuk header ke bridge :18082.
-                final String toolsToken;
+                String toolsTokenTmp = null;
                 try {
                     toolsManager.start();
-                    toolsToken = toolsManager.sessionToken();
+                    toolsTokenTmp = toolsManager.sessionToken();
                 } catch (IOException toolsErr) {
                     toast(toolsFailedText);
-                    toolsToken = null;
                 }
+                final String toolsToken = toolsTokenTmp;
                 runUi(() -> {
                     if (!uiReady()) return;
                     if (toolsToken != null) {
