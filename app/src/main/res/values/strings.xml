@@ -1715,6 +1715,7 @@ manager</string>
     <string name="kismet_import_none">Belum ada capture Kismet untuk diimpor.</string>
     <string name="kismet_import_done">Import selesai: %1$d pin ditambah, %2$d diperbarui, %3$d dilewati (tidak ada di database).</string>
     <string name="kismet_import_failed">Import gagal: %1$s.</string>
+    <string name="kismet_tools_failed">Bridge alat Kismet gagal jalan — aksi alat mentah di WebUI tidak tersedia (Kismet tetap jalan).</string>
     <string name="dashboard_tile_gps">GPS</string>
     <string name="gps_subtitle">Driving GPS gaya GPS Locker — lock tahan meski Astro background.</string>
     <string name="gps_status_label">Status</string>

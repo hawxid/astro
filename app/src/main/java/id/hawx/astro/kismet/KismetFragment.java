@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -56,6 +57,10 @@ public class KismetFragment extends Fragment {
     private Context context;
     private Core core;
     private KismetManager manager;
+    /** Bridge alat mentah (Fase 2): start best-effort sesudah
+     *  Kismet start, stop SEBELUM Kismet stop. Token-nya
+     *  diteruskan ke WebUI lewat cookie (lihat openWebUi). */
+    private KismetToolsManager toolsManager;
 
     private final AtomicBoolean alive = new AtomicBoolean(true);
     private final AtomicBoolean busy = new AtomicBoolean(false);
@@ -85,6 +90,7 @@ public class KismetFragment extends Fragment {
     private String importNoneText;
     private String importDoneFormat;
     private String importFailedFormat;
+    private String toolsFailedText;
 
     private boolean uiReady() {
         return alive.get() && activity != null && isAdded();
@@ -109,6 +115,7 @@ public class KismetFragment extends Fragment {
         context = getContext();
         core = new Core(context);
         manager = new KismetManager(context);
+        toolsManager = new KismetToolsManager(context);
     }
 
     @Override
@@ -126,6 +133,7 @@ public class KismetFragment extends Fragment {
         importNoneText = getString(R.string.kismet_import_none);
         importDoneFormat = getString(R.string.kismet_import_done);
         importFailedFormat = getString(R.string.kismet_import_failed);
+        toolsFailedText = getString(R.string.kismet_tools_failed);
         // Toggle = pref manager (persist). setChecked DULU, baru
         // pasang listener — supaya set awal tidak memicu tulis.
         btSwitch.setChecked(manager.isBtEnabled());
@@ -177,6 +185,14 @@ public class KismetFragment extends Fragment {
         runBg(() -> {
             try {
                 manager.start();
+                // Bridge alat best-effort: gagalnya TIDAK
+                // menggagalkan Start Kismet — alat mentah hanya
+                // add-on WebUI, Kismet tetap jalan tanpanya.
+                try {
+                    toolsManager.start();
+                } catch (IOException toolsErr) {
+                    toast(toolsFailedText);
+                }
             } catch (IOException e) {
                 String msg = e.getMessage();
                 toast(msg != null ? msg : startFailedText);
@@ -192,6 +208,9 @@ public class KismetFragment extends Fragment {
         setButtonsEnabled(false);
         runBg(() -> {
             try {
+                // Tools bridge DULU (watchdog-nya men-CONT Kismet
+                // bila beku), baru Kismet stop — urutan ini wajib.
+                toolsManager.stop();
                 manager.stop();
                 KismetManager.Status s = manager.status();
                 if ("managed".equals(s.wifiType) && s.wifiChannel == null) {
@@ -262,11 +281,39 @@ public class KismetFragment extends Fragment {
                 if (!s.kismetRunning) {
                     manager.start();
                 }
+                // Bridge alat best-effort: gagalnya TIDAK
+                // menggagalkan buka WebUI (WebUI tanpa mod tetap
+                // jalan normal). Token diteruskan ke JS mod
+                // lewat cookie: cookie host 127.0.0.1 berlaku
+                // semua port, jadi JS di :2501 bisa membaca
+                // token untuk header ke bridge :18082.
+                final String toolsToken;
+                try {
+                    toolsManager.start();
+                    toolsToken = toolsManager.sessionToken();
+                } catch (IOException toolsErr) {
+                    toast(toolsFailedText);
+                    toolsToken = null;
+                }
                 runUi(() -> {
                     if (!uiReady()) return;
+                    if (toolsToken != null) {
+                        CookieManager.getInstance().setCookie(
+                                "http://127.0.0.1:2501/",
+                                "astro_tools_token=" + toolsToken);
+                    }
                     WebOverlayWindows.show(context, "Kismet",
                             "http://127.0.0.1:2501/",
-                            manager.closeHook());
+                            () -> {
+                                // ✕: tools dulu (latar), baru
+                                // closeHook Kismet — urutan ini
+                                // menjaga Kismet tidak beku saat
+                                // di-stop.
+                                runBg(() -> {
+                                    toolsManager.stop();
+                                    manager.closeHook().run();
+                                });
+                            });
                 });
             } catch (IOException e) {
                 String msg = e.getMessage();
