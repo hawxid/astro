@@ -139,6 +139,19 @@ public final class TrafficLive {
     private MaterialButton closeBtn;
     private boolean windowVisible = false;
 
+    /** Dipanggil setiap visibilitas jendela berubah (setOn/setExpanded):
+     *  GeoMac memakainya untuk menghitung ulang clearance overlay
+     *  (panel RECON ditumpuk di atas jendela bila tampil). */
+    private Runnable onExpandedChanged;
+
+    public void setOnExpandedChanged(Runnable r) {
+        onExpandedChanged = r;
+    }
+
+    private void notifyExpandedChanged() {
+        if (onExpandedChanged != null) onExpandedChanged.run();
+    }
+
     private final ArrayList<Conn> markerConns = new ArrayList<>();
     private volatile Set<String> threatIps = new HashSet<>();
     private boolean threatFetchAttempted;
@@ -186,6 +199,7 @@ public final class TrafficLive {
         if (!trafficOn) return;
         windowVisible = expanded;
         refreshRowsVisibility();
+        notifyExpandedChanged();
     }
 
     private void refreshRowsVisibility() {
@@ -233,6 +247,7 @@ public final class TrafficLive {
             clearOverlays();
             card.setVisibility(View.GONE);
         }
+        notifyExpandedChanged();
     }
 
     /** Stops polling but keeps overlays and the ON flag (backgrounding). */

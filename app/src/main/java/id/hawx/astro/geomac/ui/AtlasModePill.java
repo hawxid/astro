@@ -52,16 +52,19 @@ public class AtlasModePill {
             b.setBackgroundTintList(ColorStateList.valueOf(BTN_BG));
             b.setCornerRadius(dp(ctx, 12));
             b.setIconResource(mode.iconRes);
-            b.setIconSize(dp(ctx, 18));
+            b.setIconSize(dp(ctx, 16));
             b.setText(mode.labelRes);
             b.setTextSize(12);
             b.setLetterSpacing(0.08f);
             b.setAllCaps(true);
             b.setInsetTop(0);
             b.setInsetBottom(0);
+            // Tombol dipadatkan (40dp, ikon 16dp — dulu 44dp/18dp) supaya
+            // pill mode muat berdampingan dengan tombol aksi peta dalam
+            // satu baris bar tunggal (batch #7+RECON 2026-11-02).
             LinearLayout.LayoutParams lp =
                     new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT, dp(ctx, 44));
+                            LinearLayout.LayoutParams.WRAP_CONTENT, dp(ctx, 40));
             lp.setMarginEnd(dp(ctx, 4));
             b.setLayoutParams(lp);
             final String id = mode.id;

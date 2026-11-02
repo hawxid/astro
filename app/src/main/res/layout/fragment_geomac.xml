@@ -12,10 +12,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Pill aksi peta (fit/import/export/clear) SUDAH PINDAH ke dalam
-         tumpukan bawah (baris geomac_action_row, batch temuan 2026-11-02):
-         tidak ada lagi elemen mengambang di atas peta selain pill counter
-         dan jendela trafik yang terdocking di atas tumpukan. -->
+    <!-- Pill aksi peta (fit/import/export/clear) dan kategori TRAFIK
+         SUDAH MASUK ke dalam bar tunggal (batch #7+RECON 2026-11-02):
+         tidak ada lagi elemen mengambang di atas peta selain pill counter,
+         jendela trafik, dan panel RECON yang terdocking di atas bar. -->
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/geomac_counter"
@@ -141,6 +141,92 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- Panel RECON (batch #7+RECON 2026-11-02, diadaptasi dari diff
+         RECON tertahan di repo utama): panel in-layout yang mengembang
+         dari bawah gaya sheet OSIRIS (judul + X, kategori emas kapital,
+         tombol tool berikon grid 2 kolom). Bilah bawah tetap kelihatan
+         di bawah panel ini karena panel ini in-layout, bukan
+         DialogFragment. Isi panel HANYA navigasi ke tool yang sudah ada
+         (dibangun di kode oleh GeoMac.wireReconPanel); tidak ada tombol
+         palsu. Background semi-transparan (adaptasi dari diff asli yang
+         masih opaque, supaya selaras dengan panel Atlas batch temuan).
+         Margin bawah hanya fallback; nilai akhir diatur runtime oleh
+         GeoMac.refreshBottomClearance (ditumpuk di atas jendela trafik
+         bila trafik tampil). -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/geomac_recon_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="420dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/osiris_panel_translucent"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="2dp"
+        app:strokeColor="@color/osiris_gold"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <View
+                android:layout_width="36dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/traffic_handle" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/atlas_bar_recon"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/geomac_recon_close_btn"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="5dp"
+                    app:cornerRadius="14dp"
+                    app:icon="@drawable/close"
+                    app:iconPadding="0dp"
+                    app:iconSize="14dp"
+                    app:iconTint="@color/grey" />
+            </LinearLayout>
+
+            <ScrollView
+                android:id="@+id/geomac_recon_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:scrollbars="vertical">
+
+                <LinearLayout
+                    android:id="@+id/geomac_recon_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/geomac_sat_credit"
         android:layout_width="wrap_content"
@@ -153,13 +239,12 @@
         android:visibility="gone" />
 
     <!-- Tumpukan bawah Atlas (batch fix+atlas, gaya OSIRIS; diubah batch
-         temuan 2026-11-02): satu kontainer vertikal supaya tinggi totalnya
-         terukur runtime dan elemen overlay peta tidak pernah ketiban
-         (lihat GeoMac.refreshBottomClearance). Dari atas ke bawah:
-         kolom status, baris kategori TRAFIK (toggle + dot hidup + ketuk
-         = buka jendela tabel), baris aksi peta (fit/import/export/clear,
-         pindahan pill FAB mengambang), pill mode Jalan/Satelit (rata
-         kiri, tombol dibangun di kode), pill tab SEARCH/LAYERS.
+         temuan 2026-11-02 dan batch #7+RECON 2026-11-02): satu kontainer
+         vertikal supaya tinggi totalnya terukur runtime dan elemen
+         overlay peta tidak pernah ketiban (lihat
+         GeoMac.refreshBottomClearance). Dari atas ke bawah: kolom status,
+         lalu SATU kartu bar tunggal (tab SEARCH/LAYERS/RECON + seksi
+         kategori TRAFIK + baris mode Jalan/Satelit dan aksi peta).
          Baris chips kategori SUDAH PINDAH ke dalam sheet SEARCH
          (GeoMacSearchSheet, seksi KATEGORI). Semua kartu panel di sini
          semi-transparan ala OSIRIS, border emas tetap solid. -->
@@ -219,169 +304,19 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Baris kategori TRAFIK (batch temuan 2026-11-02): kategori
-             permanen di tumpukan bawah, BUKAN kartu mengambang. Toggle =
-             sumber kebenaran layerStore.TRAFFIC lewat jalur applyLayerToggle
-             yang sama dengan toggle TRAFFIC di sheet Lapisan (keduanya
-             sinkron, satu state). Dot hijau = trafik hidup. Ketuk baris
-             (di luar toggle) saat ON = buka jendela tabel di atas tumpukan. -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/geomac_traffic_row"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:clickable="true"
-            android:focusable="true"
-            app:cardBackgroundColor="@color/osiris_panel_translucent"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="4dp"
-            app:strokeColor="@color/osiris_gold"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="12dp">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/geomac_traffic_row_label"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/atlas_traffic_row"
-                    android:textColor="?android:attr/textColorPrimary"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <View
-                    android:id="@+id/geomac_traffic_row_dot"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:layout_marginEnd="10dp"
-                    android:background="@drawable/traffic_live_dot"
-                    android:visibility="gone" />
-
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/geomac_traffic_row_switch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Baris aksi peta (batch temuan 2026-11-02): pindahan pill FAB
-             mengambang (fit/import/export/clear) ke dalam tumpukan bawah.
-             Tombol + handler SAMA PERSIS (GeoMac.wireActionBar); yang
-             berubah hanya wadahnya (baris ramping di tumpukan, bukan pill
-             melayang di tengah peta). -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/geomac_action_row"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/osiris_panel_translucent"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="4dp"
-            app:strokeColor="@color/osiris_gold"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="4dp">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/geomac_btn_fit"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="8dp"
-                    app:cornerRadius="22dp"
-                    app:icon="@drawable/expand_icon"
-                    app:iconPadding="0dp"
-                    app:iconSize="20dp"
-                    app:iconTint="#D4AF37" />
-
-                <View
-                    android:layout_width="1dp"
-                    android:layout_height="22dp"
-                    android:layout_marginStart="6dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@color/light_lite_contrast" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/geomac_btn_import"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="8dp"
-                    app:cornerRadius="22dp"
-                    app:icon="@drawable/download"
-                    app:iconPadding="0dp"
-                    app:iconSize="20dp"
-                    app:iconTint="@color/grey" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/geomac_btn_export"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="4dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="8dp"
-                    app:cornerRadius="22dp"
-                    app:icon="@drawable/copy"
-                    app:iconPadding="0dp"
-                    app:iconSize="20dp"
-                    app:iconTint="@color/grey" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/geomac_btn_clear"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="4dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="8dp"
-                    app:cornerRadius="22dp"
-                    app:icon="@drawable/delete"
-                    app:iconPadding="0dp"
-                    app:iconSize="20dp"
-                    app:iconTint="@color/grey" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/geomac_mode_pill"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/osiris_panel_translucent"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="4dp"
-            app:strokeColor="@color/osiris_gold"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:id="@+id/geomac_mode_buttons"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="4dp" />
-        </com.google.android.material.card.MaterialCardView>
-
+        <!-- Bar tunggal Atlas (batch #7+RECON 2026-11-02): SATU kartu
+             border emas semi-transparan ala tab bar OSIRIS — tidak ada
+             lagi kartu TRAFIK / kartu aksi / pill mode yang berdiri
+             sendiri di luar bar. Tiga seksi di dalam satu kontainer:
+             (1) tab SEARCH/LAYERS/RECON (tombol dibangun di kode oleh
+             AtlasBottomBar ke geomac_bar_tabs); (2) seksi kategori
+             TRAFIK (label + dot hijau hidup + switch; id dipertahankan
+             dari kartu lama supaya GeoMac.wireTrafficRow tidak berubah);
+             (3) baris mode Jalan/Satelit (kiri, tombol dibangun di kode
+             oleh AtlasModePill ke geomac_mode_buttons) + tombol aksi peta
+             fit/import/export/clear (kanan, id + handler SAMA PERSIS
+             dengan GeoMac.wireActionBar). Kolom status tetap di atas
+             kartu ini, di dalam tumpukan yang sama. -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/geomac_bottom_bar"
             android:layout_width="match_parent"
@@ -393,12 +328,162 @@
             app:strokeWidth="1dp">
 
             <LinearLayout
-                android:id="@+id/geomac_bar_tabs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="4dp" />
+                android:orientation="vertical"
+                android:padding="4dp">
+
+                <LinearLayout
+                    android:id="@+id/geomac_bar_tabs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="2dp"
+                    android:background="@color/light_lite_contrast" />
+
+                <!-- Seksi kategori TRAFIK di dalam bar tunggal: toggle =
+                     sumber kebenaran layerStore.TRAFFIC lewat jalur
+                     applyLayerToggle yang sama dengan toggle TRAFFIC di
+                     sheet Lapisan (satu state, dua sakelar sinkron). Dot
+                     hijau = trafik hidup. Ketuk seksi (di luar toggle)
+                     saat ON = buka jendela tabel di atas bar. -->
+                <LinearLayout
+                    android:id="@+id/geomac_traffic_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="8dp">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/geomac_traffic_row_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/atlas_traffic_row"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <View
+                        android:id="@+id/geomac_traffic_row_dot"
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:layout_marginEnd="10dp"
+                        android:background="@drawable/traffic_live_dot"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/geomac_traffic_row_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="2dp"
+                    android:background="@color/light_lite_contrast" />
+
+                <!-- Baris mode + aksi di dalam bar tunggal: pill mode
+                     Jalan/Satelit (kiri) + tombol aksi peta (kanan).
+                     Tombol aksi 36dp (dari 44dp) supaya baris ini muat
+                     berdampingan dengan pill mode di layar HP. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/geomac_mode_buttons"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/geomac_btn_fit"
+                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="6dp"
+                        app:cornerRadius="18dp"
+                        app:icon="@drawable/expand_icon"
+                        app:iconPadding="0dp"
+                        app:iconSize="18dp"
+                        app:iconTint="#D4AF37" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/geomac_btn_import"
+                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:layout_marginStart="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="6dp"
+                        app:cornerRadius="18dp"
+                        app:icon="@drawable/download"
+                        app:iconPadding="0dp"
+                        app:iconSize="18dp"
+                        app:iconTint="@color/grey" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/geomac_btn_export"
+                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:layout_marginStart="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="6dp"
+                        app:cornerRadius="18dp"
+                        app:icon="@drawable/copy"
+                        app:iconPadding="0dp"
+                        app:iconSize="18dp"
+                        app:iconTint="@color/grey" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/geomac_btn_clear"
+                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:layout_marginStart="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="6dp"
+                        app:cornerRadius="18dp"
+                        app:icon="@drawable/delete"
+                        app:iconPadding="0dp"
+                        app:iconSize="18dp"
+                        app:iconTint="@color/grey" />
+                </LinearLayout>
+            </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 

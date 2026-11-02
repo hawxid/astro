@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.res.ColorStateList;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -20,8 +21,10 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -31,6 +34,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.switchmaterial.SwitchMaterial;
@@ -96,6 +100,10 @@ public class GeoMac extends Fragment {
     private GeoMacSearchSheet searchSheet;
     private AtlasBottomBar bottomBar;
     private AtlasModePill modePill;
+    private View reconPanel;
+    private ScrollView reconScroll;
+    private LinearLayout reconContent;
+    private boolean reconOpen = false;
     private TextView satCredit;
     private SwitchMaterial trafficSwitch;
     private View trafficDot;
@@ -180,6 +188,11 @@ public class GeoMac extends Fragment {
                 view.findViewById(R.id.geomac_traffic_card),
                 view.findViewById(R.id.geomac_traffic_rows),
                 view.findViewById(R.id.geomac_traffic_empty));
+        // Jendela trafik mengembang/menciut mengubah tumpukan overlay
+        // (panel RECON ditumpuk di atas jendela bila tampil): hitung ulang
+        // clearance setiap visibilitas jendela berubah (toggle, ketuk
+        // baris, tombol X — semuanya lewat setExpanded/setOn).
+        trafficLive.setOnExpandedChanged(this::refreshBottomClearance);
         gpsLive = new GpsLive(activity, context, map,
                 () -> alive.get() && isAdded());
 
@@ -187,6 +200,7 @@ public class GeoMac extends Fragment {
         wireModePill(view);
         wireTrafficRow(view);
         wireActionBar(view);
+        wireReconPanel(view);
         restoreFilterState();
         refreshOverlay();
         refreshBottomClearance();
@@ -224,6 +238,10 @@ public class GeoMac extends Fragment {
         }
         bottomBar = null;
         modePill = null;
+        reconPanel = null;
+        reconScroll = null;
+        reconContent = null;
+        reconOpen = false;
         trafficSwitch = null;
         trafficDot = null;
         if (layers != null) {
@@ -249,10 +267,11 @@ public class GeoMac extends Fragment {
         super.onDestroy();
     }
 
-    /** Bilah bawah (batch gede 2026-11-01 + fix+atlas 2026-11-02): daftar
-     *  tab TERPUSAT di sini. Tambah tab = tambah satu baris di daftar ini
-     *  (id, label, ikon, aksi) — tidak perlu mengubah AtlasBottomBar maupun
-     *  layout. Pill mode Jalan/Satelit hidup terpisah (wireModePill). */
+    /** Bilah bawah (batch gede 2026-11-01 + fix+atlas 2026-11-02 +
+     *  batch #7+RECON 2026-11-02): daftar tab TERPUSAT di sini. Tambah
+     *  tab = tambah satu baris di daftar ini (id, label, ikon, aksi) —
+     *  tidak perlu mengubah AtlasBottomBar maupun layout. Pill mode
+     *  Jalan/Satelit hidup di dalam kartu bar yang sama (wireModePill). */
     private void wireBottomBar(View view) {
         LinearLayout tabs = view.findViewById(R.id.geomac_bar_tabs);
         if (tabs == null) return;
@@ -261,6 +280,8 @@ public class GeoMac extends Fragment {
                 R.drawable.search, this::openSearchSheet));
         list.add(new AtlasBottomBar.Tab("layers", R.string.atlas_bar_layers,
                 R.drawable.map, this::openLayerSheet));
+        list.add(new AtlasBottomBar.Tab("recon", R.string.atlas_bar_recon,
+                R.drawable.scanner, this::openReconPanel));
         bottomBar = new AtlasBottomBar(tabs, list);
     }
 
@@ -313,6 +334,7 @@ public class GeoMac extends Fragment {
         if (!isAdded() || store == null) return;
         if (getParentFragmentManager().findFragmentByTag("atlas_search") != null) return;
         dismissLayerSheet();
+        dismissReconPanel();
         GeoMacSearchSheet sheet = new GeoMacSearchSheet();
         searchSheet = sheet;
         sheet.bind(new GeoMacSearchSheet.Host() {
@@ -372,6 +394,7 @@ public class GeoMac extends Fragment {
         if (!isAdded() || layerStore == null) return;
         if (getParentFragmentManager().findFragmentByTag("atlas_layers") != null) return;
         dismissSearchSheet();
+        dismissReconPanel();
         LayerSheet sheet = new LayerSheet();
         layerSheet = sheet;
         sheet.bind(layerStore, new LayerSheet.Host() {
@@ -382,6 +405,164 @@ public class GeoMac extends Fragment {
         });
         sheet.show(getParentFragmentManager(), "atlas_layers");
         markBarTab("layers", sheet);
+    }
+
+    /** Satu tombol panel RECON: label + ikon + tujuan navigasi yang sudah
+     *  ada (ID drawer item, dirutekan MainActivity.fragmentFor). Tidak ada
+     *  logika tool di sini — tombol hanya membuka UI yang sudah ada. */
+    private static final class ReconTool {
+        final int labelRes;
+        final int iconRes;
+        final int destId;
+
+        ReconTool(int labelRes, int iconRes, int destId) {
+            this.labelRes = labelRes;
+            this.iconRes = iconRes;
+            this.destId = destId;
+        }
+    }
+
+    /** Bangun isi panel RECON (batch #7+RECON, diadaptasi dari diff RECON
+     *  tertahan di repo utama; gaya OSIRIS): kategori emas kapital +
+     *  grid 2 kolom tombol tool berikon. Isi HANYA tool yang Astro sudah
+     *  punya; item OSIRIS tanpa padanan (Shodan, BGP route, certs,
+     *  SSL/TLS, headers, tech detect, GitHub recon, threats, blockchain)
+     *  TIDAK dibuat tombolnya. Tool OsintFragment dibuka biasa
+     *  (OsintFragment tidak punya API pilih tool/kategori awal). */
+    private void wireReconPanel(View view) {
+        reconPanel = view.findViewById(R.id.geomac_recon_panel);
+        reconScroll = view.findViewById(R.id.geomac_recon_scroll);
+        reconContent = view.findViewById(R.id.geomac_recon_content);
+        View closeBtn = view.findViewById(R.id.geomac_recon_close_btn);
+        if (closeBtn != null) closeBtn.setOnClickListener(v -> closeReconPanel());
+        if (reconContent == null || context == null) return;
+        addReconCategory(R.string.atlas_recon_cat_network, new ReconTool[]{
+                new ReconTool(R.string.atlas_recon_tool_portscan, R.drawable.scanner, R.id.nmap_item),
+                new ReconTool(R.string.atlas_recon_tool_vulnsweep, R.drawable.bug_report, R.id.nuclei_item),
+                new ReconTool(R.string.atlas_recon_tool_mac, R.drawable.wifi, R.id.macchanger_item),
+                new ReconTool(R.string.atlas_recon_tool_localnet, R.drawable.lan, R.id.lan_item),
+        });
+        addReconCategory(R.string.atlas_recon_cat_domain, new ReconTool[]{
+                new ReconTool(R.string.atlas_recon_tool_dns, R.drawable.web, R.id.osint_item),
+                new ReconTool(R.string.atlas_recon_tool_subdomain, R.drawable.webscan, R.id.osint_item),
+        });
+        addReconCategory(R.string.atlas_recon_cat_identity, new ReconTool[]{
+                new ReconTool(R.string.atlas_recon_tool_username, R.drawable.chat_bubble_user, R.id.osint_item),
+                new ReconTool(R.string.atlas_recon_tool_phone, R.drawable.ic_phone, R.id.osint_item),
+        });
+        addReconCategory(R.string.atlas_recon_cat_ip, new ReconTool[]{
+                new ReconTool(R.string.atlas_recon_tool_whois, R.drawable.terminal, R.id.osint_item),
+                new ReconTool(R.string.atlas_recon_tool_rdns, R.drawable.web, R.id.osint_item),
+        });
+    }
+
+    private void addReconCategory(int headerRes, ReconTool[] tools) {
+        if (reconContent == null || context == null) return;
+        TextView header = new TextView(context);
+        header.setText(headerRes);
+        header.setTextColor(0xFFD4AF37);
+        header.setTextSize(12);
+        header.setTypeface(null, android.graphics.Typeface.BOLD);
+        header.setLetterSpacing(0.08f);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hp.topMargin = reconContent.getChildCount() == 0 ? 0 : dp(10);
+        hp.bottomMargin = dp(6);
+        header.setLayoutParams(hp);
+        reconContent.addView(header);
+        GridLayout grid = new GridLayout(context);
+        grid.setColumnCount(2);
+        grid.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        for (ReconTool tool : tools) {
+            final int dest = tool.destId;
+            MaterialCardView tile = new MaterialCardView(context);
+            tile.setCardBackgroundColor(ContextCompat.getColor(context, R.color.light_lite_contrast));
+            tile.setStrokeColor(ContextCompat.getColor(context, R.color.osiris_gold));
+            tile.setStrokeWidth(dp(1));
+            tile.setRadius(dp(12));
+            tile.setCardElevation(0);
+            tile.setClickable(true);
+            android.util.TypedValue tv = new android.util.TypedValue();
+            if (context.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
+                tile.setForeground(ContextCompat.getDrawable(context, tv.resourceId));
+            }
+            GridLayout.LayoutParams gp = new GridLayout.LayoutParams();
+            gp.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+            gp.rowSpec = GridLayout.spec(GridLayout.UNDEFINED);
+            gp.width = 0;
+            gp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            gp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            tile.setLayoutParams(gp);
+            LinearLayout inner = new LinearLayout(context);
+            inner.setOrientation(LinearLayout.VERTICAL);
+            inner.setGravity(android.view.Gravity.CENTER);
+            inner.setPadding(dp(8), dp(12), dp(8), dp(12));
+            ImageView icon = new ImageView(context);
+            icon.setImageResource(tool.iconRes);
+            icon.setImageTintList(ColorStateList.valueOf(0xFFD4AF37));
+            LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(28), dp(28));
+            icon.setLayoutParams(ip);
+            inner.addView(icon);
+            TextView label = new TextView(context);
+            label.setText(tool.labelRes);
+            label.setTextColor(0xFFE8E8EA);
+            label.setTextSize(11);
+            label.setGravity(android.view.Gravity.CENTER);
+            label.setAllCaps(true);
+            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp2.topMargin = dp(6);
+            label.setLayoutParams(lp2);
+            inner.addView(label);
+            tile.addView(inner);
+            tile.setOnClickListener(v -> receiver.changeFragment(dest));
+            grid.addView(tile);
+        }
+        reconContent.addView(grid);
+    }
+
+    /** Buka panel RECON (batch #7+RECON): panel in-layout yang mengembang
+     *  dari bawah, bilah bawah tetap kelihatan di bawahnya (seperti sheet
+     *  OSIRIS) — bukan DialogFragment. Membuka RECON menutup sheet
+     *  SEARCH/LAYERS (anti-tumpuk). Tinggi konten dibatasi runtime ~65%
+     *  layar supaya tidak pernah terpotong di atas. */
+    private void openReconPanel() {
+        if (!isAdded() || reconPanel == null) return;
+        if (reconOpen) return;
+        dismissLayerSheet();
+        dismissSearchSheet();
+        reconPanel.setVisibility(View.VISIBLE);
+        reconOpen = true;
+        if (bottomBar != null) bottomBar.setActive("recon");
+        refreshBottomClearance();
+        if (reconScroll != null && reconContent != null) {
+            reconScroll.post(() -> {
+                View root = getView();
+                if (root == null || !isAdded()) return;
+                int cap = (int) (root.getHeight() * 0.65);
+                if (cap > 0 && reconContent.getHeight() > cap) {
+                    ViewGroup.LayoutParams lp = reconScroll.getLayoutParams();
+                    lp.height = cap;
+                    reconScroll.setLayoutParams(lp);
+                }
+            });
+        }
+    }
+
+    private void closeReconPanel() {
+        if (reconPanel == null) return;
+        reconPanel.setVisibility(View.GONE);
+        reconOpen = false;
+        if (bottomBar != null && "recon".equals(bottomBar.getActiveId())) {
+            bottomBar.clearActive();
+        }
+        refreshBottomClearance();
+    }
+
+    /** Tutup panel RECON (anti-tumpuk, simetris dengan dismiss sheet). */
+    private void dismissReconPanel() {
+        if (reconOpen) closeReconPanel();
     }
 
     private void refreshLayerSheet() {
@@ -428,6 +609,11 @@ public class GeoMac extends Fragment {
             if (layers != null) layers.toggle(AtlasLayers.Layer.CELLTOWERS, on);
         } else if (LayerStore.TRAFFIC.equals(id)) {
             if (trafficLive != null) trafficLive.setOn(on);
+            // Visibilitas jendela trafik berubah (toggle ON = mengembang,
+            // OFF = sembunyi): panel RECON yang terbuka harus pindah
+            // tumpukan — hitung ulang clearance (juga dipicu callback
+            // TrafficLive.setOnExpandedChanged untuk ketuk baris / X).
+            refreshBottomClearance();
         } else if (LayerStore.GPS.equals(id)) {
             // Provider mati (GPS + jaringan dua-duanya off) = gagal:
             // store dibatalkan + toast, sakelar kembali mati lewat refresh.
@@ -492,14 +678,15 @@ public class GeoMac extends Fragment {
     /** Jarak elemen overlay peta dari tumpukan bawah, diukur runtime.
      *  Latar: bilah bawah terukur ~70-80dp di perangkat padahal hitungan
      *  layout hanya 52dp — menaikkan angka margin hardcoded tidak akan
-     *  pernah dijamin benar. Karena itu tinggi tumpukan (status + baris
-     *  TRAFIK + baris aksi + pill mode + tab) dibaca setelah layout, lalu
-     *  margin bawah overlay dihitung dari tepi atas tumpukan + gap 12dp.
-     *  Elemen ditumpuk vertikal (counter, lalu kredit satelit, lalu
-     *  jendela trafik) supaya tidak saling menutupi. Pill FAB mengambang
-     *  SUDAH TIDAK ADA (batch temuan 2026-11-02): jangkar tumpukan bawah
+     *  pernah dijamin benar. Karena itu tinggi tumpukan (status + bar
+     *  tunggal) dibaca setelah layout, lalu margin bawah overlay dihitung
+     *  dari tepi atas tumpukan + gap 12dp. Elemen ditumpuk vertikal
+     *  (counter, lalu kredit satelit, lalu jendela trafik, lalu panel
+     *  RECON) supaya tidak saling menutupi. Pill FAB mengambang SUDAH
+     *  TIDAK ADA (batch temuan 2026-11-02): jangkar tumpukan bawah
      *  sekarang pill counter (kiri). Dipanggil sekali setelah wiring (via
-     *  post) + setiap ganti basemap (visibilitas kredit satelit berubah).
+     *  post) + setiap ganti basemap (visibilitas kredit satelit berubah)
+     *  + setiap visibilitas jendela trafik / panel RECON berubah.
      *  Margin di XML hanya fallback sebelum post-layout pertama jalan. */
     private void refreshBottomClearance() {
         View root = getView();
@@ -522,6 +709,11 @@ public class GeoMac extends Fragment {
                 trafficBase = counterTop + satCredit.getHeight() + gap;
             }
             setBottomMargin(trafficCard, trafficBase);
+            int reconBase = trafficBase;
+            if (trafficCard != null && trafficCard.getVisibility() == View.VISIBLE) {
+                reconBase = trafficBase + trafficCard.getHeight() + gap;
+            }
+            setBottomMargin(reconPanel, reconBase);
         });
     }
 
@@ -639,10 +831,11 @@ public class GeoMac extends Fragment {
         }
     }
 
-    /** Baris kategori TRAFIK di tumpukan bawah (batch temuan 2026-11-02):
-     *  toggle = jalur applyLayerToggle yang sama dengan toggle TRAFFIC di
-     *  sheet Lapisan (satu state, dua sakelar sinkron). Ketuk baris di
-     *  luar toggle saat ON = buka jendela tabel di atas tumpukan.
+    /** Seksi kategori TRAFIK di bar tunggal (batch temuan 2026-11-02,
+     *  digabung ke bar tunggal batch #7+RECON): toggle = jalur
+     *  applyLayerToggle yang sama dengan toggle TRAFFIC di sheet Lapisan
+     *  (satu state, dua sakelar sinkron). Ketuk seksi di luar toggle
+     *  saat ON = buka jendela tabel di atas bar.
      *  Guard updatingTrafficRow mencegah setChecked programatik memicu
      *  callback toggle (pola yang sama seperti LayerSheet.updating). */
     private void wireTrafficRow(View view) {

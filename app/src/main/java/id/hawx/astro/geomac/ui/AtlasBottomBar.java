@@ -12,14 +12,17 @@ import java.util.List;
 
 /**
  * Bilah bawah Atlas gaya OSIRIS (batch gede 2026-11-01): pill gelap,
- * border emas, tab aktif emas, sisanya abu. V1 = SEARCH + LAYERS.
+ * border emas, tab aktif emas, sisanya abu. Tab kini SEARCH + LAYERS
+ * + RECON (batch #7+RECON 2026-11-02); tab RECON membuka panel RECON
+ * in-layout, bukan sheet.
  *
  * Daftar tab TERPUSAT di pemanggil: tambah tab = tambah satu {@link Tab}
  * di daftar yang diberikan ke konstruktor — bilah ini tidak perlu diubah.
  * Tab tidak membuka apa-apa sendiri; aksinya dijalankan pemanggil
- * (SEARCH -> GeoMacSearchSheet, LAYERS -> LayerSheet yang sudah ada).
- * Status aktif diatur pemanggil (setActive saat sheet dibuka,
- * clearActive saat sheet ditutup); bilah hanya merender warnanya.
+ * (SEARCH -> GeoMacSearchSheet, LAYERS -> LayerSheet yang sudah ada,
+ * RECON -> panel RECON in-layout).
+ * Status aktif diatur pemanggil (setActive saat sheet/panel dibuka,
+ * clearActive saat sheet/panel ditutup); bilah hanya merender warnanya.
  */
 public class AtlasBottomBar {
 
