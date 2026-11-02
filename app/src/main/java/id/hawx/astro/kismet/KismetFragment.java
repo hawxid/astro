@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textview.MaterialTextView;
 import id.hawx.astro.R;
 import id.hawx.astro.utils.Core;
@@ -60,6 +61,8 @@ public class KismetFragment extends Fragment {
     private MaterialTextView serverValue;
     private MaterialTextView bindValue;
     private MaterialTextView wifiValue;
+    private SwitchMaterial btSwitch;
+    private MaterialTextView btNote;
     private MaterialButton startBtn;
     private MaterialButton stopBtn;
     private MaterialButton webuiBtn;
@@ -105,6 +108,10 @@ public class KismetFragment extends Fragment {
         bindViews(view);
         startFailedText = getString(R.string.kismet_start_failed);
         wifiQsText = getString(R.string.kismet_qs_note);
+        // Toggle = pref manager (persist). setChecked DULU, baru
+        // pasang listener — supaya set awal tidak memicu tulis.
+        btSwitch.setChecked(manager.isBtEnabled());
+        btSwitch.setOnCheckedChangeListener((v, checked) -> manager.setBtEnabled(checked));
         startBtn.setOnClickListener(v -> startServers());
         stopBtn.setOnClickListener(v -> stopServers());
         webuiBtn.setOnClickListener(v -> openWebUi());
@@ -127,6 +134,8 @@ public class KismetFragment extends Fragment {
         serverValue = view.findViewById(R.id.kismet_server_value);
         bindValue = view.findViewById(R.id.kismet_bind_value);
         wifiValue = view.findViewById(R.id.kismet_wifi_value);
+        btSwitch = view.findViewById(R.id.kismet_bt_switch);
+        btNote = view.findViewById(R.id.kismet_bt_note);
         startBtn = view.findViewById(R.id.kismet_start_btn);
         stopBtn = view.findViewById(R.id.kismet_stop_btn);
         webuiBtn = view.findViewById(R.id.kismet_open_webui_btn);
@@ -250,6 +259,24 @@ public class KismetFragment extends Fragment {
         // managed harus selalu bisa dipicu, meski server mati).
         stopBtn.setEnabled(!b && (s.kismetRunning || "monitor".equals(s.wifiType)));
         webuiBtn.setEnabled(!b);
+        // Toggle BT DISABLED selama server ON (ganti source butuh
+        // restart; state berlaku pada Start berikutnya). Keterangan
+        // BT TIDAK PERNAH mengklaim server asing: btActive sudah
+        // diAND-kan dengan owned di manager; server asing = "—".
+        btSwitch.setEnabled(!b && !s.kismetRunning);
+        if (!s.kismetRunning) {
+            btNote.setText("—");
+            btNote.setTextColor(0xFF9E9E9E);
+        } else if (s.btActive) {
+            btNote.setText(R.string.kismet_bt_active);
+            btNote.setTextColor(0xFF43A047);
+        } else if (s.owned) {
+            btNote.setText(R.string.kismet_bt_inactive);
+            btNote.setTextColor(0xFF9E9E9E);
+        } else {
+            btNote.setText("—");
+            btNote.setTextColor(0xFF9E9E9E);
+        }
     }
 
     private void setButtonsEnabled(boolean enabled) {
@@ -257,6 +284,7 @@ public class KismetFragment extends Fragment {
             startBtn.setEnabled(enabled);
             stopBtn.setEnabled(enabled);
             webuiBtn.setEnabled(enabled);
+            btSwitch.setEnabled(enabled);
         });
     }
 }

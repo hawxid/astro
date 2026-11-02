@@ -4,11 +4,17 @@ import android.content.Context;
 
 import androidx.annotation.NonNull;
 
+import id.hawx.astro.R;
+import id.hawx.astro.bluetooth.BluebinderController;
 import id.hawx.astro.utils.Core;
 import id.hawx.astro.x11.WebUiLauncher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Management Kismet (menu khusus, pola FridaManager Batch16/17).
@@ -102,6 +108,33 @@ import java.util.ArrayList;
  * - owned = PID file cocok dengan proses yang masih hidup.
  * - wifiType/wifiChannel dari `iw dev` (channel ada =
  *   terasosiasi; tanpa channel = belum naik / belum asosiasi).
+ * - btActive = launch manager terakhir menyertakan BT DAN
+ *   server yang jalan masih milik manager (owned) — server
+ *   asing tidak pernah diklaim BT-aktif.
+ *
+ * Sumber Bluetooth (toggle terpisah, 2026-11-02):
+ * - Toggle persist `kismet_bt` (default OFF = WiFi saja).
+ *   ON = launch `kismet -c wlan0 -c hci0`; OFF = `kismet -c wlan0`.
+ * - Bukti PoC perangkat: `kismet -c hci0` dengan bluebinder
+ *   aktif → "Found type 'linuxbluetooth' for 'hci0'" +
+ *   "Data source 'hci0' launched successfully" + perangkat BTLE
+ *   D6:8C:A7:79:82:99 terdeteksi di WebUI. Auto-deteksi tipe —
+ *   tanpa fallback type=.
+ * - Prasyarat: bila toggle ON, start() memastikan bluebinder +
+ *   hci0 UP dulu (BluebinderController.ensureActive, batas
+ *   10 detik). Gagal = start GAGAL dengan pesan jelas, BUKAN
+ *   fallback WiFi-only diam-diam.
+ * - Stop OWNERSHIP-AWARE (koreksi user 2026-11-02 — "stopnya
+ *   juga harus di improve"): stop mematikan bluebinder HANYA
+ *   bila launch Kismet terakhir yang meng-auto-start-nya
+ *   (field btBluebinderOwned); bila bluebinder sudah jalan
+ *   sebelum start (manual/menu lain) = pre-existing, TIDAK
+ *   disentuh. Alasan: bluebinder adalah service bersama (menu
+ *   Bluetooth, Keys+Mouse) — membunuh tanpa pandang bulu
+ *   merusak menu lain; membiarkan hasil auto-start jadi orphan
+ *   juga tidak bersih. Prinsip sama seperti Frida: hanya bunuh
+ *   instance yang manager-owned. Kill bluebinder best-effort
+ *   (tidak pernah throw, tidak menghambat restore WiFi).
  *
  * Threading: SEMUA method publik yang menyentuh shell/socket
  * HARUS dipanggil dari thread latar (bukan UI thread) — sama
@@ -125,6 +158,14 @@ public final class KismetManager {
     private static final String SITE_CONF = "/etc/kismet/kismet_site.conf";
     /** HOME eksplisit saat launch (auth/login Kismet di sini). */
     private static final String KISMET_HOME = "/root";
+    /** Interface sumber Bluetooth (via bluebinder, VHCI). */
+    private static final String BT_IFACE = "hci0";
+    /** Pref toggle Bluetooth (persist; default OFF = WiFi saja). */
+    private static final String PREF_BT = "kismet_bt";
+    /** Pref penanda: launch manager terakhir menyertakan BT. */
+    private static final String PREF_BT_LAUNCHED = "kismet_bt_launched";
+    /** Batas tunggu ensure bluebinder (detik). */
+    private static final int BT_ENSURE_TIMEOUT_S = 10;
 
     private static final int POLL_TRIES = 30;
     private static final int POLL_MS = 1000;
@@ -144,21 +185,52 @@ public final class KismetManager {
         public final String wifiType;
         /** Nomor channel dari `iw dev`, atau null bila tak ada. */
         public final String wifiChannel;
+        /** Server ini diluncurkan manager DENGAN sumber BT
+         *  (bukan klaim untuk server asing — lihat status()). */
+        public final boolean btActive;
 
         Status(boolean kismetRunning, boolean owned, boolean bindUnsafe,
-               String wifiType, String wifiChannel) {
+               String wifiType, String wifiChannel, boolean btActive) {
             this.kismetRunning = kismetRunning;
             this.owned = owned;
             this.bindUnsafe = bindUnsafe;
             this.wifiType = wifiType;
             this.wifiChannel = wifiChannel;
+            this.btActive = btActive;
         }
     }
 
     private final Core core;
+    private final Context appContext;
+    /** Pesan gagal BT, di-resolve sekali di konstruktor (UI thread)
+     *  supaya thread latar tidak pernah memanggil getString(). */
+    private final String btFailedText;
+    /** Ownership bluebinder untuk Stop (lihat start()/stop()):
+     *  true HANYA bila launch Kismet terakhir dengan BT ON yang
+     *  meng-auto-start bluebinder (hci0 belum UP sebelum ensure).
+     *  Bila bluebinder sudah jalan sebelum start (manual/menu
+     *  lain) = pre-existing, false — stop TIDAK menyentuhnya.
+     *  Field instance (bukan pref) dengan sengaja: bila proses
+     *  app mati, nilainya hilang -> default false (aman: jangan
+     *  bunuh); pref yang basi justru berbahaya (bisa membunuh
+     *  bluebinder milik menu lain yang di-start belakangan).
+     *  Di-clear di akhir stop() apa pun hasilnya. */
+    private boolean btBluebinderOwned = false;
 
     public KismetManager(@NonNull Context context) {
         this.core = new Core(context.getApplicationContext());
+        this.appContext = context.getApplicationContext();
+        this.btFailedText = context.getString(R.string.kismet_bt_failed);
+    }
+
+    /** Toggle Bluetooth (persist). Default false = WiFi saja. */
+    public boolean isBtEnabled() {
+        return core.getBoolean(PREF_BT);
+    }
+
+    /** Simpan toggle Bluetooth (apply; aman dari UI thread). */
+    public void setBtEnabled(boolean enabled) {
+        core.putBoolean(PREF_BT, enabled);
     }
 
     // ---------------- API utama ----------------
@@ -187,6 +259,23 @@ public final class KismetManager {
         Status cur = status();
         if (cur.kismetRunning) {
             return cur;
+        }
+        // Prasyarat BT DULU, sebelum wlan0 disentuh: bila toggle
+        // ON tapi bluebinder/hci0 tidak bisa diaktifkan, start
+        // GAGAL dengan pesan jelas — TIDAK ada fallback diam-diam
+        // ke WiFi-only (pengguna eksplisit minta BT).
+        boolean btOn = isBtEnabled();
+        // Ownership bluebinder dicatat SEBELUM ensure: hci0 UP
+        // sebelum ensure = pre-existing (manual/menu lain, bukan
+        // milik Kismet); belum UP lalu ensure berhasil = milik
+        // Kismet (auto-start). Reset dulu supaya launch BT OFF
+        // maupun ensure yang gagal tidak mewarisi nilai lama.
+        // Bila BT OFF, field tidak relevan (false).
+        btBluebinderOwned = false;
+        if (btOn) {
+            boolean hciWasUp = isHciUpBeforeBt();
+            ensureBtActive();
+            btBluebinderOwned = !hciWasUp;
         }
         // Bunuh sisa milik manager saja (PID file), jangan sentuh
         // server asing.
@@ -224,8 +313,12 @@ public final class KismetManager {
         // Launch detached (pola Frida: setsid + log + PID file),
         // cwd = direktori log eksplisit supaya .kismet tidak
         // mengotori /. Kismet menaikkan interface sendiri.
+        // Sumber capture: WiFi saja, atau WiFi + BT (toggle ON).
+        // BT = `-c hci0` (auto-deteksi linuxbluetooth, bukti PoC
+        // perangkat 2026-11-02 — tanpa fallback type=).
+        String sourceArgs = "-c " + IFACE + (btOn ? " -c " + BT_IFACE : "");
         chroot("mkdir -p " + LOG_DIR + " && cd " + LOG_DIR
-                + " && HOME=" + KISMET_HOME + " setsid kismet -c " + IFACE
+                + " && HOME=" + KISMET_HOME + " setsid kismet " + sourceArgs
                 + " > " + LOG_DIR + "/kismet.log 2>&1 < /dev/null & echo $! > "
                 + LOG_DIR + "/kismet.pid");
         boolean up = waitListening(KISMET_PORT);
@@ -241,6 +334,15 @@ public final class KismetManager {
             if (realPid != null) {
                 chroot("echo " + realPid + " > " + LOG_DIR + "/kismet.pid");
             }
+        } catch (Throwable ignored) {
+        }
+        // Catat launch ini menyertakan BT atau tidak (persist —
+        // Fragment bisa dibuat ulang / proses app mati sementara
+        // server detached tetap jalan; field volatile akan hilang
+        // dalam kedua kasus itu). status() mengAND-kan dengan
+        // owned, jadi server asing TIDAK PERNAH diklaim BT-aktif.
+        try {
+            core.putBoolean(PREF_BT_LAUNCHED, btOn);
         } catch (Throwable ignored) {
         }
         return status();
@@ -266,7 +368,14 @@ public final class KismetManager {
      * TIDAK PERNAH `ip link set ... up`: UP dilakukan pengguna
      * via toggle WiFi di Quick Settings (framework yang menaikkan
      * + mengasosiasikan). Restore tetap dieksekusi walau semua
-     * kill gagal total. WAJIB thread latar.
+     * kill gagal total. Stop OWNERSHIP-AWARE untuk bluebinder:
+     * HANYA dibunuh (`pkill -f bluebinder`, best-effort) bila
+     * launch terakhir yang meng-auto-start-nya (field
+     * btBluebinderOwned); bila pre-existing, TIDAK disentuh
+     * sama sekali (service bersama menu Bluetooth/Keys+Mouse —
+     * prinsip Frida: hanya bunuh instance manager-owned).
+     * Kill bluebinder tidak pernah throw dan tidak menghambat
+     * restore WiFi. WAJIB thread latar.
      */
     public synchronized void stop() {
         try {
@@ -304,8 +413,22 @@ public final class KismetManager {
             }
         } catch (Throwable ignored) {
         }
+        // Kill bluebinder OWNERSHIP-AWARE (koreksi user
+        // 2026-11-02): HANYA bila launch Kismet terakhir yang
+        // meng-auto-start-nya. Pre-existing (manual/menu lain)
+        // TIDAK disentuh sama sekali. Best-effort: blok try
+        // sendiri, tidak pernah throw, tidak menghambat restore
+        // WiFi di bawah (pola yang sama dengan kill kismet).
+        // Perintah sama dengan stop() BluebinderController.
+        try {
+            if (btBluebinderOwned) {
+                chroot("pkill -f bluebinder");
+            }
+        } catch (Throwable ignored) {
+        }
         try {
             chroot("rm -f " + LOG_DIR + "/kismet.pid");
+            core.putBoolean(PREF_BT_LAUNCHED, false);
         } catch (Throwable ignored) {
         }
         try {
@@ -323,6 +446,16 @@ public final class KismetManager {
             }
         } catch (Throwable ignored) {
         }
+        // Bersihkan penanda launch di akhir stop, apa pun yang
+        // terjadi di blok best-effort di atas (blok di atas bisa
+        // terpotong bila chroot throw di tengah) — stop
+        // berikutnya tidak mewarisi klaim BT/ownership launch
+        // sebelumnya. Penugasan field tidak bisa throw.
+        try {
+            core.putBoolean(PREF_BT_LAUNCHED, false);
+        } catch (Throwable ignored) {
+        }
+        btBluebinderOwned = false;
     }
 
     /** Status cepat (socket connect + ss + iw dev + PID). WAJIB thread latar. */
@@ -344,7 +477,12 @@ public final class KismetManager {
             owned = pid != null && isPidAlive(pid);
         } catch (Throwable ignored) {
         }
-        return new Status(running, owned, unsafe, wifi.type, wifi.channel);
+        // BT-aktif HANYA bila launch manager terakhir menyertakan
+        // BT DAN server yang jalan masih milik manager (owned).
+        // Server asing (terminal) selalu btActive=false — tidak
+        // pernah ada klaim BT tanpa bukti launch.
+        boolean btActive = owned && core.getBoolean(PREF_BT_LAUNCHED);
+        return new Status(running, owned, unsafe, wifi.type, wifi.channel, btActive);
     }
 
     /**
@@ -385,6 +523,68 @@ public final class KismetManager {
         } catch (Throwable ignored) {
         }
         return null;
+    }
+
+    /**
+     * hci0 UP atau tidak SEBELUM ensure (untuk ownership Stop).
+     * Memakai BluebinderController.checkStatus (satu-satunya
+     * sumber kebenaran bluebinder) + latch, pola yang sama
+     * seperti ensureBtActive. Default bila tak diketahui
+     * (timeout/interrupt) = TRUE (pre-existing) — fail-safe ke
+     * arah TIDAK membunuh: orphan lebih aman daripada membunuh
+     * bluebinder milik menu lain. WAJIB thread latar (callback
+     * dipost ke main thread; deadlock bila dari UI thread).
+     */
+    private boolean isHciUpBeforeBt() {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean up = new AtomicBoolean(true);
+        new BluebinderController(appContext).checkStatus((running, hciUp, detail) -> {
+            up.set(hciUp);
+            latch.countDown();
+        });
+        try {
+            latch.await(BT_ENSURE_TIMEOUT_S, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return up.get();
+    }
+
+    /**
+     * Pastikan bluebinder + hci0 UP sebelum start dengan BT ON.
+     * Memakai BluebinderController.ensureActive (satu-satunya
+     * sumber kebenaran bluebinder, sama seperti menu Bluetooth):
+     * start bila perlu (`nohup bluebinder > /tmp/bluebinder.log
+     * 2>&1 &`) + `hciconfig hci0 up` + verifikasi running &&
+     * hciUp. Callback-nya dipost ke main thread, jadi start()
+     * (thread latar) menunggu lewat latch — start() TIDAK PERNAH
+     * boleh dipanggil dari UI thread (deadlock bila begitu).
+     * Gagal/timeout (>10 detik) = IOException dengan pesan jelas;
+     * TIDAK ADA fallback WiFi-only.
+     */
+    private void ensureBtActive() throws IOException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(false);
+        AtomicReference<String> detail = new AtomicReference<>("");
+        new BluebinderController(appContext).ensureActive((okCb, detailCb) -> {
+            ok.set(okCb);
+            detail.set(detailCb);
+            latch.countDown();
+        });
+        boolean done;
+        try {
+            done = latch.await(BT_ENSURE_TIMEOUT_S, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException(btFailedText);
+        }
+        if (!done) {
+            throw new IOException(btFailedText + " (timeout " + BT_ENSURE_TIMEOUT_S + " detik)");
+        }
+        if (!ok.get()) {
+            String d = detail.get();
+            throw new IOException(btFailedText + (d != null && !d.isEmpty() ? " (" + d + ")" : ""));
+        }
     }
 
     /**

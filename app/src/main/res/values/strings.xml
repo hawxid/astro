@@ -1694,6 +1694,11 @@ manager</string>
     <string name="kismet_note">ON berarti ada yang listening di port itu — belum tentu di-start dari panel ini. Selama jalan, WiFi putus (wlan0 jadi monitor); Kismet hanya mendengarkan di 127.0.0.1; jalan on-demand, matikan sesudah pakai.</string>
     <string name="kismet_qs_note">Sesudah Stop, nyalakan WiFi dari Quick Settings supaya kembali normal.</string>
     <string name="kismet_start_failed">Start Kismet gagal.</string>
+    <string name="kismet_bt_label">Bluetooth</string>
+    <string name="kismet_bt_caption">Sumber BT via bluebinder (hci0)</string>
+    <string name="kismet_bt_active">Aktif di server ini</string>
+    <string name="kismet_bt_inactive">Nonaktif</string>
+    <string name="kismet_bt_failed">Bluetooth gagal: bluebinder tidak jalan / hci0 tidak UP — aktifkan bluebinder dari menu Bluetooth dulu, lalu Start lagi.</string>
     <string name="anon_mode_label">Mode</string>
     <string name="anon_mode_wg">WireGuard</string>
     <string name="anon_mode_vpn">VPN standar (segera)</string>
