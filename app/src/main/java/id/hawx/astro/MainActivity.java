@@ -51,6 +51,7 @@ import id.hawx.astro.macchanger.MACChangerFragment;
 import id.hawx.astro.anon.AnonFragment;
 import id.hawx.astro.frida.FridaFragment;
 import id.hawx.astro.kismet.KismetFragment;
+import id.hawx.astro.gps.GpsFragment;
 import id.hawx.astro.metasploit.InstallMetasploit;
 import id.hawx.astro.metasploit.utils.MetasploitUtils;
 import id.hawx.astro.nmap.NmapScanner;
@@ -102,7 +103,10 @@ public class MainActivity extends AppCompatActivity {
     private static final java.util.Set<Integer> VM_INDEPENDENT_IDS = new java.util.HashSet<>(java.util.Arrays.asList(
             R.id.dasboard_item, R.id.logs_item, R.id.about_item,
             R.id.wpair_item, R.id.bt_item, R.id.osint_item, R.id.geomac_item,
-            R.id.wordlists_item, R.id.ir_item));
+            R.id.wordlists_item, R.id.ir_item, R.id.gps_item));
+    // GPS masuk VM_INDEPENDENT (bukan ROOT_ONLY): menunya murni Android
+    // LocationManager, tidak butuh root maupun chroot — jadi tetap bisa
+    // dibuka saat engine belum siap / chroot belum terpasang.
     private MetasploitUtils metasploitUtils;
     private ArrayList<WiFINetwork> networks;
     private ArrayList<Device> devices = new ArrayList<>();
@@ -763,7 +767,7 @@ public class MainActivity extends AppCompatActivity {
     // another device (USB gadget, live input, IR remote).
     private static final Object[][] APPS_CATS = {
             {"\u2B50", "Essentials", 0xFFD4AF37, new int[]{R.id.dasboard_item, R.id.terminal_item, R.id.logs_item}},
-            {"\uD83D\uDCF6", "Wireless", 0xFFD4AF37, new int[]{R.id.wifi_item, R.id.hs_item, R.id.wpair_item, R.id.bt_item, R.id.kismet_item}},
+            {"\uD83D\uDCF6", "Wireless", 0xFFD4AF37, new int[]{R.id.wifi_item, R.id.hs_item, R.id.wpair_item, R.id.bt_item, R.id.kismet_item, R.id.gps_item}},
             {"\uD83C\uDF10", "Network", 0xFFD4AF37, new int[]{R.id.lan_item, R.id.nmap_item, R.id.geomac_item, R.id.macchanger_item, R.id.anon_item}},
             {"\uD83C\uDFAF", "Offensive", 0xFFD4AF37, new int[]{R.id.nuclei_item, R.id.arsenal_item, R.id.metasploit_item, R.id.hid_item, R.id.osint_item, R.id.frida_item}},
             {"\uD83E\uDDF0", "Tools", 0xFFD4AF37, new int[]{R.id.wordlists_item, R.id.vnc_item, R.id.manager_item}},
@@ -1275,6 +1279,7 @@ public class MainActivity extends AppCompatActivity {
             if (itemId == R.id.anon_item) return new AnonFragment();
             if (itemId == R.id.frida_item) return new FridaFragment();
             if (itemId == R.id.kismet_item) return new KismetFragment();
+            if (itemId == R.id.gps_item) return new GpsFragment();
             if (itemId == R.id.dasboard_item) return new Dashboard();
             if (itemId == R.id.arsenal_item) return new ArsenalFragment();
             if (itemId == R.id.manager_item) return new CoreManager();
@@ -1349,6 +1354,7 @@ public class MainActivity extends AppCompatActivity {
         m.put(R.id.anon_item,         new DrawerSpec("Mode Anonim",      R.drawable.shield,      0xFFD4AF37));
         m.put(R.id.frida_item,        new DrawerSpec("Frida",            R.drawable.bug_report,  0xFFD4AF37));
         m.put(R.id.kismet_item,       new DrawerSpec("Kismet",           R.drawable.wifi,        0xFFD4AF37));
+        m.put(R.id.gps_item,          new DrawerSpec("GPS",              R.drawable.ic_gps,      0xFFD4AF37));
         m.put(R.id.wpair_item,        new DrawerSpec("WhisperPair (BLE)", R.drawable.wpair,      0xFFD4AF37));
         m.put(R.id.bt_item,           new DrawerSpec("Bluetooth", R.drawable.wpair, 0xFFD4AF37));
         m.put(R.id.osint_item,         new DrawerSpec("OSINT Recon",       R.drawable.scanner,    0xFFD4AF37));

@@ -290,6 +290,9 @@ public class Dashboard extends Fragment {
         t.add(new Tool("kismet", R.string.dashboard_tile_kismet, R.drawable.wifi,
                 R.drawable.dashboard_tile_bg_cyan, accent, false,
                 () -> receiver.changeFragment(R.id.kismet_item)));
+        t.add(new Tool("gps", R.string.dashboard_tile_gps, R.drawable.ic_gps,
+                R.drawable.dashboard_tile_bg_teal, accent, false,
+                () -> receiver.changeFragment(R.id.gps_item)));
         t.add(new Tool("wpair", R.string.dashboard_tile_wpair, R.drawable.wpair,
                 R.drawable.dashboard_tile_bg_indigo, accent, false,
                 () -> receiver.changeFragment(R.id.wpair_item)));
@@ -329,6 +332,7 @@ public class Dashboard extends Fragment {
                 {"anon", R.string.dashboard_tile_anon, false},
                 {"frida", R.string.dashboard_tile_frida, false},
                 {"kismet", R.string.dashboard_tile_kismet, false},
+                {"gps", R.string.dashboard_tile_gps, false},
                 {"wpair", R.string.dashboard_tile_wpair, false},
                 {"vnc", R.string.dashboard_tile_vnc, false},
                 {"usb", R.string.dashboard_tile_usb, false},

@@ -180,6 +180,10 @@
             layout="@layout/drawer_row" />
 
 <include
+            android:id="@+id/gps_item"
+            layout="@layout/drawer_row" />
+
+<include
             android:id="@+id/osint_item"
             layout="@layout/drawer_row" />
 
