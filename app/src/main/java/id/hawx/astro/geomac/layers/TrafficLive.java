@@ -12,15 +12,12 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.net.TrafficStats;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
-
-import com.google.android.material.button.MaterialButton;
 
 import id.hawx.astro.R;
 
@@ -116,9 +113,13 @@ public final class TrafficLive {
     private final Context context;
     private final MapView map;
     private final AtlasLayers.Alive alive;
-    private final View card;
-    private final LinearLayout rows;
-    private final TextView emptyView;
+    // View tabel TIDAK final (batch BAR FINAL 2026-11-02): tabel pindah
+    // antar view lewat rebind() — dari kartu in-layout (dihapus) ke sheet
+    // trafik, setiap sheet dibuka. Sebelum sheet pertama dibuka, ketiganya
+    // null dan semua pemakaian di bawah di-guard.
+    private View card;
+    private LinearLayout rows;
+    private TextView emptyView;
 
     private boolean trafficOn;
     private volatile boolean running;
@@ -126,31 +127,16 @@ public final class TrafficLive {
     private boolean lastReadFailed;
     private boolean lastConnsEmpty = true;
 
-    // Jendela tabel (batch temuan 2026-11-02): kartu ini BUKAN lagi "bar
-    // khusus" mengambang dengan keadaan bar ramping — baris kategori
-    // TRAFIK di tumpukan bawah-lah bar rampingnya. Kartu ini = jendela
-    // tabel saja: tampil terdocking di atas tumpukan saat TRAFFIC ON +
-    // jendela mengembang; X = ciutkan kembali ke baris (trafik tetap ON,
-    // polling + marker/garis peta tetap jalan); toggle OFF = hentikan
-    // trafik + sembunyikan jendela. Keadaan awal saat ON = mengembang
-    // (jendela langsung terlihat begitu toggle dinyalakan).
+    // Tabel trafik (batch BAR FINAL 2026-11-02): tabel ini BUKAN lagi kartu
+    // in-layout — ia hidup di dalam sheet trafik (GeoMacTrafficSheet)
+    // dan dipindahkan ke sana lewat rebind() setiap sheet dibuka. Toggle
+    // ON = polling + marker/garis peta jalan; toggle OFF = berhenti +
+    // daftar dikosongkan; menutup sheet TIDAK menghentikan trafik
+    // (polling + marker tetap jalan, tabel dirender lagi saat sheet
+    // dibuka kembali).
     private View rowsScroll;
     private View handle;
-    private MaterialButton closeBtn;
     private boolean windowVisible = false;
-
-    /** Dipanggil setiap visibilitas jendela berubah (setOn/setExpanded):
-     *  GeoMac memakainya untuk menghitung ulang clearance overlay
-     *  (panel RECON ditumpuk di atas jendela bila tampil). */
-    private Runnable onExpandedChanged;
-
-    public void setOnExpandedChanged(Runnable r) {
-        onExpandedChanged = r;
-    }
-
-    private void notifyExpandedChanged() {
-        if (onExpandedChanged != null) onExpandedChanged.run();
-    }
 
     private final ArrayList<Conn> markerConns = new ArrayList<>();
     private volatile Set<String> threatIps = new HashSet<>();
@@ -180,48 +166,51 @@ public final class TrafficLive {
         if (card != null) {
             rowsScroll = card.findViewById(R.id.geomac_traffic_rows_scroll);
             handle = card.findViewById(R.id.geomac_traffic_handle);
-            closeBtn = card.findViewById(R.id.geomac_traffic_close_btn);
-            if (closeBtn != null) {
-                // X = ciutkan kembali ke baris TRAFIK (bukan mematikan
-                // layer; mematikan tetap lewat toggle TRAFIK di baris
-                // tumpukan bawah atau di sheet Lapisan).
-                closeBtn.setOnClickListener(v -> setExpanded(false));
-            }
             refreshRowsVisibility();
         }
     }
 
-    /** Tampilkan/sembunyikan jendela tabel (dipanggil ketuk baris TRAFIK
-     *  di tumpukan bawah dan tombol X di jendela). Tidak mengubah status
-     *  ON/OFF trafik: menyembunyikan jendela tidak menghentikan polling
-     *  maupun marker/garis peta. Diabaikan bila trafik OFF. */
+    /** Pindahkan tabel ke view baru (batch BAR FINAL 2026-11-02): dipanggil
+     *  sheet trafik saat view-nya dibuat. Polling + marker/garis peta jalan
+     *  terus tanpa peduli view mana yang terikat: bila belum ada sheet
+     *  terbuka, baris dirender ke view lama yang sudah mati (tidak crash),
+     *  dan poll berikutnya merender ulang ke view baru setelah rebind.
+     *  Tombol X sheet TIDAK di-wire di sini: X menutup dialog sheet
+     *  (trafik tetap ON), bukan menciutkan jendela. */
+    public void rebind(View newCard, LinearLayout newRows, TextView newEmpty) {
+        card = newCard;
+        rows = newRows;
+        emptyView = newEmpty;
+        rowsScroll = card != null ? card.findViewById(R.id.geomac_traffic_rows_scroll) : null;
+        handle = card != null ? card.findViewById(R.id.geomac_traffic_handle) : null;
+        refreshRowsVisibility();
+    }
+
+    /** Status tampil tabel (dipertahankan untuk kompatibilitas; GeoMac
+     *  tidak lagi memakainya — visibilitas tabel kini milik sheet trafik:
+     *  sheet terbuka = tabel terlihat, sheet ditutup = trafik tetap jalan
+     *  tanpa tabel). Diabaikan bila trafik OFF. */
     public void setExpanded(boolean expanded) {
         if (!trafficOn) return;
         windowVisible = expanded;
         refreshRowsVisibility();
-        notifyExpandedChanged();
     }
 
+    /** Perbarui visibilitas area tabel di view yang sedang terikat
+     *  (batch BAR FINAL 2026-11-02): TIDAK menyentuh visibilitas kartu —
+     *  kartu kini = konten sheet dialog, visibilitasnya milik sheet.
+     *  Yang diatur di sini hanya area scroll + teks kosong di dalamnya:
+     *  trafik OFF = scroll sembunyi + teks kosong tampil (sheet tetap
+     *  terbuka dengan toggle OFF); trafik ON = scroll tampil + teks
+     *  kosong hanya bila tidak ada koneksi / baca gagal. */
     private void refreshRowsVisibility() {
-        if (!windowVisible) {
-            if (card != null) card.setVisibility(View.GONE);
-            return;
-        }
-        if (card != null) card.setVisibility(View.VISIBLE);
-        if (handle != null) {
-            handle.setVisibility(View.VISIBLE);
-        }
         if (rowsScroll != null) {
-            // Jendela mengembang: tabel bisa di-scroll, tinggi dibatasi
-            // ~65% layar supaya bilah bawah tetap kelihatan di bawahnya.
-            int cap = (int) (rowsScroll.getResources().getDisplayMetrics().heightPixels * 0.65f);
-            ViewGroup.LayoutParams lp = rowsScroll.getLayoutParams();
-            if (lp != null && lp.height != cap) {
-                lp.height = cap;
-                rowsScroll.setLayoutParams(lp);
-            }
-            rowsScroll.setVisibility(View.VISIBLE);
+            rowsScroll.setVisibility(windowVisible ? View.VISIBLE : View.GONE);
         }
+        if (handle != null) {
+            handle.setVisibility(windowVisible ? View.VISIBLE : View.GONE);
+        }
+        if (emptyView == null) return;
         if (lastReadFailed) {
             emptyView.setText(R.string.geomac_traffic_failed);
             emptyView.setVisibility(View.VISIBLE);
@@ -231,23 +220,24 @@ public final class TrafficLive {
         }
     }
 
-    /** Idempotent. ON = jendela langsung mengembang (lihat windowVisible);
-     *  OFF = hentikan + sembunyikan jendela. */
+    /** Idempotent. ON = mulai polling + marker/garis peta; OFF = hentikan
+     *  + bersihkan overlay + kosongkan baris. TIDAK menyentuh visibilitas
+     *  kartu (milik sheet dialog): mematikan trafik saat sheet terbuka
+     *  hanya mengosongkan daftar, sheet tetap terbuka dengan toggle OFF. */
     public void setOn(boolean on) {
         if (on == trafficOn) return;
         trafficOn = on;
         if (on) {
             windowVisible = true;
-            card.setVisibility(View.VISIBLE);
-            refreshRowsVisibility();
             start();
         } else {
             windowVisible = false;
             stop();
             clearOverlays();
-            card.setVisibility(View.GONE);
+            if (rows != null) rows.removeAllViews();
+            lastConnsEmpty = true;
         }
-        notifyExpandedChanged();
+        refreshRowsVisibility();
     }
 
     /** Stops polling but keeps overlays and the ON flag (backgrounding). */
@@ -260,13 +250,13 @@ public final class TrafficLive {
         if (trafficOn) start();
     }
 
-    /** Stops everything and clears overlays + panel (view destroyed). */
+    /** Stops everything and clears overlays + rows (view destroyed). */
     public void hideAll() {
         trafficOn = false;
         windowVisible = false;
         stop();
         clearOverlays();
-        card.setVisibility(View.GONE);
+        if (rows != null) rows.removeAllViews();
     }
 
     private void start() {
@@ -598,8 +588,13 @@ public final class TrafficLive {
 
     private void apply(List<Conn> conns) {
         if (!trafficOn) return;
-        rows.removeAllViews();
-        for (Conn c : conns) {
+        // Baris hanya dirender bila ada view terikat (sheet trafik
+        // terbuka). Tanpa sheet terbuka, polling + marker/garis peta tetap
+        // jalan; baris dirender ulang saat sheet dibuka (rebind) + poll
+        // berikutnya (maks 2 detik kemudian).
+        if (rows != null) {
+            rows.removeAllViews();
+            for (Conn c : conns) {
             TextView tv = new TextView(context);
             tv.setTextSize(11f);
             tv.setTypeface(android.graphics.Typeface.MONOSPACE);
@@ -619,6 +614,7 @@ public final class TrafficLive {
             }
             tv.setText(sb.toString());
             rows.addView(tv);
+            }
         }
         // Read failure is NOT an empty list: say so instead of the
         // silent empty text that hid the /proc/net lockdown. Menyembunyikan

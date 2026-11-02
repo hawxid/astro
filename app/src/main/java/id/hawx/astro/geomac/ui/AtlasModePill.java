@@ -2,6 +2,7 @@ package id.hawx.astro.geomac.ui;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.widget.LinearLayout;
 
 import com.google.android.material.button.MaterialButton;
@@ -10,19 +11,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Pill mode basemap Atlas gaya OSIRIS (batch fix+atlas 2026-11-02):
- * pill gelap rata kiri di atas bilah tab, tombol aktif berbingkai emas
- * + ikon/teks emas, non-aktif abu tanpa bingkai. Hanya 2 mode yang
- * Atlas punya (Jalan + Satelit) — TANPA tombol bulan/night karena Atlas
- * tidak punya sumber tile gelap (tombol mati = fitur palsu).
+ * Pill mode basemap Atlas gaya OSIRIS (batch fix+atlas 2026-11-02, bentuk
+ * final batch BAR FINAL 2026-11-02): pill terpisah di atas bilah tab,
+ * IKON SAJA tanpa label (seperti pill mode di referensi) — ikon jalan +
+ * ikon satelit, tombol aktif berbingkai emas + ikon emas, non-aktif abu
+ * tanpa bingkai. Hanya 2 mode yang Atlas punya (Jalan + Satelit) —
+ * TANPA tombol bulan/night karena Atlas tidak punya sumber tile gelap
+ * (tombol mati = fitur palsu).
  *
  * Pola sama seperti AtlasBottomBar: daftar mode TERPUSAT di pemanggil
  * (GeoMac.wireModePill); tambah mode = tambah satu objek Mode.
  * Status aktif diatur pemanggil (setActive saat basemap berubah).
+ * Tombol transparan supaya background pill (kartu di layout) yang
+ * terlihat; kartu itulah yang semi-transparan + border emas.
  */
 public class AtlasModePill {
 
-    /** Satu entri mode. Tambah mode = tambah satu objek ini. */
+    /** Satu entri mode. Tambah mode = tambah satu objek ini.
+     *  labelRes 0 = tombol ikon saja (tanpa teks), dipakai pill mode
+     *  batch BAR FINAL. */
     public static class Mode {
         public final String id;
         public final int labelRes;
@@ -39,7 +46,6 @@ public class AtlasModePill {
 
     private static final int GOLD = 0xFFD4AF37;
     private static final int GREY = 0xFF8A8A95;
-    private static final int BTN_BG = 0xFF12121A;
 
     private final List<MaterialButton> buttons = new ArrayList<>();
     private final List<String> ids = new ArrayList<>();
@@ -49,22 +55,22 @@ public class AtlasModePill {
         Context ctx = container.getContext();
         for (Mode mode : modes) {
             MaterialButton b = new MaterialButton(ctx);
-            b.setBackgroundTintList(ColorStateList.valueOf(BTN_BG));
+            b.setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
             b.setCornerRadius(dp(ctx, 12));
             b.setIconResource(mode.iconRes);
-            b.setIconSize(dp(ctx, 16));
-            b.setText(mode.labelRes);
-            b.setTextSize(12);
-            b.setLetterSpacing(0.08f);
-            b.setAllCaps(true);
+            b.setIconSize(dp(ctx, 20));
+            if (mode.labelRes != 0) {
+                b.setText(mode.labelRes);
+                b.setTextSize(12);
+                b.setLetterSpacing(0.08f);
+                b.setAllCaps(true);
+            }
             b.setInsetTop(0);
             b.setInsetBottom(0);
-            // Tombol dipadatkan (40dp, ikon 16dp — dulu 44dp/18dp) supaya
-            // pill mode muat berdampingan dengan tombol aksi peta dalam
-            // satu baris bar tunggal (batch #7+RECON 2026-11-02).
+            // Tombol ikon saja: kotak 48x40dp (seperti ikon pill mode di
+            // referensi OSIRIS) — bukan wrap teks lagi.
             LinearLayout.LayoutParams lp =
-                    new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT, dp(ctx, 40));
+                    new LinearLayout.LayoutParams(dp(ctx, 48), dp(ctx, 40));
             lp.setMarginEnd(dp(ctx, 4));
             b.setLayoutParams(lp);
             final String id = mode.id;

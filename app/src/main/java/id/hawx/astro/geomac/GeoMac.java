@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.res.ColorStateList;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -21,10 +20,8 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -34,10 +31,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
-import com.google.android.material.switchmaterial.SwitchMaterial;
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.dashboard.Dashboard;
@@ -51,6 +46,8 @@ import id.hawx.astro.geomac.model.GeoPin;
 import id.hawx.astro.geomac.store.GeoStore;
 import id.hawx.astro.geomac.ui.GeoMarkers;
 import id.hawx.astro.geomac.ui.GeoMacSearchSheet;
+import id.hawx.astro.geomac.ui.GeoMacSettingsSheet;
+import id.hawx.astro.geomac.ui.GeoMacTrafficSheet;
 import id.hawx.astro.geomac.ui.LayerSheet;
 import id.hawx.astro.geomac.ui.AtlasBottomBar;
 import id.hawx.astro.geomac.ui.AtlasModePill;
@@ -100,14 +97,9 @@ public class GeoMac extends Fragment {
     private GeoMacSearchSheet searchSheet;
     private AtlasBottomBar bottomBar;
     private AtlasModePill modePill;
-    private View reconPanel;
-    private ScrollView reconScroll;
-    private LinearLayout reconContent;
-    private boolean reconOpen = false;
+    private GeoMacTrafficSheet trafficSheet;
+    private GeoMacSettingsSheet settingsSheet;
     private TextView satCredit;
-    private SwitchMaterial trafficSwitch;
-    private View trafficDot;
-    private boolean updatingTrafficRow = false;
 
     private GeoPin.Category filter = null;
 
@@ -180,27 +172,21 @@ public class GeoMac extends Fragment {
                             layers.toggle(AtlasLayers.Layer.CELLTOWERS, false);
                         }
                         refreshLayerSheet();
-                        askOpenCellIdKey();
+                        askOpenCellIdKey(true);
                     }
                 });
+        // TrafficLive tanpa view terikat (batch BAR FINAL 2026-11-02):
+        // tabelnya hidup di sheet trafik dan dipindahkan ke sana lewat
+        // rebind() setiap sheet dibuka. Polling + marker/garis peta jalan
+        // tanpa peduli sheet terbuka atau tidak.
         trafficLive = new TrafficLive(activity, context, map,
-                () -> alive.get() && isAdded(),
-                view.findViewById(R.id.geomac_traffic_card),
-                view.findViewById(R.id.geomac_traffic_rows),
-                view.findViewById(R.id.geomac_traffic_empty));
-        // Jendela trafik mengembang/menciut mengubah tumpukan overlay
-        // (panel RECON ditumpuk di atas jendela bila tampil): hitung ulang
-        // clearance setiap visibilitas jendela berubah (toggle, ketuk
-        // baris, tombol X — semuanya lewat setExpanded/setOn).
-        trafficLive.setOnExpandedChanged(this::refreshBottomClearance);
+                () -> alive.get() && isAdded(), null, null, null);
         gpsLive = new GpsLive(activity, context, map,
                 () -> alive.get() && isAdded());
 
         wireBottomBar(view);
         wireModePill(view);
-        wireTrafficRow(view);
-        wireActionBar(view);
-        wireReconPanel(view);
+        refreshTrafficTab();
         restoreFilterState();
         refreshOverlay();
         refreshBottomClearance();
@@ -236,14 +222,10 @@ public class GeoMac extends Fragment {
             searchSheet.dismissAllowingStateLoss();
             searchSheet = null;
         }
+        dismissTrafficSheet();
+        dismissSettingsSheet();
         bottomBar = null;
         modePill = null;
-        reconPanel = null;
-        reconScroll = null;
-        reconContent = null;
-        reconOpen = false;
-        trafficSwitch = null;
-        trafficDot = null;
         if (layers != null) {
             layers.hideAll();
             layers = null;
@@ -267,11 +249,14 @@ public class GeoMac extends Fragment {
         super.onDestroy();
     }
 
-    /** Bilah bawah (batch gede 2026-11-01 + fix+atlas 2026-11-02 +
-     *  batch #7+RECON 2026-11-02): daftar tab TERPUSAT di sini. Tambah
-     *  tab = tambah satu baris di daftar ini (id, label, ikon, aksi) —
-     *  tidak perlu mengubah AtlasBottomBar maupun layout. Pill mode
-     *  Jalan/Satelit hidup di dalam kartu bar yang sama (wireModePill). */
+    /** Bilah bawah (batch BAR FINAL 2026-11-02, gaya OSIRIS): pill mode
+     *  di atas (ikon saja) + tab bar di bawah (ikon di atas + tulisan
+     *  kecil caps di bawahnya, persis referensi). Daftar tab TERPUSAT di
+     *  sini: SEARCH (sheet SEARCH) + LAYERS (sheet Lapisan) + FIT (aksi
+     *  fitToPins langsung, momentary — tanpa status aktif permanen) +
+     *  TRAFFIC (sheet trafik) + SETTING (sheet pengaturan, gerigi).
+     *  Tab RECON DIHAPUS (percuma, toh hanya balik ke menu Osint).
+     *  Tambah tab = tambah satu baris di daftar ini. */
     private void wireBottomBar(View view) {
         LinearLayout tabs = view.findViewById(R.id.geomac_bar_tabs);
         if (tabs == null) return;
@@ -280,8 +265,12 @@ public class GeoMac extends Fragment {
                 R.drawable.search, this::openSearchSheet));
         list.add(new AtlasBottomBar.Tab("layers", R.string.atlas_bar_layers,
                 R.drawable.map, this::openLayerSheet));
-        list.add(new AtlasBottomBar.Tab("recon", R.string.atlas_bar_recon,
-                R.drawable.scanner, this::openReconPanel));
+        list.add(new AtlasBottomBar.Tab("fit", R.string.atlas_bar_fit,
+                R.drawable.expand_icon, this::fitToPins, true));
+        list.add(new AtlasBottomBar.Tab("traffic", R.string.atlas_bar_traffic,
+                R.drawable.analytics, this::openTrafficSheet));
+        list.add(new AtlasBottomBar.Tab("settings", R.string.atlas_bar_settings,
+                R.drawable.settings, this::openSettingsSheet));
         bottomBar = new AtlasBottomBar(tabs, list);
     }
 
@@ -334,7 +323,8 @@ public class GeoMac extends Fragment {
         if (!isAdded() || store == null) return;
         if (getParentFragmentManager().findFragmentByTag("atlas_search") != null) return;
         dismissLayerSheet();
-        dismissReconPanel();
+        dismissTrafficSheet();
+        dismissSettingsSheet();
         GeoMacSearchSheet sheet = new GeoMacSearchSheet();
         searchSheet = sheet;
         sheet.bind(new GeoMacSearchSheet.Host() {
@@ -394,7 +384,8 @@ public class GeoMac extends Fragment {
         if (!isAdded() || layerStore == null) return;
         if (getParentFragmentManager().findFragmentByTag("atlas_layers") != null) return;
         dismissSearchSheet();
-        dismissReconPanel();
+        dismissTrafficSheet();
+        dismissSettingsSheet();
         LayerSheet sheet = new LayerSheet();
         layerSheet = sheet;
         sheet.bind(layerStore, new LayerSheet.Host() {
@@ -407,162 +398,121 @@ public class GeoMac extends Fragment {
         markBarTab("layers", sheet);
     }
 
-    /** Satu tombol panel RECON: label + ikon + tujuan navigasi yang sudah
-     *  ada (ID drawer item, dirutekan MainActivity.fragmentFor). Tidak ada
-     *  logika tool di sini — tombol hanya membuka UI yang sudah ada. */
-    private static final class ReconTool {
-        final int labelRes;
-        final int iconRes;
-        final int destId;
-
-        ReconTool(int labelRes, int iconRes, int destId) {
-            this.labelRes = labelRes;
-            this.iconRes = iconRes;
-            this.destId = destId;
+    /** Tutup sheet trafik (anti-tumpuk, simetris dengan dismiss sheet lain). */
+    private void dismissTrafficSheet() {
+        if (trafficSheet != null) {
+            trafficSheet.dismissAllowingStateLoss();
+            trafficSheet = null;
         }
     }
 
-    /** Bangun isi panel RECON (batch #7+RECON, diadaptasi dari diff RECON
-     *  tertahan di repo utama; gaya OSIRIS): kategori emas kapital +
-     *  grid 2 kolom tombol tool berikon. Isi HANYA tool yang Astro sudah
-     *  punya; item OSIRIS tanpa padanan (Shodan, BGP route, certs,
-     *  SSL/TLS, headers, tech detect, GitHub recon, threats, blockchain)
-     *  TIDAK dibuat tombolnya. Tool OsintFragment dibuka biasa
-     *  (OsintFragment tidak punya API pilih tool/kategori awal). */
-    private void wireReconPanel(View view) {
-        reconPanel = view.findViewById(R.id.geomac_recon_panel);
-        reconScroll = view.findViewById(R.id.geomac_recon_scroll);
-        reconContent = view.findViewById(R.id.geomac_recon_content);
-        View closeBtn = view.findViewById(R.id.geomac_recon_close_btn);
-        if (closeBtn != null) closeBtn.setOnClickListener(v -> closeReconPanel());
-        if (reconContent == null || context == null) return;
-        addReconCategory(R.string.atlas_recon_cat_network, new ReconTool[]{
-                new ReconTool(R.string.atlas_recon_tool_portscan, R.drawable.scanner, R.id.nmap_item),
-                new ReconTool(R.string.atlas_recon_tool_vulnsweep, R.drawable.bug_report, R.id.nuclei_item),
-                new ReconTool(R.string.atlas_recon_tool_mac, R.drawable.wifi, R.id.macchanger_item),
-                new ReconTool(R.string.atlas_recon_tool_localnet, R.drawable.lan, R.id.lan_item),
-        });
-        addReconCategory(R.string.atlas_recon_cat_domain, new ReconTool[]{
-                new ReconTool(R.string.atlas_recon_tool_dns, R.drawable.web, R.id.osint_item),
-                new ReconTool(R.string.atlas_recon_tool_subdomain, R.drawable.webscan, R.id.osint_item),
-        });
-        addReconCategory(R.string.atlas_recon_cat_identity, new ReconTool[]{
-                new ReconTool(R.string.atlas_recon_tool_username, R.drawable.chat_bubble_user, R.id.osint_item),
-                new ReconTool(R.string.atlas_recon_tool_phone, R.drawable.ic_phone, R.id.osint_item),
-        });
-        addReconCategory(R.string.atlas_recon_cat_ip, new ReconTool[]{
-                new ReconTool(R.string.atlas_recon_tool_whois, R.drawable.terminal, R.id.osint_item),
-                new ReconTool(R.string.atlas_recon_tool_rdns, R.drawable.web, R.id.osint_item),
-        });
-    }
-
-    private void addReconCategory(int headerRes, ReconTool[] tools) {
-        if (reconContent == null || context == null) return;
-        TextView header = new TextView(context);
-        header.setText(headerRes);
-        header.setTextColor(0xFFD4AF37);
-        header.setTextSize(12);
-        header.setTypeface(null, android.graphics.Typeface.BOLD);
-        header.setLetterSpacing(0.08f);
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hp.topMargin = reconContent.getChildCount() == 0 ? 0 : dp(10);
-        hp.bottomMargin = dp(6);
-        header.setLayoutParams(hp);
-        reconContent.addView(header);
-        GridLayout grid = new GridLayout(context);
-        grid.setColumnCount(2);
-        grid.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        for (ReconTool tool : tools) {
-            final int dest = tool.destId;
-            MaterialCardView tile = new MaterialCardView(context);
-            tile.setCardBackgroundColor(ContextCompat.getColor(context, R.color.light_lite_contrast));
-            tile.setStrokeColor(ContextCompat.getColor(context, R.color.osiris_gold));
-            tile.setStrokeWidth(dp(1));
-            tile.setRadius(dp(12));
-            tile.setCardElevation(0);
-            tile.setClickable(true);
-            android.util.TypedValue tv = new android.util.TypedValue();
-            if (context.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
-                tile.setForeground(ContextCompat.getDrawable(context, tv.resourceId));
-            }
-            GridLayout.LayoutParams gp = new GridLayout.LayoutParams();
-            gp.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
-            gp.rowSpec = GridLayout.spec(GridLayout.UNDEFINED);
-            gp.width = 0;
-            gp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-            gp.setMargins(dp(3), dp(3), dp(3), dp(3));
-            tile.setLayoutParams(gp);
-            LinearLayout inner = new LinearLayout(context);
-            inner.setOrientation(LinearLayout.VERTICAL);
-            inner.setGravity(android.view.Gravity.CENTER);
-            inner.setPadding(dp(8), dp(12), dp(8), dp(12));
-            ImageView icon = new ImageView(context);
-            icon.setImageResource(tool.iconRes);
-            icon.setImageTintList(ColorStateList.valueOf(0xFFD4AF37));
-            LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(28), dp(28));
-            icon.setLayoutParams(ip);
-            inner.addView(icon);
-            TextView label = new TextView(context);
-            label.setText(tool.labelRes);
-            label.setTextColor(0xFFE8E8EA);
-            label.setTextSize(11);
-            label.setGravity(android.view.Gravity.CENTER);
-            label.setAllCaps(true);
-            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp2.topMargin = dp(6);
-            label.setLayoutParams(lp2);
-            inner.addView(label);
-            tile.addView(inner);
-            tile.setOnClickListener(v -> receiver.changeFragment(dest));
-            grid.addView(tile);
+    private void dismissSettingsSheet() {
+        if (settingsSheet != null) {
+            settingsSheet.dismissAllowingStateLoss();
+            settingsSheet = null;
         }
-        reconContent.addView(grid);
     }
 
-    /** Buka panel RECON (batch #7+RECON): panel in-layout yang mengembang
-     *  dari bawah, bilah bawah tetap kelihatan di bawahnya (seperti sheet
-     *  OSIRIS) — bukan DialogFragment. Membuka RECON menutup sheet
-     *  SEARCH/LAYERS (anti-tumpuk). Tinggi konten dibatasi runtime ~65%
-     *  layar supaya tidak pernah terpotong di atas. */
-    private void openReconPanel() {
-        if (!isAdded() || reconPanel == null) return;
-        if (reconOpen) return;
-        dismissLayerSheet();
+    /** Buka sheet trafik (batch BAR FINAL 2026-11-02): ketuk tab TRAFFIC
+     *  SELALU membuka sheet ini, apa pun status on/off — seperti sheet
+     *  Lapisan (dialog menutupi bar saat terbuka). Header sheet = judul +
+     *  toggle on/off + X; di bawahnya daftar trafik live. Toggle = jalur
+     *  applyLayerToggle yang sama (sinkron dengan toggle Traffic di sheet
+     *  Lapisan). Menutup sheet TIDAK menghentikan trafik. */
+    private void openTrafficSheet() {
+        if (!isAdded() || layerStore == null) return;
+        if (getParentFragmentManager().findFragmentByTag("atlas_traffic") != null) return;
         dismissSearchSheet();
-        reconPanel.setVisibility(View.VISIBLE);
-        reconOpen = true;
-        if (bottomBar != null) bottomBar.setActive("recon");
-        refreshBottomClearance();
-        if (reconScroll != null && reconContent != null) {
-            reconScroll.post(() -> {
-                View root = getView();
-                if (root == null || !isAdded()) return;
-                int cap = (int) (root.getHeight() * 0.65);
-                if (cap > 0 && reconContent.getHeight() > cap) {
-                    ViewGroup.LayoutParams lp = reconScroll.getLayoutParams();
-                    lp.height = cap;
-                    reconScroll.setLayoutParams(lp);
+        dismissLayerSheet();
+        dismissSettingsSheet();
+        GeoMacTrafficSheet sheet = new GeoMacTrafficSheet();
+        trafficSheet = sheet;
+        sheet.bind(trafficLive, new GeoMacTrafficSheet.Host() {
+            @Override
+            public void onTrafficToggle(boolean on) {
+                applyLayerToggle(LayerStore.TRAFFIC, on);
+            }
+
+            @Override
+            public boolean isTrafficOn() {
+                return layerStore != null && layerStore.isOn(LayerStore.TRAFFIC);
+            }
+        });
+        sheet.show(getParentFragmentManager(), "atlas_traffic");
+        markBarTab("traffic", sheet);
+    }
+
+    /** Buka sheet pengaturan (batch BAR FINAL 2026-11-02, dari tab gerigi
+     *  "Setting"): aksi pin (Import/Export/Clear) + pengaturan API key
+     *  layer (OpenCellID/Windy/Mapillary). Membuka kembali menu API key
+     *  yang dulu diparkir, dengan scope persis ini. */
+    private void openSettingsSheet() {
+        if (!isAdded()) return;
+        if (getParentFragmentManager().findFragmentByTag("atlas_settings") != null) return;
+        dismissSearchSheet();
+        dismissLayerSheet();
+        dismissTrafficSheet();
+        GeoMacSettingsSheet sheet = new GeoMacSettingsSheet();
+        settingsSheet = sheet;
+        sheet.bind(new GeoMacSettingsSheet.Host() {
+            @Override
+            public void onImport() {
+                openImportPicker();
+            }
+
+            @Override
+            public void onExport() {
+                openExportPicker();
+            }
+
+            @Override
+            public void onClear() {
+                confirmClear();
+            }
+
+            @Override
+            public void onEditApiKey(String key) {
+                if ("windy".equals(key)) {
+                    askWindyKey(false);
+                } else if ("mapillary".equals(key)) {
+                    askMapillaryToken();
+                } else {
+                    askOpenCellIdKey(false);
                 }
-            });
+            }
+
+            @Override
+            public boolean hasApiKey(String key) {
+                if (core == null) return false;
+                if ("windy".equals(key)) return !core.getString(PREF_WINDY_KEY).isEmpty();
+                if ("mapillary".equals(key)) return !core.getString(PREF_MAPILLARY_TOKEN).isEmpty();
+                return !core.getString(PREF_OPEN_CELL_KEY).isEmpty();
+            }
+        });
+        sheet.show(getParentFragmentManager(), "atlas_settings");
+        markBarTab("settings", sheet);
+    }
+
+    private void refreshTrafficSheet() {
+        if (trafficSheet != null) {
+            trafficSheet.refresh();
         }
     }
 
-    private void closeReconPanel() {
-        if (reconPanel == null) return;
-        reconPanel.setVisibility(View.GONE);
-        reconOpen = false;
-        if (bottomBar != null && "recon".equals(bottomBar.getActiveId())) {
-            bottomBar.clearActive();
+    private void refreshSettingsSheet() {
+        if (settingsSheet != null) {
+            settingsSheet.refresh();
         }
-        refreshBottomClearance();
     }
 
-    /** Tutup panel RECON (anti-tumpuk, simetris dengan dismiss sheet). */
-    private void dismissReconPanel() {
-        if (reconOpen) closeReconPanel();
+    /** Sorot tab TRAFFIC (emas + dot) saat trafik ON — independen dari
+     *  status sheet dibuka (batch BAR FINAL 2026-11-02). Dipanggil setelah
+     *  wiring dan setiap applyLayerToggle. */
+    private void refreshTrafficTab() {
+        if (bottomBar == null || layerStore == null) return;
+        boolean on = layerStore.isOn(LayerStore.TRAFFIC);
+        bottomBar.setHighlighted("traffic", on);
+        bottomBar.setTabDot("traffic", on);
     }
 
     private void refreshLayerSheet() {
@@ -575,13 +525,13 @@ public class GeoMac extends Fragment {
         if (layerStore == null) return;
         if (LayerStore.CAMERAS.equals(id) && on
                 && (core == null || core.getString(PREF_WINDY_KEY).isEmpty())) {
-            askWindyKey();
+            askWindyKey(true);
             refreshLayerSheet();
             return;
         }
         if (LayerStore.CELLTOWERS.equals(id) && on
                 && (core == null || core.getString(PREF_OPEN_CELL_KEY).isEmpty())) {
-            askOpenCellIdKey();
+            askOpenCellIdKey(true);
             refreshLayerSheet();
             return;
         }
@@ -609,11 +559,8 @@ public class GeoMac extends Fragment {
             if (layers != null) layers.toggle(AtlasLayers.Layer.CELLTOWERS, on);
         } else if (LayerStore.TRAFFIC.equals(id)) {
             if (trafficLive != null) trafficLive.setOn(on);
-            // Visibilitas jendela trafik berubah (toggle ON = mengembang,
-            // OFF = sembunyi): panel RECON yang terbuka harus pindah
-            // tumpukan — hitung ulang clearance (juga dipicu callback
-            // TrafficLive.setOnExpandedChanged untuk ketuk baris / X).
-            refreshBottomClearance();
+            // Sheet trafik adalah dialog (tidak butuh clearance): tidak
+            // ada lagi jendela terdocking yang mengubah tumpukan.
         } else if (LayerStore.GPS.equals(id)) {
             // Provider mati (GPS + jaringan dua-duanya off) = gagal:
             // store dibatalkan + toast, sakelar kembali mati lewat refresh.
@@ -626,7 +573,8 @@ public class GeoMac extends Fragment {
             }
         }
         refreshLayerSheet();
-        refreshTrafficRow();
+        refreshTrafficSheet();
+        refreshTrafficTab();
     }
 
     @Override
@@ -644,18 +592,18 @@ public class GeoMac extends Fragment {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
-    /** Pill mode basemap (batch fix+atlas, gaya OSIRIS): 2 tombol saja —
-     *  Jalan + Satelit, rata kiri di atas bilah tab. Tombol aktif berbingkai
-     *  emas + ikon/teks emas; non-aktif abu. TANPA tombol bulan/night
+    /** Pill mode basemap (batch BAR FINAL 2026-11-02, gaya OSIRIS):
+     *  IKON SAJA tanpa label (seperti pill mode di referensi) — ikon
+     *  jalan + ikon satelit, aktif bingkai emas. TANPA tombol bulan/night
      *  (Atlas tidak punya sumber tile gelap). Ketuk = jalur basemap yang
      *  sama seperti radio lama (setSatellite + applyBasemap, pref sama). */
     private void wireModePill(View view) {
         LinearLayout buttons = view.findViewById(R.id.geomac_mode_buttons);
         if (buttons == null) return;
         List<AtlasModePill.Mode> list = new ArrayList<>();
-        list.add(new AtlasModePill.Mode("street", R.string.atlas_sheet_basemap_street,
+        list.add(new AtlasModePill.Mode("street", 0,
                 R.drawable.map, () -> setBasemap(false)));
-        list.add(new AtlasModePill.Mode("satellite", R.string.atlas_mode_satellite,
+        list.add(new AtlasModePill.Mode("satellite", 0,
                 R.drawable.web, () -> setBasemap(true)));
         modePill = new AtlasModePill(buttons, list);
         refreshModePill();
@@ -678,15 +626,15 @@ public class GeoMac extends Fragment {
     /** Jarak elemen overlay peta dari tumpukan bawah, diukur runtime.
      *  Latar: bilah bawah terukur ~70-80dp di perangkat padahal hitungan
      *  layout hanya 52dp — menaikkan angka margin hardcoded tidak akan
-     *  pernah dijamin benar. Karena itu tinggi tumpukan (status + bar
-     *  tunggal) dibaca setelah layout, lalu margin bawah overlay dihitung
-     *  dari tepi atas tumpukan + gap 12dp. Elemen ditumpuk vertikal
-     *  (counter, lalu kredit satelit, lalu jendela trafik, lalu panel
-     *  RECON) supaya tidak saling menutupi. Pill FAB mengambang SUDAH
-     *  TIDAK ADA (batch temuan 2026-11-02): jangkar tumpukan bawah
-     *  sekarang pill counter (kiri). Dipanggil sekali setelah wiring (via
-     *  post) + setiap ganti basemap (visibilitas kredit satelit berubah)
-     *  + setiap visibilitas jendela trafik / panel RECON berubah.
+     *  pernah dijamin benar. Karena itu tinggi tumpukan (status + pill
+     *  mode + tab bar) dibaca setelah layout, lalu margin bawah overlay
+     *  dihitung dari tepi atas tumpukan + gap 12dp. Elemen ditumpuk
+     *  vertikal (counter, lalu kredit satelit) supaya tidak saling
+     *  menutupi. Sheet (SEARCH/Lapisan/trafik/pengaturan) adalah dialog
+     *  dan TIDAK butuh clearance. Pill FAB mengambang SUDAH TIDAK ADA
+     *  (batch temuan 2026-11-02): jangkar tumpukan bawah sekarang pill
+     *  counter (kiri). Dipanggil sekali setelah wiring (via post) +
+     *  setiap ganti basemap (visibilitas kredit satelit berubah).
      *  Margin di XML hanya fallback sebelum post-layout pertama jalan. */
     private void refreshBottomClearance() {
         View root = getView();
@@ -695,7 +643,6 @@ public class GeoMac extends Fragment {
             if (!isAdded()) return;
             View stack = root.findViewById(R.id.geomac_bottom_stack);
             View counterCard = root.findViewById(R.id.geomac_counter);
-            View trafficCard = root.findViewById(R.id.geomac_traffic_card);
             if (stack == null) return;
             int stackTop = stack.getHeight()
                     + ((ViewGroup.MarginLayoutParams) stack.getLayoutParams()).bottomMargin;
@@ -704,16 +651,6 @@ public class GeoMac extends Fragment {
             setBottomMargin(counterCard, base);
             int counterTop = base + (counterCard != null ? counterCard.getHeight() : 0) + gap;
             if (satCredit != null) setBottomMargin(satCredit, counterTop);
-            int trafficBase = counterTop;
-            if (satCredit != null && satCredit.getVisibility() == View.VISIBLE) {
-                trafficBase = counterTop + satCredit.getHeight() + gap;
-            }
-            setBottomMargin(trafficCard, trafficBase);
-            int reconBase = trafficBase;
-            if (trafficCard != null && trafficCard.getVisibility() == View.VISIBLE) {
-                reconBase = trafficBase + trafficCard.getHeight() + gap;
-            }
-            setBottomMargin(reconPanel, reconBase);
         });
     }
 
@@ -741,7 +678,7 @@ public class GeoMac extends Fragment {
         refreshBottomClearance();
     }
 
-    private void askWindyKey() {
+    private void askWindyKey(boolean enableOnSave) {
         if (core == null) return;
         final EditText input = new EditText(context);
         input.setHint(R.string.geomac_windy_key_hint);
@@ -754,17 +691,20 @@ public class GeoMac extends Fragment {
                     String t = input.getText() == null ? "" : input.getText().toString().trim();
                     if (t.isEmpty()) return;
                     core.putString(PREF_WINDY_KEY, t);
-                    if (layerStore != null) {
-                        layerStore.setLayer(LayerStore.CAMERAS, true);
+                    if (enableOnSave) {
+                        if (layerStore != null) {
+                            layerStore.setLayer(LayerStore.CAMERAS, true);
+                        }
+                        if (layers != null) layers.toggle(AtlasLayers.Layer.CAMERAS, true);
                     }
-                    if (layers != null) layers.toggle(AtlasLayers.Layer.CAMERAS, true);
                     refreshLayerSheet();
+                    refreshSettingsSheet();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
 
-    private void askOpenCellIdKey() {
+    private void askOpenCellIdKey(boolean enableOnSave) {
         if (core == null) return;
         final EditText input = new EditText(context);
         input.setHint(R.string.geomac_opencellid_key_hint);
@@ -777,11 +717,14 @@ public class GeoMac extends Fragment {
                     String t = input.getText() == null ? "" : input.getText().toString().trim();
                     if (t.isEmpty()) return;
                     core.putString(PREF_OPEN_CELL_KEY, t);
-                    if (layerStore != null) {
-                        layerStore.setLayer(LayerStore.CELLTOWERS, true);
+                    if (enableOnSave) {
+                        if (layerStore != null) {
+                            layerStore.setLayer(LayerStore.CELLTOWERS, true);
+                        }
+                        if (layers != null) layers.toggle(AtlasLayers.Layer.CELLTOWERS, true);
                     }
-                    if (layers != null) layers.toggle(AtlasLayers.Layer.CELLTOWERS, true);
                     refreshLayerSheet();
+                    refreshSettingsSheet();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
@@ -831,63 +774,7 @@ public class GeoMac extends Fragment {
         }
     }
 
-    /** Seksi kategori TRAFIK di bar tunggal (batch temuan 2026-11-02,
-     *  digabung ke bar tunggal batch #7+RECON): toggle = jalur
-     *  applyLayerToggle yang sama dengan toggle TRAFFIC di sheet Lapisan
-     *  (satu state, dua sakelar sinkron). Ketuk seksi di luar toggle
-     *  saat ON = buka jendela tabel di atas bar.
-     *  Guard updatingTrafficRow mencegah setChecked programatik memicu
-     *  callback toggle (pola yang sama seperti LayerSheet.updating). */
-    private void wireTrafficRow(View view) {
-        trafficSwitch = view.findViewById(R.id.geomac_traffic_row_switch);
-        trafficDot = view.findViewById(R.id.geomac_traffic_row_dot);
-        View row = view.findViewById(R.id.geomac_traffic_row);
-        if (trafficSwitch != null) {
-            trafficSwitch.setOnCheckedChangeListener((btn, checked) -> {
-                if (updatingTrafficRow) return;
-                applyLayerToggle(LayerStore.TRAFFIC, checked);
-            });
-        }
-        if (row != null) {
-            row.setOnClickListener(v -> {
-                if (layerStore != null && layerStore.isOn(LayerStore.TRAFFIC)
-                        && trafficLive != null) {
-                    trafficLive.setExpanded(true);
-                }
-            });
-        }
-        refreshTrafficRow();
-    }
-
-    /** Sinkronkan baris TRAFIK dengan store (dipanggil setelah wiring dan
-     *  setiap applyLayerToggle — termasuk saat toggle diubah dari sheet
-     *  Lapisan, supaya kedua sakelar tidak pernah berbeda). */
-    private void refreshTrafficRow() {
-        if (layerStore == null) return;
-        boolean on = layerStore.isOn(LayerStore.TRAFFIC);
-        if (trafficDot != null) {
-            trafficDot.setVisibility(on ? View.VISIBLE : View.GONE);
-        }
-        if (trafficSwitch != null) {
-            updatingTrafficRow = true;
-            trafficSwitch.setChecked(on);
-            updatingTrafficRow = false;
-        }
-    }
-
     private boolean crackedFilter = false;
-
-    private void wireActionBar(View view) {
-        MaterialButton fit = view.findViewById(R.id.geomac_btn_fit);
-        MaterialButton importBtn = view.findViewById(R.id.geomac_btn_import);
-        MaterialButton exportBtn = view.findViewById(R.id.geomac_btn_export);
-        MaterialButton clearBtn = view.findViewById(R.id.geomac_btn_clear);
-
-        fit.setOnClickListener(v -> fitToPins());
-        importBtn.setOnClickListener(v -> openImportPicker());
-        exportBtn.setOnClickListener(v -> openExportPicker());
-        clearBtn.setOnClickListener(v -> confirmClear());
-    }
 
     private boolean matches(GeoPin p) {
         if (crackedFilter) {
@@ -1185,7 +1072,31 @@ public class GeoMac extends Fragment {
                     String t = input.getText() == null ? "" : input.getText().toString().trim();
                     if (t.isEmpty()) return;
                     core.putString(PREF_MAPILLARY_TOKEN, t);
+                    refreshSettingsSheet();
                     fetchStreetView(pin, t);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Varian simpan-saja dialog token Mapillary (batch BAR FINAL
+     *  2026-11-02): dipakai sheet pengaturan — tidak terikat pin dan
+     *  tidak memuat foto setelah simpan (dialog lama terikat pin +
+     *  fetchStreetView). */
+    private void askMapillaryToken() {
+        if (core == null) return;
+        final EditText input = new EditText(context);
+        input.setHint(R.string.geomac_streetview_token_hint);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.geomac_streetview_token_title)
+                .setMessage(R.string.geomac_streetview_token_message)
+                .setView(input)
+                .setPositiveButton(R.string.geomac_streetview_token_save, (d2, w) -> {
+                    String t = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (t.isEmpty()) return;
+                    core.putString(PREF_MAPILLARY_TOKEN, t);
+                    refreshSettingsSheet();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();

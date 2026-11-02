@@ -911,22 +911,25 @@ manager</string>
          tambah tab = tambah satu entri di GeoMac.wireBottomBar. -->
     <string name="atlas_bar_search">SEARCH</string>
     <string name="atlas_bar_layers">LAYERS</string>
-    <string name="atlas_bar_recon">RECON</string>
+    <string name="atlas_bar_fit">FIT</string>
+    <string name="atlas_bar_traffic">TRAFFIC</string>
+    <!-- Label tab gerigi = "Setting" (klarifikasi Hawx "gerigi setting");
+         disimpan caps seperti label tab lain (SEARCH/LAYERS). -->
+    <string name="atlas_bar_settings">SETTING</string>
+    <!-- Sheet pengaturan (batch BAR FINAL 2026-11-02): judul + seksi +
+         baris aksi pin + baris API key. -->
+    <string name="atlas_settings_title">Setting</string>
+    <string name="atlas_settings_pins">Aksi Pin</string>
+    <string name="atlas_settings_apikey">API Key</string>
+    <string name="atlas_settings_import">Import</string>
+    <string name="atlas_settings_export">Export</string>
+    <string name="atlas_settings_clear">Clear</string>
+    <string name="atlas_settings_key_opencellid">OpenCellID</string>
+    <string name="atlas_settings_key_windy">Windy</string>
+    <string name="atlas_settings_key_mapillary">Mapillary</string>
+    <string name="atlas_settings_key_set">Terisi</string>
+    <string name="atlas_settings_key_empty">Belum diatur</string>
     <string name="atlas_mode_satellite">Satelit</string>
-    <string name="atlas_recon_cat_network">NETWORK &amp; HOST</string>
-    <string name="atlas_recon_cat_domain">DOMAIN &amp; WEB</string>
-    <string name="atlas_recon_cat_identity">IDENTITY</string>
-    <string name="atlas_recon_cat_ip">IP INTEL</string>
-    <string name="atlas_recon_tool_portscan">PORT SCAN</string>
-    <string name="atlas_recon_tool_vulnsweep">VULN SWEEP</string>
-    <string name="atlas_recon_tool_mac">MAC</string>
-    <string name="atlas_recon_tool_localnet">JARINGAN LOKAL</string>
-    <string name="atlas_recon_tool_dns">DNS</string>
-    <string name="atlas_recon_tool_subdomain">SUBDOMAIN</string>
-    <string name="atlas_recon_tool_username">USERNAME</string>
-    <string name="atlas_recon_tool_phone">PHONE INTEL</string>
-    <string name="atlas_recon_tool_whois">WHOIS</string>
-    <string name="atlas_recon_tool_rdns">REVERSE DNS</string>
     <string name="atlas_search_start_here">START HERE</string>
     <string name="atlas_search_your_location">Your location</string>
     <string name="atlas_search_your_location_sub">Fly to where you are</string>
@@ -936,7 +939,6 @@ manager</string>
          baris chips tumpukan bawah) + label baris kategori TRAFIK di
          tumpukan bawah. -->
     <string name="atlas_search_category">KATEGORI</string>
-    <string name="atlas_traffic_row">TRAFFIC</string>
     <string name="geomac_layer_group_overlay">Overlay</string>
     <string name="geomac_layer_group_features">Features</string>
     <string name="geomac_camera_timelapse">Timelapse</string>

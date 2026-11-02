@@ -13,4 +13,14 @@
     <item name="geomac_chip_scan" type="id" />
     <item name="geomac_chip_cracked" type="id" />
     <item name="geomac_chip_manual" type="id" />
+    <!-- Id tabel trafik: sejak batch BAR FINAL 2026-11-02 tabel ini hidup
+         di dalam GeoMacTrafficSheet (dibuat di kode, bukan di layout),
+         jadi id-nya dideklarasikan di sini supaya R.id tetap ada
+         (dipakai sheet + TrafficLive.rebind). Handle tidak ada di sheet
+         (di-guard null di TrafficLive) tapi id-nya tetap dideklarasikan
+         supaya lookup-nya tidak gagal compile. -->
+    <item name="geomac_traffic_rows_scroll" type="id" />
+    <item name="geomac_traffic_rows" type="id" />
+    <item name="geomac_traffic_empty" type="id" />
+    <item name="geomac_traffic_handle" type="id" />
 </resources>
