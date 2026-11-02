@@ -1,4 +1,4 @@
-/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 1 */
+/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 2 */
 /* Astro Tools untuk WebUI Kismet — injeksi Fase 2 (2026-11-02).
  *
  * Dipasang BUKAN sebagai modul /dynamic.js Kismet (mekanisme
@@ -197,17 +197,27 @@
     }
 
     /* ---------------- long-press ---------------- */
-    /* Delegasi di document: tahan terhadap render ulang DataTables.
-     * Touch: timer 600 ms; gerak/batal = batal. Non-touch: klik
-     * kanan (contextmenu) pada baris. */
+    /* Delegasi di document (fase capture, jadi handler halaman
+     * tidak bisa membungkamnya dengan stopPropagation) — tahan
+     * terhadap render ulang DataTables. Touch: timer 600 ms;
+     * gerak (scroll) = batal; touchcancel hanya mematikan timer,
+     * sedangkan touchend tetap membuka menu bila press sudah
+     * >= 600 ms (jaga-jaga timer dibunuh WebView saat long-press).
+     * Non-touch: klik kanan (contextmenu) pada baris. */
 
     var pressTimer = null;
     var pressRow = null;
+    var pressStart = 0;
 
     function rowOf(target) {
-        if (!target || !target.closest) return null;
-        var tr = target.closest('tr');
-        return tr;
+        var el = target;
+        if (!el) return null;
+        if (el.closest) {
+            var tr = el.closest('tr');
+            if (tr) return tr;
+        }
+        while (el && el.tagName !== 'TR') el = el.parentNode;
+        return el || null;
     }
 
     function clearPress() {
@@ -216,6 +226,14 @@
             pressTimer = null;
         }
         pressRow = null;
+        pressStart = 0;
+    }
+
+    function clearTimerOnly() {
+        if (pressTimer) {
+            clearTimeout(pressTimer);
+            pressTimer = null;
+        }
     }
 
     document.addEventListener('touchstart', function (ev) {
@@ -223,21 +241,32 @@
         var tr = ev.target ? rowOf(ev.target) : null;
         if (!tr) return;
         pressRow = tr;
+        pressStart = Date.now();
         pressTimer = setTimeout(function () {
             pressTimer = null;
             openMenu(pressRow);
             pressRow = null;
+            pressStart = 0;
         }, LONGPRESS_MS);
-    }, { passive: true });
+    }, { passive: true, capture: true });
 
-    document.addEventListener('touchend', clearPress, { passive: true });
-    document.addEventListener('touchmove', clearPress, { passive: true });
-    document.addEventListener('touchcancel', clearPress, { passive: true });
+    document.addEventListener('touchend', function () {
+        if (pressRow && pressStart &&
+            (Date.now() - pressStart >= LONGPRESS_MS)) {
+            var tr = pressRow;
+            clearPress();
+            openMenu(tr);
+            return;
+        }
+        clearPress();
+    }, { passive: true, capture: true });
+    document.addEventListener('touchmove', clearPress, { passive: true, capture: true });
+    document.addEventListener('touchcancel', clearTimerOnly, { passive: true, capture: true });
 
     document.addEventListener('contextmenu', function (ev) {
         var tr = ev.target ? rowOf(ev.target) : null;
         if (!tr) return;
         ev.preventDefault();
         openMenu(tr);
-    });
+    }, { capture: true });
 })();
