@@ -5,4 +5,12 @@
     <item name="system_setting_item" type="id" />
     <item name="system_desktop_item" type="id" />
     <item name="system_taskmgr_item" type="id" />
+    <!-- Id chip kategori Atlas: sejak batch temuan 2026-11-02 chip-chip ini
+         hidup di dalam GeoMacSearchSheet (dibuat di kode, bukan di layout),
+         jadi id-nya dideklarasikan di sini supaya R.id tetap ada. -->
+    <item name="geomac_chip_all" type="id" />
+    <item name="geomac_chip_lookup" type="id" />
+    <item name="geomac_chip_scan" type="id" />
+    <item name="geomac_chip_cracked" type="id" />
+    <item name="geomac_chip_manual" type="id" />
 </resources>

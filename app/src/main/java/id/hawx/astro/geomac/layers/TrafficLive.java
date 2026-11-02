@@ -126,20 +126,18 @@ public final class TrafficLive {
     private boolean lastReadFailed;
     private boolean lastConnsEmpty = true;
 
-    // Foldable rows list (independent of Traffic ON/OFF: folding hides only
-    // the rows; polling and map markers/lines keep running while ON).
-    // Batch fix+atlas: kartu ini = BAR KHUSUS trafik di bawah — saat ON
-    // tapi terlipat hanya baris header yang tampil (bar ramping); ketuk
-    // header / tombol lipat = mengembang jadi sheet gaya OSIRIS (handle
-    // + tabel bisa di-scroll, tinggi dibatasi ~65% layar) sementara bilah
-    // bawah tetap kelihatan (panel in-layout, bukan DialogFragment).
-    // Keadaan awal = terlipat (bar ramping), sesuai desain bar khusus.
+    // Jendela tabel (batch temuan 2026-11-02): kartu ini BUKAN lagi "bar
+    // khusus" mengambang dengan keadaan bar ramping — baris kategori
+    // TRAFIK di tumpukan bawah-lah bar rampingnya. Kartu ini = jendela
+    // tabel saja: tampil terdocking di atas tumpukan saat TRAFFIC ON +
+    // jendela mengembang; X = ciutkan kembali ke baris (trafik tetap ON,
+    // polling + marker/garis peta tetap jalan); toggle OFF = hentikan
+    // trafik + sembunyikan jendela. Keadaan awal saat ON = mengembang
+    // (jendela langsung terlihat begitu toggle dinyalakan).
     private View rowsScroll;
     private View handle;
-    private View liveDot;
-    private MaterialButton foldBtn;
     private MaterialButton closeBtn;
-    private boolean rowsFolded = true;
+    private boolean windowVisible = false;
 
     private final ArrayList<Conn> markerConns = new ArrayList<>();
     private volatile Set<String> threatIps = new HashSet<>();
@@ -169,50 +167,38 @@ public final class TrafficLive {
         if (card != null) {
             rowsScroll = card.findViewById(R.id.geomac_traffic_rows_scroll);
             handle = card.findViewById(R.id.geomac_traffic_handle);
-            liveDot = card.findViewById(R.id.geomac_traffic_live_dot);
-            foldBtn = card.findViewById(R.id.geomac_traffic_fold_btn);
-            if (foldBtn != null) {
-                foldBtn.setRotation(180f);
-                foldBtn.setOnClickListener(v -> toggleExpanded());
-            }
             closeBtn = card.findViewById(R.id.geomac_traffic_close_btn);
             if (closeBtn != null) {
-                // X = kembali ke bar ramping (bukan mematikan layer;
-                // mematikan tetap lewat toggle TRAFFIC di sheet Lapisan).
+                // X = ciutkan kembali ke baris TRAFIK (bukan mematikan
+                // layer; mematikan tetap lewat toggle TRAFIK di baris
+                // tumpukan bawah atau di sheet Lapisan).
                 closeBtn.setOnClickListener(v -> setExpanded(false));
-            }
-            View headerRow = card.findViewById(R.id.geomac_traffic_header_row);
-            if (headerRow != null) {
-                headerRow.setOnClickListener(v -> toggleExpanded());
             }
             refreshRowsVisibility();
         }
     }
 
-    /** Balik keadaan lipat (bar ramping <-> sheet mengembang). */
-    private void toggleExpanded() {
-        setExpanded(rowsFolded);
-    }
-
-    private void setExpanded(boolean expanded) {
-        rowsFolded = !expanded;
-        if (foldBtn != null) {
-            foldBtn.setRotation(rowsFolded ? 180f : 0f);
-        }
+    /** Tampilkan/sembunyikan jendela tabel (dipanggil ketuk baris TRAFIK
+     *  di tumpukan bawah dan tombol X di jendela). Tidak mengubah status
+     *  ON/OFF trafik: menyembunyikan jendela tidak menghentikan polling
+     *  maupun marker/garis peta. Diabaikan bila trafik OFF. */
+    public void setExpanded(boolean expanded) {
+        if (!trafficOn) return;
+        windowVisible = expanded;
         refreshRowsVisibility();
     }
 
     private void refreshRowsVisibility() {
-        if (handle != null) {
-            handle.setVisibility(rowsFolded ? View.GONE : View.VISIBLE);
-        }
-        if (rowsFolded) {
-            if (rowsScroll != null) rowsScroll.setVisibility(View.GONE);
-            emptyView.setVisibility(View.GONE);
+        if (!windowVisible) {
+            if (card != null) card.setVisibility(View.GONE);
             return;
         }
+        if (card != null) card.setVisibility(View.VISIBLE);
+        if (handle != null) {
+            handle.setVisibility(View.VISIBLE);
+        }
         if (rowsScroll != null) {
-            // Sheet mengembang: tabel bisa di-scroll, tinggi dibatasi
+            // Jendela mengembang: tabel bisa di-scroll, tinggi dibatasi
             // ~65% layar supaya bilah bawah tetap kelihatan di bawahnya.
             int cap = (int) (rowsScroll.getResources().getDisplayMetrics().heightPixels * 0.65f);
             ViewGroup.LayoutParams lp = rowsScroll.getLayoutParams();
@@ -231,19 +217,20 @@ public final class TrafficLive {
         }
     }
 
-    /** Idempotent. */
+    /** Idempotent. ON = jendela langsung mengembang (lihat windowVisible);
+     *  OFF = hentikan + sembunyikan jendela. */
     public void setOn(boolean on) {
         if (on == trafficOn) return;
         trafficOn = on;
         if (on) {
+            windowVisible = true;
             card.setVisibility(View.VISIBLE);
-            if (liveDot != null) liveDot.setVisibility(View.VISIBLE);
             refreshRowsVisibility();
             start();
         } else {
+            windowVisible = false;
             stop();
             clearOverlays();
-            if (liveDot != null) liveDot.setVisibility(View.GONE);
             card.setVisibility(View.GONE);
         }
     }
@@ -261,9 +248,9 @@ public final class TrafficLive {
     /** Stops everything and clears overlays + panel (view destroyed). */
     public void hideAll() {
         trafficOn = false;
+        windowVisible = false;
         stop();
         clearOverlays();
-        if (liveDot != null) liveDot.setVisibility(View.GONE);
         card.setVisibility(View.GONE);
     }
 
@@ -619,8 +606,8 @@ public final class TrafficLive {
             rows.addView(tv);
         }
         // Read failure is NOT an empty list: say so instead of the
-        // silent empty text that hid the /proc/net lockdown. Folding hides
-        // the rows area but never stops polling or map drawing.
+        // silent empty text that hid the /proc/net lockdown. Menyembunyikan
+        // jendela tidak pernah menghentikan polling atau gambar peta.
         lastConnsEmpty = conns.isEmpty();
         refreshRowsVisibility();
         if (markerOverlay != null) map.getOverlays().remove(markerOverlay);

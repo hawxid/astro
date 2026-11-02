@@ -20,6 +20,14 @@
     <color name="intro_line_3">#FFFFFF</color>
 
     <color name="light_contrast">#0B0B10</color>
+    <!-- Panel Atlas + popup Applications semi-transparan ala OSIRIS
+         (batch temuan 2026-11-02): dasar panel yang sama (#0B0B10) dengan
+         alpha B3 = 70% buram / 30% tembus pandang — peta samar terlihat di
+         balik panel, border emas tetap solid, teks terang tetap terbaca.
+         Satu nilai ini dipakai konsisten di semua panel/bar Atlas
+         (kartu tumpukan bawah, jendela trafik, sheet Layer + Search) dan
+         background popup Applications. -->
+    <color name="osiris_panel_translucent">#B30B0B10</color>
     <color name="night_contrast">#E8E8EA</color>
     <color name="night_contrast_2">#8A8A95</color>
     <color name="light_lite_contrast">#12121A</color>

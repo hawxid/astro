@@ -785,7 +785,11 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(6), dp(6), dp(6), dp(6));
-        android.graphics.drawable.GradientDrawable bg = roundBg(0xFF0B0B10, 16);
+        // Background popup semi-transparan ala OSIRIS (batch temuan
+        // 2026-11-02): alpha B3 yang sama dengan panel Atlas, border emas
+        // tetap solid. Kotak kategori di dalamnya tetap opaque supaya label
+        // item tetap terbaca jelas.
+        android.graphics.drawable.GradientDrawable bg = roundBg(0xB30B0B10, 16);
         bg.setStroke(dp(1), 0xFFD4AF37);
         root.setBackground(bg);
 
@@ -870,7 +874,10 @@ public class MainActivity extends AppCompatActivity {
             LinearLayout box = new LinearLayout(context);
             box.setOrientation(LinearLayout.VERTICAL);
             box.setBackgroundColor(0xFF12121A);
-            box.setVisibility(label.equals("Essentials") ? View.VISIBLE : View.GONE);
+            // Batch temuan 2026-11-02: TIDAK ada kategori yang otomatis
+            // terbuka — semua tertutup saat popup dibuka (dulu Essentials
+            // selalu terbuka). Pengguna membuka kategori yang dia mau.
+            box.setVisibility(View.GONE);
 
             for (int itemId : ids) {
                 MainActivity.DrawerSpec spec = specs.get(itemId);
@@ -941,7 +948,7 @@ public class MainActivity extends AppCompatActivity {
             cnt.setTextColor(0xFF8A8A95);
             hdr.addView(cnt);
             TextView arr = new TextView(context);
-            arr.setText(label.equals("Essentials") ? "\u2304" : "\u203A");
+            arr.setText("\u203A");
             arr.setTextSize(15);
             arr.setTextColor(0xFF8A8A95);
             LinearLayout.LayoutParams arrLp = new LinearLayout.LayoutParams(
@@ -975,8 +982,11 @@ public class MainActivity extends AppCompatActivity {
         ScrollView scroll = new ScrollView(context);
         scroll.addView(root);
 
-        int w = (int) (context.getResources().getDisplayMetrics().widthPixels * 0.74);
-        int cap = (int) (context.getResources().getDisplayMetrics().heightPixels * 0.74);
+        // Batch temuan 2026-11-02: jendela dibuat agak lebih kecil —
+        // lebar 74% -> 68% layar, tinggi maks 74% -> 62% layar. Konten
+        // tetap bisa di-scroll (ScrollView + cap via post).
+        int w = (int) (context.getResources().getDisplayMetrics().widthPixels * 0.68);
+        int cap = (int) (context.getResources().getDisplayMetrics().heightPixels * 0.62);
         appsPopup = new PopupWindow(scroll, w, LinearLayout.LayoutParams.WRAP_CONTENT, true);
         appsPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0x00000000));
         appsPopup.setOutsideTouchable(true);

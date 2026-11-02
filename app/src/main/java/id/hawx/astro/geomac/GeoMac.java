@@ -31,9 +31,9 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import id.hawx.astro.MainActivity;
 import id.hawx.astro.R;
 import id.hawx.astro.dashboard.Dashboard;
@@ -97,6 +97,9 @@ public class GeoMac extends Fragment {
     private AtlasBottomBar bottomBar;
     private AtlasModePill modePill;
     private TextView satCredit;
+    private SwitchMaterial trafficSwitch;
+    private View trafficDot;
+    private boolean updatingTrafficRow = false;
 
     private GeoPin.Category filter = null;
 
@@ -180,11 +183,11 @@ public class GeoMac extends Fragment {
         gpsLive = new GpsLive(activity, context, map,
                 () -> alive.get() && isAdded());
 
-        wireFilterChips(view);
         wireBottomBar(view);
         wireModePill(view);
+        wireTrafficRow(view);
         wireActionBar(view);
-        restoreFilterState(view);
+        restoreFilterState();
         refreshOverlay();
         refreshBottomClearance();
 
@@ -221,6 +224,8 @@ public class GeoMac extends Fragment {
         }
         bottomBar = null;
         modePill = null;
+        trafficSwitch = null;
+        trafficDot = null;
         if (layers != null) {
             layers.hideAll();
             layers = null;
@@ -322,7 +327,12 @@ public class GeoMac extends Fragment {
                 // mati ditolak + toast, sudah ON = follow jalan terus.
                 applyLayerToggle(LayerStore.GPS, true);
             }
-        }, recentLookupBssids());
+
+            @Override
+            public void onFilterChip(int chipId) {
+                applyFilterChip(chipId);
+            }
+        }, recentLookupBssids(), currentFilterChipId());
         sheet.show(getParentFragmentManager(), "atlas_search");
         markBarTab("search", sheet);
     }
@@ -343,20 +353,19 @@ public class GeoMac extends Fragment {
         return out;
     }
 
-    private void wireFilterChips(View view) {
-        ChipGroup group = view.findViewById(R.id.geomac_filter_group);
-        group.setOnCheckedStateChangeListener((g, checkedIds) -> {
-            if (checkedIds.isEmpty()) return;
-            int id = checkedIds.get(0);
-            if (id == R.id.geomac_chip_lookup) filter = GeoPin.Category.LOOKUP;
-            else if (id == R.id.geomac_chip_scan) filter = GeoPin.Category.SCAN;
-            else if (id == R.id.geomac_chip_cracked) filter = null;
-            else if (id == R.id.geomac_chip_manual) filter = GeoPin.Category.MANUAL;
-            else filter = null;
-            crackedFilter = id == R.id.geomac_chip_cracked;
-            persistFilterState();
-            refreshOverlay();
-        });
+    /** Filter kategori pin (batch temuan 2026-11-02): logika yang dulu
+     *  hidup di listener ChipGroup tumpukan bawah, sekarang dipanggil dari
+     *  seksi KATEGORI di sheet SEARCH. Pemetaan id chip -> filter,
+     *  persist, dan refresh overlay IDENTIK — hanya pemicunya pindah. */
+    private void applyFilterChip(int chipId) {
+        if (chipId == R.id.geomac_chip_lookup) filter = GeoPin.Category.LOOKUP;
+        else if (chipId == R.id.geomac_chip_scan) filter = GeoPin.Category.SCAN;
+        else if (chipId == R.id.geomac_chip_cracked) filter = null;
+        else if (chipId == R.id.geomac_chip_manual) filter = GeoPin.Category.MANUAL;
+        else filter = null;
+        crackedFilter = chipId == R.id.geomac_chip_cracked;
+        persistFilterState();
+        refreshOverlay();
     }
 
     private void openLayerSheet() {
@@ -431,6 +440,7 @@ public class GeoMac extends Fragment {
             }
         }
         refreshLayerSheet();
+        refreshTrafficRow();
     }
 
     @Override
@@ -482,20 +492,21 @@ public class GeoMac extends Fragment {
     /** Jarak elemen overlay peta dari tumpukan bawah, diukur runtime.
      *  Latar: bilah bawah terukur ~70-80dp di perangkat padahal hitungan
      *  layout hanya 52dp — menaikkan angka margin hardcoded tidak akan
-     *  pernah dijamin benar. Karena itu tinggi tumpukan (status + chips +
-     *  pill mode + tab) dibaca setelah layout, lalu margin bawah overlay
-     *  dihitung dari tepi atas tumpukan + gap 12dp. Elemen tengah
-     *  ditumpuk vertikal (FAB, lalu kredit satelit, lalu panel trafik)
-     *  supaya tidak saling menutupi; counter (kiri) sejajar FAB.
-     *  Dipanggil sekali setelah wiring (via post) + setiap ganti basemap
-     *  (visibilitas kredit satelit berubah). */
+     *  pernah dijamin benar. Karena itu tinggi tumpukan (status + baris
+     *  TRAFIK + baris aksi + pill mode + tab) dibaca setelah layout, lalu
+     *  margin bawah overlay dihitung dari tepi atas tumpukan + gap 12dp.
+     *  Elemen ditumpuk vertikal (counter, lalu kredit satelit, lalu
+     *  jendela trafik) supaya tidak saling menutupi. Pill FAB mengambang
+     *  SUDAH TIDAK ADA (batch temuan 2026-11-02): jangkar tumpukan bawah
+     *  sekarang pill counter (kiri). Dipanggil sekali setelah wiring (via
+     *  post) + setiap ganti basemap (visibilitas kredit satelit berubah).
+     *  Margin di XML hanya fallback sebelum post-layout pertama jalan. */
     private void refreshBottomClearance() {
         View root = getView();
         if (root == null) return;
         root.post(() -> {
             if (!isAdded()) return;
             View stack = root.findViewById(R.id.geomac_bottom_stack);
-            View fab = root.findViewById(R.id.geomac_fab_cluster);
             View counterCard = root.findViewById(R.id.geomac_counter);
             View trafficCard = root.findViewById(R.id.geomac_traffic_card);
             if (stack == null) return;
@@ -504,12 +515,11 @@ public class GeoMac extends Fragment {
             int gap = dp(12);
             int base = stackTop + gap;
             setBottomMargin(counterCard, base);
-            setBottomMargin(fab, base);
-            int fabTop = base + (fab != null ? fab.getHeight() : 0) + gap;
-            if (satCredit != null) setBottomMargin(satCredit, fabTop);
-            int trafficBase = fabTop;
+            int counterTop = base + (counterCard != null ? counterCard.getHeight() : 0) + gap;
+            if (satCredit != null) setBottomMargin(satCredit, counterTop);
+            int trafficBase = counterTop;
             if (satCredit != null && satCredit.getVisibility() == View.VISIBLE) {
-                trafficBase = fabTop + satCredit.getHeight() + gap;
+                trafficBase = counterTop + satCredit.getHeight() + gap;
             }
             setBottomMargin(trafficCard, trafficBase);
         });
@@ -591,28 +601,84 @@ public class GeoMac extends Fragment {
         core.putBoolean(PREF_CRACKED_FILTER, crackedFilter);
     }
 
-    private void restoreFilterState(View view) {
+    /** Baca state filter tersimpan ke field saja (batch temuan 2026-11-02):
+     *  tidak ada lagi ChipGroup di layout untuk dicentang — chip hidup di
+     *  sheet SEARCH dan membaca state lewat currentFilterChipId() saat
+     *  sheet dibuka. */
+    private void restoreFilterState() {
         if (core == null) return;
-        boolean cracked = core.getBoolean(PREF_CRACKED_FILTER);
+        crackedFilter = core.getBoolean(PREF_CRACKED_FILTER);
         String saved = core.getString(PREF_FILTER);
-        int chipId = 0;
-        if (cracked) {
-            chipId = R.id.geomac_chip_cracked;
-        } else if (!saved.isEmpty()) {
+        filter = null;
+        if (!saved.isEmpty()) {
             try {
-                switch (GeoPin.Category.valueOf(saved)) {
-                    case LOOKUP: chipId = R.id.geomac_chip_lookup; break;
-                    case SCAN: chipId = R.id.geomac_chip_scan; break;
-                    case MANUAL: chipId = R.id.geomac_chip_manual; break;
-                    default: chipId = 0; break;
+                GeoPin.Category c = GeoPin.Category.valueOf(saved);
+                // Hanya kategori yang punya chip yang dipulihkan — persis
+                // seperti pemetaan lama (CRACKED_* tidak punya chip sendiri,
+                // dulu jatuh ke "tidak ada chip dicentang" = tampil semua).
+                if (c == GeoPin.Category.LOOKUP || c == GeoPin.Category.SCAN
+                        || c == GeoPin.Category.MANUAL) {
+                    filter = c;
                 }
             } catch (IllegalArgumentException ignored) {
-                chipId = 0;
+                filter = null;
             }
         }
-        if (chipId != 0) {
-            ChipGroup group = view.findViewById(R.id.geomac_filter_group);
-            group.check(chipId);
+    }
+
+    /** Id chip yang sesuai state filter saat ini, untuk centang awal di
+     *  sheet SEARCH (0 = All bila tidak ada filter tersimpan). */
+    private int currentFilterChipId() {
+        if (crackedFilter) return R.id.geomac_chip_cracked;
+        if (filter == null) return 0;
+        switch (filter) {
+            case LOOKUP: return R.id.geomac_chip_lookup;
+            case SCAN: return R.id.geomac_chip_scan;
+            case MANUAL: return R.id.geomac_chip_manual;
+            default: return 0;
+        }
+    }
+
+    /** Baris kategori TRAFIK di tumpukan bawah (batch temuan 2026-11-02):
+     *  toggle = jalur applyLayerToggle yang sama dengan toggle TRAFFIC di
+     *  sheet Lapisan (satu state, dua sakelar sinkron). Ketuk baris di
+     *  luar toggle saat ON = buka jendela tabel di atas tumpukan.
+     *  Guard updatingTrafficRow mencegah setChecked programatik memicu
+     *  callback toggle (pola yang sama seperti LayerSheet.updating). */
+    private void wireTrafficRow(View view) {
+        trafficSwitch = view.findViewById(R.id.geomac_traffic_row_switch);
+        trafficDot = view.findViewById(R.id.geomac_traffic_row_dot);
+        View row = view.findViewById(R.id.geomac_traffic_row);
+        if (trafficSwitch != null) {
+            trafficSwitch.setOnCheckedChangeListener((btn, checked) -> {
+                if (updatingTrafficRow) return;
+                applyLayerToggle(LayerStore.TRAFFIC, checked);
+            });
+        }
+        if (row != null) {
+            row.setOnClickListener(v -> {
+                if (layerStore != null && layerStore.isOn(LayerStore.TRAFFIC)
+                        && trafficLive != null) {
+                    trafficLive.setExpanded(true);
+                }
+            });
+        }
+        refreshTrafficRow();
+    }
+
+    /** Sinkronkan baris TRAFIK dengan store (dipanggil setelah wiring dan
+     *  setiap applyLayerToggle — termasuk saat toggle diubah dari sheet
+     *  Lapisan, supaya kedua sakelar tidak pernah berbeda). */
+    private void refreshTrafficRow() {
+        if (layerStore == null) return;
+        boolean on = layerStore.isOn(LayerStore.TRAFFIC);
+        if (trafficDot != null) {
+            trafficDot.setVisibility(on ? View.VISIBLE : View.GONE);
+        }
+        if (trafficSwitch != null) {
+            updatingTrafficRow = true;
+            trafficSwitch.setChecked(on);
+            updatingTrafficRow = false;
         }
     }
 

@@ -22,6 +22,7 @@ import androidx.annotation.Nullable;
 
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
@@ -37,8 +38,10 @@ import java.util.List;
  * (GeoMac), sehingga mesin runLookup dan gate GPS/B6 tidak berubah.
  *
  * Isi (meniru panel SEARCH OSIRIS): judul SEARCH + tombol tutup,
- * field dengan magnifier emas, baris "Your location" (START HERE),
- * dan chip TRY berisi BSSID lookup terakhir yang pernah ditemukan.
+ * field dengan magnifier emas, seksi KATEGORI (pindahan baris chips
+ * tumpukan bawah, batch temuan 2026-11-02), baris "Your location"
+ * (START HERE), dan chip TRY berisi BSSID lookup terakhir yang pernah
+ * ditemukan.
  * TRY memakai BSSID tersimpan — BUKAN nama tempat/koordinat — karena
  * runLookup hanya melayani BSSID (AppleWloc + mylnikov); preset nama
  * tempat akan selalu gagal ("no results") sehingga tidak ditawarkan.
@@ -48,17 +51,23 @@ public class GeoMacSearchSheet extends BottomSheetDialogFragment {
     public interface Host {
         void onSearchQuery(String q);
         void onYourLocation();
+        /** Chip kategori ditekan (id salah satu R.id.geomac_chip_*).
+         *  Perilaku sama persis seperti baris chips tumpukan bawah dulu:
+         *  single-select + persist + refresh overlay (di GeoMac). */
+        void onFilterChip(int chipId);
     }
 
     private Host host;
     private final List<String> tryQueries = new ArrayList<>();
+    private int currentFilterChipId;
 
-    public void bind(Host host, List<String> tryQueries) {
+    public void bind(Host host, List<String> tryQueries, int currentFilterChipId) {
         this.host = host;
         this.tryQueries.clear();
         if (tryQueries != null) {
             this.tryQueries.addAll(tryQueries);
         }
+        this.currentFilterChipId = currentFilterChipId;
     }
 
     @Nullable
@@ -128,6 +137,48 @@ public class GeoMacSearchSheet extends BottomSheetDialogFragment {
             return true;
         });
         root.addView(fieldLayout);
+
+        // KATEGORI (batch temuan 2026-11-02): pindahan baris chips kategori
+        // dari tumpukan bawah. Chip yang sama (All/Lookup/Scanned/Cracked/
+        // Manual), single-select + selectionRequired, perilaku IDENTIK:
+        // ketuk = filter pin + persist + refresh overlay (lewat Host),
+        // lalu sheet ditutup — sama seperti aksi lain di sheet ini.
+        // Chip awal dicentang SEBELUM listener dipasang, supaya init
+        // tidak memicu callback filter.
+        root.addView(sectionLabel(R.string.atlas_search_category));
+        HorizontalScrollView filterScroll = new HorizontalScrollView(requireContext());
+        filterScroll.setHorizontalScrollBarEnabled(false);
+        ChipGroup filterGroup = new ChipGroup(requireContext());
+        filterGroup.setSingleSelection(true);
+        filterGroup.setSelectionRequired(true);
+        filterGroup.setChipSpacingHorizontal(Math.round(6 * density));
+        filterGroup.setSingleLine(true);
+        int[] filterIds = {
+                R.id.geomac_chip_all, R.id.geomac_chip_lookup, R.id.geomac_chip_scan,
+                R.id.geomac_chip_cracked, R.id.geomac_chip_manual};
+        int[] filterLabels = {
+                R.string.geomac_chip_all, R.string.geomac_chip_lookup,
+                R.string.geomac_chip_scan, R.string.geomac_chip_cracked,
+                R.string.geomac_chip_manual};
+        for (int i = 0; i < filterIds.length; i++) {
+            Chip chip = new Chip(requireContext());
+            chip.setId(filterIds[i]);
+            chip.setText(filterLabels[i]);
+            chip.setCheckable(true);
+            filterGroup.addView(chip);
+        }
+        if (currentFilterChipId != 0) {
+            filterGroup.check(currentFilterChipId);
+        } else {
+            filterGroup.check(R.id.geomac_chip_all);
+        }
+        filterGroup.setOnCheckedStateChangeListener((g, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            host.onFilterChip(checkedIds.get(0));
+            dismiss();
+        });
+        filterScroll.addView(filterGroup);
+        root.addView(filterScroll);
 
         // START HERE: baris "Your location".
         root.addView(sectionLabel(R.string.atlas_search_start_here));

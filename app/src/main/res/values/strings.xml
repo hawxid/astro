@@ -917,6 +917,11 @@ manager</string>
     <string name="atlas_search_your_location_sub">Fly to where you are</string>
     <string name="atlas_search_try">TRY</string>
     <string name="atlas_search_no_recent">Belum ada lookup tersimpan — BSSID yang pernah ditemukan akan muncul di sini.</string>
+    <!-- Batch temuan 2026-11-02: seksi kategori di sheet SEARCH (pindahan
+         baris chips tumpukan bawah) + label baris kategori TRAFIK di
+         tumpukan bawah. -->
+    <string name="atlas_search_category">KATEGORI</string>
+    <string name="atlas_traffic_row">TRAFFIC</string>
     <string name="geomac_layer_group_overlay">Overlay</string>
     <string name="geomac_layer_group_features">Features</string>
     <string name="geomac_camera_timelapse">Timelapse</string>

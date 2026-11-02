@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Background sheet Atlas (batch gede 2026-11-01): panel gelap + outline
-     emas OSIRIS. Sudut atas 22dp menyamai ShapeAppearance.Astro.BottomSheet,
+<!-- Background sheet Atlas (batch gede 2026-11-01, temuan 2026-11-02):
+     panel gelap SEMI-TRANSPARAN ala OSIRIS + outline emas solid.
+     Sudut atas 22dp menyamai ShapeAppearance.Astro.BottomSheet,
      sudut bawah 0 (sheet menempel ke dasar layar). Dipakai root konten
      LayerSheet + GeoMacSearchSheet (bukan container sheet, supaya stroke
      tidak tertutup view konten yang opaque). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/dialog_background_color" />
+    <solid android:color="@color/osiris_panel_translucent" />
     <stroke
         android:width="1dp"
         android:color="@color/osiris_gold" />
