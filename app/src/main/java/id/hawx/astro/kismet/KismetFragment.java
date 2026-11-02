@@ -18,6 +18,7 @@ import id.hawx.astro.utils.Core;
 import id.hawx.astro.x11.window.WebOverlayWindows;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -25,8 +26,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * Panel ini memasang KismetManager ke UI supaya start/stop
  * Kismet gampang: tiga baris status (Kismet, Bind, WiFi) +
- * tombol Start + tombol Stop + tombol Buka WebUI (web UI
- * Kismet di jendela melayang, seperti webui Frida/bettercap).
+ * toggle Bluetooth + toggle GPS + tombol Start + tombol Stop
+ * + tombol Buka WebUI (web UI Kismet di jendela melayang,
+ * seperti webui Frida/bettercap) + tombol Import ke Atlas +
+ * toggle auto-import saat Stop.
  * Kismet tidak punya token sesi seperti Frida — WebUI dibuka
  * langsung (login pertama dibuat pengguna di WebUI sendiri,
  * itu flow Kismet, bukan urusan panel).
@@ -57,20 +60,31 @@ public class KismetFragment extends Fragment {
     private final AtomicBoolean alive = new AtomicBoolean(true);
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final AtomicBoolean refreshing = new AtomicBoolean(false);
+    /** Guard import (tombol manual + auto-import berbagi guard
+     *  yang sama — tidak ada dua import tumpang tindih). */
+    private final AtomicBoolean importing = new AtomicBoolean(false);
 
     private MaterialTextView serverValue;
     private MaterialTextView bindValue;
     private MaterialTextView wifiValue;
     private SwitchMaterial btSwitch;
     private MaterialTextView btNote;
+    private SwitchMaterial gpsSwitch;
+    private MaterialTextView gpsNote;
     private MaterialButton startBtn;
     private MaterialButton stopBtn;
     private MaterialButton webuiBtn;
+    private MaterialButton importBtn;
+    private SwitchMaterial autoImportSwitch;
     /** Teks fallback error + catatan QS, di-resolve di UI thread
      *  (onViewCreated) supaya thread latar tidak pernah memanggil
-     *  getString(). */
+     *  getString(). Format import juga di-resolve di sini. */
     private String startFailedText;
     private String wifiQsText;
+    private String importStartText;
+    private String importNoneText;
+    private String importDoneFormat;
+    private String importFailedFormat;
 
     private boolean uiReady() {
         return alive.get() && activity != null && isAdded();
@@ -108,13 +122,25 @@ public class KismetFragment extends Fragment {
         bindViews(view);
         startFailedText = getString(R.string.kismet_start_failed);
         wifiQsText = getString(R.string.kismet_qs_note);
+        importStartText = getString(R.string.kismet_import_start);
+        importNoneText = getString(R.string.kismet_import_none);
+        importDoneFormat = getString(R.string.kismet_import_done);
+        importFailedFormat = getString(R.string.kismet_import_failed);
         // Toggle = pref manager (persist). setChecked DULU, baru
         // pasang listener — supaya set awal tidak memicu tulis.
         btSwitch.setChecked(manager.isBtEnabled());
         btSwitch.setOnCheckedChangeListener((v, checked) -> manager.setBtEnabled(checked));
+        gpsSwitch.setChecked(manager.isGpsEnabled());
+        gpsSwitch.setOnCheckedChangeListener((v, checked) -> manager.setGpsEnabled(checked));
+        // Toggle auto-import BOLEH diubah saat server ON (mengatur
+        // perilaku Stop, bukan Start) — karena itu tidak pernah
+        // di-disable di applyStatus/setButtonsEnabled.
+        autoImportSwitch.setChecked(manager.isAutoImportEnabled());
+        autoImportSwitch.setOnCheckedChangeListener((v, checked) -> manager.setAutoImportEnabled(checked));
         startBtn.setOnClickListener(v -> startServers());
         stopBtn.setOnClickListener(v -> stopServers());
         webuiBtn.setOnClickListener(v -> openWebUi());
+        importBtn.setOnClickListener(v -> importNow());
         refreshStatus();
     }
 
@@ -136,9 +162,13 @@ public class KismetFragment extends Fragment {
         wifiValue = view.findViewById(R.id.kismet_wifi_value);
         btSwitch = view.findViewById(R.id.kismet_bt_switch);
         btNote = view.findViewById(R.id.kismet_bt_note);
+        gpsSwitch = view.findViewById(R.id.kismet_gps_switch);
+        gpsNote = view.findViewById(R.id.kismet_gps_note);
         startBtn = view.findViewById(R.id.kismet_start_btn);
         stopBtn = view.findViewById(R.id.kismet_stop_btn);
         webuiBtn = view.findViewById(R.id.kismet_open_webui_btn);
+        importBtn = view.findViewById(R.id.kismet_import_btn);
+        autoImportSwitch = view.findViewById(R.id.kismet_import_auto_switch);
     }
 
     private void startServers() {
@@ -169,9 +199,49 @@ public class KismetFragment extends Fragment {
                     // lewat toggle WiFi Quick Settings (bukan ip up).
                     toast(wifiQsText);
                 }
+                // Auto-import (bila toggle ON) jalan SESUDAH Stop
+                // selesai — restore WiFi sudah jalan di stop(),
+                // jadi import tidak pernah menunda restore.
+                // importNow memakai thread + guard sendiri, jadi
+                // finally di bawah langsung melepas busy.
+                if (manager.isAutoImportEnabled()) {
+                    importNow();
+                }
             } finally {
                 busy.set(false);
                 refreshStatus();
+            }
+        });
+    }
+
+    /**
+     * Import manual (tombol) maupun auto-import (Stop): satu
+     * jalur yang sama, guard importing yang sama. Berjalan di
+     * thread latar sendiri (lookup jaringan bisa lama di
+     * jaringan lambat); toast awal = progres, toast akhir =
+     * summary (skip terlihat, bukan hilang). Tombol import
+     * di-disable selama import, tombol lain tidak ikut.
+     */
+    private void importNow() {
+        if (!importing.compareAndSet(false, true)) return;
+        runUi(() -> importBtn.setEnabled(false));
+        toast(importStartText);
+        runBg(() -> {
+            try {
+                KismetImporter.Result r = manager.importNewest();
+                if (r.error != null) {
+                    if (r.noCapture) {
+                        toast(importNoneText);
+                    } else {
+                        toast(String.format(Locale.US, importFailedFormat, r.error));
+                    }
+                } else {
+                    toast(String.format(Locale.US, importDoneFormat,
+                            r.added, r.updated, r.skipped));
+                }
+            } finally {
+                importing.set(false);
+                runUi(() -> importBtn.setEnabled(true));
             }
         });
     }
@@ -277,6 +347,24 @@ public class KismetFragment extends Fragment {
             btNote.setText("—");
             btNote.setTextColor(0xFF9E9E9E);
         }
+        // Toggle GPS: aturan yang sama persis dengan BT (disabled
+        // selama server ON/busy). Toggle auto-import SENGAJA
+        // tidak disentuh di sini (boleh diubah saat server ON).
+        gpsSwitch.setEnabled(!b && !s.kismetRunning);
+        if (!s.kismetRunning) {
+            gpsNote.setText("—");
+            gpsNote.setTextColor(0xFF9E9E9E);
+        } else if (s.gpsActive) {
+            gpsNote.setText(R.string.kismet_gps_active);
+            gpsNote.setTextColor(0xFF43A047);
+        } else if (s.owned) {
+            gpsNote.setText(R.string.kismet_gps_inactive);
+            gpsNote.setTextColor(0xFF9E9E9E);
+        } else {
+            gpsNote.setText("—");
+            gpsNote.setTextColor(0xFF9E9E9E);
+        }
+        importBtn.setEnabled(!b && !importing.get());
     }
 
     private void setButtonsEnabled(boolean enabled) {
@@ -285,6 +373,8 @@ public class KismetFragment extends Fragment {
             stopBtn.setEnabled(enabled);
             webuiBtn.setEnabled(enabled);
             btSwitch.setEnabled(enabled);
+            gpsSwitch.setEnabled(enabled);
+            importBtn.setEnabled(enabled);
         });
     }
 }

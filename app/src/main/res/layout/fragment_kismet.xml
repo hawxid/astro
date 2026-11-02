@@ -168,6 +168,51 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/kismet_gps_label"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/kismet_gps_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/kismet_gps_caption"
+                        android:textColor="@color/grey"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/kismet_gps_note"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:orientation="horizontal">
 
@@ -195,6 +240,43 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/kismet_open_webui" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/kismet_import_btn"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/kismet_import" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/kismet_import_auto_label"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/kismet_import_auto_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/kismet_import_auto_caption"
+                    android:textColor="@color/grey"
+                    android:textSize="12sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

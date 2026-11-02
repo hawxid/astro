@@ -1005,6 +1005,7 @@ public class GeoMac extends Fragment {
         TextView lon = d.findViewById(R.id.geopin_lon);
         TextView age = d.findViewById(R.id.geopin_age);
         TextView cat = d.findViewById(R.id.geopin_category);
+        TextView note = d.findViewById(R.id.geopin_note);
         View swatch = d.findViewById(R.id.geopin_swatch);
         FrameLayout swatchWrap = d.findViewById(R.id.geopin_swatch_wrap);
         MaterialButton copy = d.findViewById(R.id.geopin_btn_copy);
@@ -1035,6 +1036,15 @@ public class GeoMac extends Fragment {
                             android.graphics.PorterDuff.Mode.SRC_IN));
         }
         age.setText(getString(R.string.geomac_pin_age, formatAge(pin.timestampMs)));
+        // Note sumber (mis. Kismet: titik database vs lokasi deteksi)
+        // tampil bila ada — label jujur yang diminta untuk pin
+        // deteksi tidak boleh hanya hidup di JSON export.
+        if (pin.note == null || pin.note.isEmpty()) {
+            note.setVisibility(View.GONE);
+        } else {
+            note.setText(pin.note);
+            note.setVisibility(View.VISIBLE);
+        }
 
         copy.setOnClickListener(v -> {
             setClipboard(pin.lat + "," + pin.lon);

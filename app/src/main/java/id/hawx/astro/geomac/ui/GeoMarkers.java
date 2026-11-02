@@ -20,6 +20,7 @@ public final class GeoMarkers {
     public static final int COLOR_CRACKED_HS = Color.parseColor("#F57C00");
     public static final int COLOR_CRACKED_PIXIE = Color.parseColor("#2E7D32");
     public static final int COLOR_MANUAL = Color.parseColor("#D81B60");
+    public static final int COLOR_KISMET = Color.parseColor("#22D3EE");
 
     private static final int W_DP = 32;
     private static final int H_DP = 42;
@@ -34,6 +35,7 @@ public final class GeoMarkers {
             case CRACKED_HANDSHAKE: return COLOR_CRACKED_HS;
             case CRACKED_PIXIE: return COLOR_CRACKED_PIXIE;
             case MANUAL: return COLOR_MANUAL;
+            case KISMET: return COLOR_KISMET;
             case LOOKUP:
             default: return COLOR_LOOKUP;
         }
@@ -45,6 +47,7 @@ public final class GeoMarkers {
             case CRACKED_HANDSHAKE: return "Handshake";
             case CRACKED_PIXIE: return "Pixie WPS";
             case MANUAL: return "Manual";
+            case KISMET: return "Kismet";
             case LOOKUP:
             default: return "Looked up";
         }

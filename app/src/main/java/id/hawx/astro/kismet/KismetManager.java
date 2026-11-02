@@ -1,8 +1,11 @@
 package id.hawx.astro.kismet;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 
 import id.hawx.astro.R;
 import id.hawx.astro.bluetooth.BluebinderController;
@@ -136,6 +139,49 @@ import java.util.concurrent.atomic.AtomicReference;
  *   instance yang manager-owned. Kill bluebinder best-effort
  *   (tidak pernah throw, tidak menghambat restore WiFi).
  *
+ * Sumber GPS (toggle terpisah, 2026-11-02 — keputusan user:
+ * toggle, BUKAN selalu aktif; default ON "idealnya gps on"):
+ * - Toggle persist `kismet_gps` (default ON). ON = Start
+ *   membangun rantai GPS PENUH sebelum wlan0 disentuh:
+ *   publisher NMEA Android (NmeaPublisher: kalimat mentah
+ *   hardware GPS -> UDP 127.0.0.1:10110) + gpsd chroot atas
+ *   feed udp:// dokumenter (gpsd(8)) + baris gps= di site
+ *   conf. OFF = baris gps= DIHAPUS (Kismet tidak mencoba
+ *   gpsd) dan tidak ada publisher/gpsd yang di-start.
+ * - BUKTI PoC perangkat: flag --use-gpsd-gps TIDAK
+ *   mengaktifkan GPS di Kismet 2026.10 (help tidak menyebut
+ *   gps, ss tanpa ESTAB, log tanpa baris gpsd). Yang
+ *   mengaktifkan adalah definisi sumber di config:
+ *   `gps=gpsd:host=localhost,port=2947` di site conf ->
+ *   log "(GPS) Connected to gpsd server ::1:2947" + JSON
+ *   mode + WebUI "GPS locked (3d)". Launch TETAP polos
+ *   `kismet -c wlan0` (+ `-c hci0` bila BT ON).
+ * - Fail-fast seperti BT: GPS ON tapi rantai gagal (izin
+ *   lokasi belum diberikan / gpsd tidak ada / 2947 sudah
+ *   dipakai gpsd asing / gpsd tidak menjawab) = start GAGAL
+ *   dengan pesan jelas, TANPA fallback diam-diam ke capture
+ *   tanpa GPS. Pengguna bisa toggle GPS OFF lalu Start lagi.
+ *   gpsd asing TIDAK PERNAH dibunuh (tidak ada keputusan
+ *   user seperti fallback kismet di 2501).
+ * - Stop OWNERSHIP-AWARE untuk gpsd (pola bluebinder):
+ *   publisher SELALU dihentikan (hanya manager yang
+ *   men-start-nya); gpsd HANYA bila launch terakhir yang
+ *   men-start-nya (field gpsGpsdOwned, volatile, default
+ *   jangan-bunuh bila proses app mati). Kill gpsd via PID
+ *   file SAJA (bukan pkill nama) supaya gpsd asing tidak
+ *   pernah kena.
+ *
+ * Importer Kismet -> Atlas (lihat KismetImporter):
+ * - Tombol import manual + toggle "auto import saat Stop"
+ *   (persist `kismet_import_auto`, default OFF). Auto-import
+ *   ON = Stop juga mengimpor sesudah server berhenti;
+ *   OFF = Stop tidak pernah mengimpor. Toggle auto-import
+ *   BOLEH diubah saat server ON (mengatur perilaku Stop,
+ *   bukan Start); toggle GPS TIDAK (ganti sumber butuh
+ *   restart, sama seperti BT).
+ * - Import membaca .kismet terbaru di /tmp/astro_kismet dan
+ *   menulis langsung ke GeoStore (tanpa UI pencarian).
+ *
  * Threading: SEMUA method publik yang menyentuh shell/socket
  * HARUS dipanggil dari thread latar (bukan UI thread) — sama
  * seperti Core.customChrootCommand dan WebUiLauncher.isListening.
@@ -166,6 +212,28 @@ public final class KismetManager {
     private static final String PREF_BT_LAUNCHED = "kismet_bt_launched";
     /** Batas tunggu ensure bluebinder (detik). */
     private static final int BT_ENSURE_TIMEOUT_S = 10;
+    /** Pref toggle GPS (persist; default ON = "idealnya gps on").
+     *  Core.getBoolean default false, jadi baca default-ON lewat
+     *  contains (belum pernah disimpan = ON). */
+    private static final String PREF_GPS = "kismet_gps";
+    /** Pref penanda: launch manager terakhir menyertakan GPS. */
+    private static final String PREF_GPS_LAUNCHED = "kismet_gps_launched";
+    /** Pref toggle auto-import saat Stop (persist; default OFF). */
+    private static final String PREF_IMPORT_AUTO = "kismet_import_auto";
+    /** Port gpsd (TCP, klien Kismet + cek hidup). */
+    private static final int GPSD_PORT = 2947;
+    /** Host loopback untuk feed UDP publisher -> gpsd. */
+    private static final String GPSD_UDP_HOST = "127.0.0.1";
+    /** Port UDP publisher NetHunter (10110). */
+    private static final int GPSD_UDP_PORT = 10110;
+    /** PID file gpsd (ditulis gpsd sendiri via -P). */
+    private static final String GPSD_PID = LOG_DIR + "/gpsd.pid";
+    /** Log launch gpsd (error awal saja; daemon lepas sesudah fork). */
+    private static final String GPSD_LOG = LOG_DIR + "/gpsd.log";
+    /** Baris sumber GPS di site conf (bukti PoC — lihat atas). */
+    private static final String GPS_CONF_LINE = "gps=gpsd:host=localhost,port=2947";
+    /** Batas tunggu gpsd menjawab di 2947 (detik). */
+    private static final int GPSD_POLL_TRIES = 10;
 
     private static final int POLL_TRIES = 30;
     private static final int POLL_MS = 1000;
@@ -188,15 +256,21 @@ public final class KismetManager {
         /** Server ini diluncurkan manager DENGAN sumber BT
          *  (bukan klaim untuk server asing — lihat status()). */
         public final boolean btActive;
+        /** Server ini diluncurkan manager DENGAN rantai GPS DAN
+         *  gpsd masih menjawab di 2947 (bukan klaim untuk
+         *  server asing — lihat status()). */
+        public final boolean gpsActive;
 
         Status(boolean kismetRunning, boolean owned, boolean bindUnsafe,
-               String wifiType, String wifiChannel, boolean btActive) {
+               String wifiType, String wifiChannel, boolean btActive,
+               boolean gpsActive) {
             this.kismetRunning = kismetRunning;
             this.owned = owned;
             this.bindUnsafe = bindUnsafe;
             this.wifiType = wifiType;
             this.wifiChannel = wifiChannel;
             this.btActive = btActive;
+            this.gpsActive = gpsActive;
         }
     }
 
@@ -205,6 +279,12 @@ public final class KismetManager {
     /** Pesan gagal BT, di-resolve sekali di konstruktor (UI thread)
      *  supaya thread latar tidak pernah memanggil getString(). */
     private final String btFailedText;
+    /** Pesan gagal GPS, di-resolve sekali di konstruktor (pola sama). */
+    private final String gpsPermText;
+    private final String gpsBusyText;
+    private final String gpsNoAnswerText;
+    private final String gpsNoGpsdText;
+    private final String gpsFailedText;
     /** Ownership bluebinder untuk Stop (lihat start()/stop()):
      *  true HANYA bila launch Kismet terakhir dengan BT ON yang
      *  meng-auto-start bluebinder (hci0 belum UP sebelum ensure).
@@ -216,11 +296,26 @@ public final class KismetManager {
      *  bluebinder milik menu lain yang di-start belakangan).
      *  Di-clear di akhir stop() apa pun hasilnya. */
     private boolean btBluebinderOwned = false;
+    /** Ownership gpsd untuk Stop (pola btBluebinderOwned):
+     *  true HANYA bila launch Kismet terakhir dengan GPS ON
+     *  yang men-start gpsd (2947 kosong sebelum start).
+     *  Field instance dengan sengaja: proses app mati ->
+     *  false (aman: jangan bunuh); gpsd pre-existing/asing
+     *  tidak pernah disentuh. Di-clear di akhir stop(). */
+    private boolean gpsGpsdOwned = false;
+    /** Publisher NMEA milik launch ini (null bila GPS OFF /
+     *  belum start / sudah stop). Selalu dihentikan di stop(). */
+    private NmeaPublisher publisher;
 
     public KismetManager(@NonNull Context context) {
         this.core = new Core(context.getApplicationContext());
         this.appContext = context.getApplicationContext();
         this.btFailedText = context.getString(R.string.kismet_bt_failed);
+        this.gpsPermText = context.getString(R.string.kismet_gps_perm);
+        this.gpsBusyText = context.getString(R.string.kismet_gps_busy);
+        this.gpsNoAnswerText = context.getString(R.string.kismet_gps_noanswer);
+        this.gpsNoGpsdText = context.getString(R.string.kismet_gps_nogpsd);
+        this.gpsFailedText = context.getString(R.string.kismet_gps_failed);
     }
 
     /** Toggle Bluetooth (persist). Default false = WiFi saja. */
@@ -231,6 +326,36 @@ public final class KismetManager {
     /** Simpan toggle Bluetooth (apply; aman dari UI thread). */
     public void setBtEnabled(boolean enabled) {
         core.putBoolean(PREF_BT, enabled);
+    }
+
+    /** Toggle GPS (persist). Default true = "idealnya gps on":
+     *  belum pernah disimpan = ON; sesudah disimpan = nilai itu. */
+    public boolean isGpsEnabled() {
+        return !core.contains(PREF_GPS) || core.getBoolean(PREF_GPS);
+    }
+
+    /** Simpan toggle GPS (apply; aman dari UI thread). */
+    public void setGpsEnabled(boolean enabled) {
+        core.putBoolean(PREF_GPS, enabled);
+    }
+
+    /** Toggle auto-import saat Stop (persist). Default false. */
+    public boolean isAutoImportEnabled() {
+        return core.getBoolean(PREF_IMPORT_AUTO);
+    }
+
+    /** Simpan toggle auto-import (apply; aman dari UI thread). */
+    public void setAutoImportEnabled(boolean enabled) {
+        core.putBoolean(PREF_IMPORT_AUTO, enabled);
+    }
+
+    /**
+     * Import .kismet terbaru ke pin Atlas (lihat KismetImporter).
+     * Sinkron, WAJIB thread latar (lookup jaringan + shell chroot).
+     * Tidak pernah throw ke UI: gagal dikembalikan lewat error.
+     */
+    public KismetImporter.Result importNewest() {
+        return new KismetImporter(appContext).importNewest();
     }
 
     // ---------------- API utama ----------------
@@ -277,6 +402,34 @@ public final class KismetManager {
             ensureBtActive();
             btBluebinderOwned = !hciWasUp;
         }
+        // Prasyarat GPS, posisi yang sama (sebelum wlan0 disentuh):
+        // GPS ON = bangun rantai penuh (publisher -> gpsd -> baris
+        // gps=). Gagal = start GAGAL, tanpa fallback diam-diam.
+        // Bila gagal sesudah BT di-auto-start, bluebinder yang
+        // baru di-start di-rollback (jangan orphan) lalu gagal
+        // diteruskan — urutan ini membuat kegagalan prasyarat
+        // mana pun tidak meninggalkan rantai setengah jalan.
+        // GPS OFF = hapus baris gps= (termasuk baris PoC manual
+        // yang sudah ada — writer ini mengambil alih) supaya
+        // Kismet tidak mencoba gpsd; tidak ada publisher/gpsd
+        // yang di-start. Baris httpd_ tidak disentuh di sini
+        // (pola sed terpisah; writer bind di bawah menjamin
+        // satu baris httpd_).
+        boolean gpsOn = isGpsEnabled();
+        gpsGpsdOwned = false;
+        if (gpsOn) {
+            try {
+                ensureGpsChain();
+            } catch (IOException e) {
+                // Gagal GPS sesudah BT di-auto-start: rollback
+                // prereq (jangan orphan) lalu gagal diteruskan.
+                rollbackPrereqs();
+                throw e;
+            }
+        } else {
+            chroot("mkdir -p /etc/kismet && touch " + SITE_CONF
+                    + " && sed -i '/^gps=/d' " + SITE_CONF);
+        }
         // Bunuh sisa milik manager saja (PID file), jangan sentuh
         // server asing.
         Integer pid = readPid();
@@ -298,6 +451,11 @@ public final class KismetManager {
             monitor = "monitor".equals(readWifiState().type);
         }
         if (!monitor) {
+            // Gagal masuk monitor sesudah prereq berhasil: rollback
+            // BT+GPS (jangan orphan — tanpa ini, Start berikutnya
+            // dengan GPS ON langsung gagal "2947 busy" karena
+            // gpsd orphan masih listen).
+            rollbackPrereqs();
             throw new IOException("wlan0 gagal masuk mode monitor sesudah "
                     + MAX_DANCE_TRIES + "x percobaan — nyalakan WiFi dari "
                     + "Quick Settings untuk kembali normal");
@@ -343,6 +501,13 @@ public final class KismetManager {
         // owned, jadi server asing TIDAK PERNAH diklaim BT-aktif.
         try {
             core.putBoolean(PREF_BT_LAUNCHED, btOn);
+        } catch (Throwable ignored) {
+        }
+        // Penanda launch GPS (pola sama: persist, diAND-kan
+        // dengan owned di status() supaya server asing tidak
+        // pernah diklaim GPS-aktif).
+        try {
+            core.putBoolean(PREF_GPS_LAUNCHED, gpsOn);
         } catch (Throwable ignored) {
         }
         return status();
@@ -426,9 +591,40 @@ public final class KismetManager {
             }
         } catch (Throwable ignored) {
         }
+        // Hentikan rantai GPS OWNERSHIP-AWARE (pola bluebinder):
+        // publisher SELALU dihentikan (hanya manager yang
+        // men-start-nya); gpsd HANYA bila launch terakhir yang
+        // men-start-nya (gpsGpsdOwned). gpsd pre-existing/asing
+        // TIDAK disentuh — dan TIDAK ADA fallback pkill -x gpsd
+        // (tidak ada keputusan user untuk membunuh gpsd asing,
+        // beda dengan kismet di 2501). Kill gpsd via PID file
+        // SAJA: SIGTERM -> sleep 1 -> SIGKILL via PID bila
+        // masih hidup. Best-effort, tidak pernah throw, tidak
+        // menghambat restore WiFi di bawah.
+        try {
+            if (publisher != null) {
+                publisher.stop();
+                publisher = null;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (gpsGpsdOwned) {
+                Integer gpsdPid = readGpsdPid();
+                if (gpsdPid != null && isPidAlive(gpsdPid)) {
+                    chroot("kill " + gpsdPid + "; sleep 1");
+                }
+                if (gpsdPid != null && isPidAlive(gpsdPid)) {
+                    chroot("kill -9 " + gpsdPid + "; sleep 1");
+                }
+                chroot("rm -f " + GPSD_PID);
+            }
+        } catch (Throwable ignored) {
+        }
         try {
             chroot("rm -f " + LOG_DIR + "/kismet.pid");
             core.putBoolean(PREF_BT_LAUNCHED, false);
+            core.putBoolean(PREF_GPS_LAUNCHED, false);
         } catch (Throwable ignored) {
         }
         try {
@@ -453,9 +649,11 @@ public final class KismetManager {
         // sebelumnya. Penugasan field tidak bisa throw.
         try {
             core.putBoolean(PREF_BT_LAUNCHED, false);
+            core.putBoolean(PREF_GPS_LAUNCHED, false);
         } catch (Throwable ignored) {
         }
         btBluebinderOwned = false;
+        gpsGpsdOwned = false;
     }
 
     /** Status cepat (socket connect + ss + iw dev + PID). WAJIB thread latar. */
@@ -482,7 +680,19 @@ public final class KismetManager {
         // Server asing (terminal) selalu btActive=false — tidak
         // pernah ada klaim BT tanpa bukti launch.
         boolean btActive = owned && core.getBoolean(PREF_BT_LAUNCHED);
-        return new Status(running, owned, unsafe, wifi.type, wifi.channel, btActive);
+        // GPS-aktif: pola yang sama (launch + owned) DITAMBAH
+        // bukti hidup rantai — gpsd masih menjawab di 2947.
+        // Cek 2947 tidak bergantung proses app (gpsd detached
+        // selamat dari restart app), jadi marker persist tetap
+        // bermakna sesudah fragment dibuat ulang. Satu catatan
+        // jujur: publisher Android tidak bisa dicek sesudah
+        // proses app mati (ikut mati bersama proses) — bila
+        // itu terjadi, gpsActive bisa tampil true sementara
+        // NMEA sudah berhenti; Kismet sendiri akan kehilangan
+        // fix (bukan menampilkan fix basi sebagai aktif).
+        boolean gpsActive = owned && core.getBoolean(PREF_GPS_LAUNCHED)
+                && WebUiLauncher.isListening(GPSD_PORT);
+        return new Status(running, owned, unsafe, wifi.type, wifi.channel, btActive, gpsActive);
     }
 
     /**
@@ -585,6 +795,165 @@ public final class KismetManager {
             String d = detail.get();
             throw new IOException(btFailedText + (d != null && !d.isEmpty() ? " (" + d + ")" : ""));
         }
+    }
+
+    /**
+     * PID gpsd dari PID file -P, atau null bila tak ada / rusak.
+     * (Pola readPid, untuk file gpsd terpisah.)
+     */
+    private Integer readGpsdPid() {
+        try {
+            for (String line : chroot("cat " + GPSD_PID)) {
+                String pid = line.trim();
+                if (pid.isEmpty()) continue;
+                try {
+                    return Integer.parseInt(pid);
+                } catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * Bangun rantai GPS PENUH sebelum wlan0 disentuh (dipanggil
+     * start() bila toggle GPS ON). Urutan: izin lokasi -> gpsd
+     * ada di chroot -> 2947 kosong -> publisher Android ->
+     * gpsd atas feed udp:// -> baris gps= di site conf.
+     * Gagal di langkah mana pun = IOException dengan pesan
+     * jelas; TIDAK ADA fallback diam-diam. Bila gagal sesudah
+     * publisher di-start, publisher dimatikan dulu (jangan
+     * orphan) sebelum gagal diteruskan.
+     *
+     * Feed udp://: gpsd(8) mendokumentasikannya sebagai sumber
+     * first-class ("UDP feed ... The daemon will open a socket
+     * listening for UDP datagrams ... interpreted as though
+     * they had been issued by a serial device. Example:
+     * udp://127.0.0.1:5000") — persis pola NetHunter
+     * (Android GPS Publisher -> UDP 10110 -> gpsd). Karena itu
+     * tidak dipakai feeder PTY: PTY adalah fallback yang
+     * disiapkan untuk gpsfake, sementara udp:// menghilangkan
+     * satu proses + satu pasang PTY dari rantai.
+     * gpsd di-start dengan -P (PID file sendiri) karena gpsd
+     * me-daemonize (fork) — $! setsid tidak bisa dipercaya
+     * (pelajaran yang sama dengan bug PID Kismet). Verifikasi
+     * hidup = 2947 LISTEN (2947 kosong sebelum start, jadi
+     * LISTEN sesudahnya = gpsd kita). gpsd default hanya
+     * listen loopback (butuh -G untuk 0.0.0.0) — localhost-only
+     * terjaga tanpa flag tambahan.
+     */
+    private void ensureGpsChain() throws IOException {
+        // 1. Izin lokasi: gerbang keras, jangan lanjut diam-diam.
+        if (ContextCompat.checkSelfPermission(appContext,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            throw new IOException(gpsPermText);
+        }
+        // 2. gpsd harus terinstal di chroot (PoC: apt install
+        // gpsd gpsd-clients). Bila tidak ada, gagal jelas —
+        // jangan start publisher sia-sia.
+        boolean hasGpsd = false;
+        try {
+            for (String line : chroot("command -v gpsd")) {
+                if (line != null && !line.trim().isEmpty()) {
+                    hasGpsd = true;
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!hasGpsd) {
+            throw new IOException(gpsNoGpsdText);
+        }
+        // 3. 2947 harus kosong. gpsd asing TIDAK PERNAH dibunuh:
+        // gagal jelas, pengguna menghentikan gpsd itu sendiri
+        // (mis. dari terminal: pkill -x gpsd) lalu Start lagi.
+        // Catatan PoC: paket Debian gpsd AUTO-START daemon tanpa
+        // device saat install — daemon itulah yang paling
+        // mungkin mengisi 2947 di sini.
+        if (WebUiLauncher.isListening(GPSD_PORT)) {
+            throw new IOException(gpsBusyText);
+        }
+        // 4. Publisher Android (sumber NMEA) dulu, baru gpsd —
+        // supaya tidak ada jeda tanpa sumber sesudah gpsd up.
+        NmeaPublisher pub = new NmeaPublisher(appContext);
+        try {
+            pub.start();
+        } catch (IOException e) {
+            String m = e.getMessage();
+            throw new IOException(m != null ? m : gpsFailedText);
+        }
+        publisher = pub;
+        // 5. gpsd atas feed UDP. Daemonize sendiri; -P menulis
+        // PID daemon (bukan parent setsid).
+        chroot("mkdir -p " + LOG_DIR + " && setsid gpsd -P " + GPSD_PID
+                + " udp://" + GPSD_UDP_HOST + ":" + GPSD_UDP_PORT
+                + " > " + GPSD_LOG + " 2>&1 < /dev/null &");
+        boolean gpsdUp = false;
+        for (int i = 0; i < GPSD_POLL_TRIES && !gpsdUp; i++) {
+            sleepQuietly(POLL_MS);
+            gpsdUp = WebUiLauncher.isListening(GPSD_PORT);
+        }
+        if (!gpsdUp) {
+            try {
+                pub.stop();
+            } catch (Throwable ignored) {
+            }
+            publisher = null;
+            throw new IOException(gpsNoAnswerText);
+        }
+        gpsGpsdOwned = true;
+        // 6. Baris gps= ke site conf (bukti PoC — flag
+        // --use-gpsd-gps TIDAK mengaktifkan GPS di 2026.10).
+        // Sed menghapus baris gps= lama dulu (idempotent, dan
+        // mengambil alih baris PoC manual). Baris httpd_ TIDAK
+        // disentuh (pola sed terpisah; writer bind di start()
+        // menjamin satu baris httpd_).
+        chroot("mkdir -p /etc/kismet && touch " + SITE_CONF
+                + " && sed -i '/^gps=/d' " + SITE_CONF
+                + " && printf '" + GPS_CONF_LINE + "\\n' >> " + SITE_CONF);
+    }
+
+    /**
+     * Rollback prereq BT+GPS best-effort (dipakai bila start()
+     * gagal sesudah salah satu prereq berhasil — jangan orphan).
+     * Tidak pernah throw; tidak menyentuh PID file Kismet,
+     * penanda launch, maupun restore WiFi (itu urusan stop()).
+     * Duplikasi kill yang disengaja dengan stop(): stop() punya
+     * urutan + penanda sendiri yang sudah terbukti — helper
+     * ini hanya untuk jalur gagal start.
+     */
+    private void rollbackPrereqs() {
+        try {
+            if (publisher != null) {
+                publisher.stop();
+                publisher = null;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (gpsGpsdOwned) {
+                Integer gpsdPid = readGpsdPid();
+                if (gpsdPid != null && isPidAlive(gpsdPid)) {
+                    chroot("kill " + gpsdPid + "; sleep 1");
+                }
+                if (gpsdPid != null && isPidAlive(gpsdPid)) {
+                    chroot("kill -9 " + gpsdPid + "; sleep 1");
+                }
+                chroot("rm -f " + GPSD_PID);
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (btBluebinderOwned) {
+                chroot("pkill -f bluebinder");
+            }
+        } catch (Throwable ignored) {
+        }
+        btBluebinderOwned = false;
+        gpsGpsdOwned = false;
     }
 
     /**

@@ -10,7 +10,8 @@ public final class GeoPin {
         SCAN,
         CRACKED_HANDSHAKE,
         CRACKED_PIXIE,
-        MANUAL
+        MANUAL,
+        KISMET
     }
 
     public final String bssid;

@@ -176,6 +176,7 @@ public final class GeoStore {
             case CRACKED_PIXIE: return 4;
             case CRACKED_HANDSHAKE: return 3;
             case SCAN: return 2;
+            case KISMET: return 2;
             case MANUAL: return 1;
             case LOOKUP:
             default: return 0;
