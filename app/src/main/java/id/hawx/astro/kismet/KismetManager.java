@@ -45,18 +45,30 @@ import java.util.ArrayList;
  * - Peringatan ROOTUSER, plugin directory, NetworkManager =
  *   jinak, diabaikan.
  *
- * Bind localhost — KOREKSI terhadap dugaan awal (dokumentasi
- * upstream kismetwireless/kismet, conf/kismet_httpd.conf):
- * - Key yang benar adalah `http_bind_address` (BUKAN
- *   `httpd_bind_address`).
+ * Bind localhost — KOREKSI KEDUA terhadap dugaan awal
+ * (dokumentasi upstream kismetwireless/kismet,
+ * conf/kismet_httpd.conf + bukti perangkat 2026-11-02):
+ * - Key yang benar adalah `httpd_bind_address` (DENGAN d,
+ *   konsisten dengan semua opsi httpd_* lainnya: httpd_port,
+ *   httpd_auth_file, httpd_session_db, dst).
+ * - Key LAMA `http_bind_address` (tanpa d, dari PROSA upstream)
+ *   SALAH dan DITINGGALKAN: Kismet 2026.10.R1 mengabaikannya
+ *   (ss tetap 0.0.0.0:2501, log "HTTP server listening on
+ *   0.0.0.0:2501"); prosa upstream typo, sementara baris
+ *   contoh upstream sendiri `# httpd_bind_address=127.0.0.1`.
+ * - Bukti perangkat: tes manual menambahkan
+ *   `httpd_bind_address=127.0.0.1` ke site conf lalu restart
+ *   via panel → panel tampil Bind 127.0.0.1 (hijau).
  * - File `~/.kismet/kismet_httpd.conf` adalah FILE AUTH
  *   (httpd_auth_file — tempat login digenerasi saat koneksi
  *   pertama), BUKAN override config — menulis baris config ke
  *   sana BERISIKO merusak flow login, jadi TIDAK dilakukan.
  * - Mekanisme override yang benar: `/etc/kismet/kismet_site.conf`
  *   (site override, dimuat terakhir, tidak ditimpa upgrade).
- *   Manager menulis `http_bind_address=127.0.0.1` ke sana
- *   (idempotent: baris lama dihapus dulu, lalu ditambah).
+ *   Manager menulis `httpd_bind_address=127.0.0.1` ke sana
+ *   (idempotent: KEDUA baris lama, `http_` maupun `httpd_`,
+ *   dihapus dulu lewat sed, lalu ditambah satu baris benar —
+ *   supaya tidak ada baris basi yang tertinggal).
  * - Jaring pengaman: status() SELALU mengecek bind aktual via
  *   `ss` dan melaporkan bindUnsafe bila ada yang mendengarkan
  *   di alamat selain 127.0.0.1:2501. Bila key/file ini ternyata
@@ -201,11 +213,14 @@ public final class KismetManager {
                     + MAX_DANCE_TRIES + "x percobaan — nyalakan WiFi dari "
                     + "Quick Settings untuk kembali normal");
         }
-        // Paksa bind localhost via site override (key benar per
-        // dokumentasi upstream: http_bind_address).
+        // Paksa bind localhost via site override. Key benar
+        // (bukti perangkat 2026-11-02): httpd_bind_address —
+        // http_bind_address (tanpa d) diabaikan Kismet. Sed
+        // menghapus KEDUA baris lama supaya site conf hanya
+        // berisi satu baris bind yang benar, tanpa sisa basi.
         chroot("mkdir -p /etc/kismet && touch " + SITE_CONF
-                + " && sed -i '/^http_bind_address=/d' " + SITE_CONF
-                + " && printf 'http_bind_address=127.0.0.1\\n' >> " + SITE_CONF);
+                + " && sed -i '/^http_bind_address=/d;/^httpd_bind_address=/d' " + SITE_CONF
+                + " && printf 'httpd_bind_address=127.0.0.1\\n' >> " + SITE_CONF);
         // Launch detached (pola Frida: setsid + log + PID file),
         // cwd = direktori log eksplisit supaya .kismet tidak
         // mengotori /. Kismet menaikkan interface sendiri.
