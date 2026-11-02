@@ -39,7 +39,7 @@
             android:layout_margin="10dp"
             android:elevation="6dp"
             app:cardCornerRadius="15dp"
-            app:strokeColor="@color/grey"
+            app:strokeColor="@color/osiris_gold"
             app:strokeWidth="1dp">
 
             <com.airbnb.lottie.LottieAnimationView
@@ -94,7 +94,7 @@
             android:layout_margin="10dp"
             android:elevation="6dp"
             app:cardCornerRadius="15dp"
-            app:strokeColor="@color/grey"
+            app:strokeColor="@color/osiris_gold"
             app:strokeWidth="1dp">
 
             <LinearLayout

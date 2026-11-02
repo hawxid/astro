@@ -911,6 +911,7 @@ manager</string>
          tambah tab = tambah satu entri di GeoMac.wireBottomBar. -->
     <string name="atlas_bar_search">SEARCH</string>
     <string name="atlas_bar_layers">LAYERS</string>
+    <string name="atlas_mode_satellite">Satelit</string>
     <string name="atlas_search_start_here">START HERE</string>
     <string name="atlas_search_your_location">Your location</string>
     <string name="atlas_search_your_location_sub">Fly to where you are</string>

@@ -12,6 +12,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.net.TrafficStats;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -127,9 +128,18 @@ public final class TrafficLive {
 
     // Foldable rows list (independent of Traffic ON/OFF: folding hides only
     // the rows; polling and map markers/lines keep running while ON).
+    // Batch fix+atlas: kartu ini = BAR KHUSUS trafik di bawah — saat ON
+    // tapi terlipat hanya baris header yang tampil (bar ramping); ketuk
+    // header / tombol lipat = mengembang jadi sheet gaya OSIRIS (handle
+    // + tabel bisa di-scroll, tinggi dibatasi ~65% layar) sementara bilah
+    // bawah tetap kelihatan (panel in-layout, bukan DialogFragment).
+    // Keadaan awal = terlipat (bar ramping), sesuai desain bar khusus.
     private View rowsScroll;
+    private View handle;
+    private View liveDot;
     private MaterialButton foldBtn;
-    private boolean rowsFolded;
+    private MaterialButton closeBtn;
+    private boolean rowsFolded = true;
 
     private final ArrayList<Conn> markerConns = new ArrayList<>();
     private volatile Set<String> threatIps = new HashSet<>();
@@ -158,24 +168,60 @@ public final class TrafficLive {
         this.emptyView = emptyView;
         if (card != null) {
             rowsScroll = card.findViewById(R.id.geomac_traffic_rows_scroll);
+            handle = card.findViewById(R.id.geomac_traffic_handle);
+            liveDot = card.findViewById(R.id.geomac_traffic_live_dot);
             foldBtn = card.findViewById(R.id.geomac_traffic_fold_btn);
             if (foldBtn != null) {
-                foldBtn.setOnClickListener(v -> {
-                    rowsFolded = !rowsFolded;
-                    foldBtn.setRotation(rowsFolded ? 180f : 0f);
-                    refreshRowsVisibility();
-                });
+                foldBtn.setRotation(180f);
+                foldBtn.setOnClickListener(v -> toggleExpanded());
             }
+            closeBtn = card.findViewById(R.id.geomac_traffic_close_btn);
+            if (closeBtn != null) {
+                // X = kembali ke bar ramping (bukan mematikan layer;
+                // mematikan tetap lewat toggle TRAFFIC di sheet Lapisan).
+                closeBtn.setOnClickListener(v -> setExpanded(false));
+            }
+            View headerRow = card.findViewById(R.id.geomac_traffic_header_row);
+            if (headerRow != null) {
+                headerRow.setOnClickListener(v -> toggleExpanded());
+            }
+            refreshRowsVisibility();
         }
     }
 
+    /** Balik keadaan lipat (bar ramping <-> sheet mengembang). */
+    private void toggleExpanded() {
+        setExpanded(rowsFolded);
+    }
+
+    private void setExpanded(boolean expanded) {
+        rowsFolded = !expanded;
+        if (foldBtn != null) {
+            foldBtn.setRotation(rowsFolded ? 180f : 0f);
+        }
+        refreshRowsVisibility();
+    }
+
     private void refreshRowsVisibility() {
+        if (handle != null) {
+            handle.setVisibility(rowsFolded ? View.GONE : View.VISIBLE);
+        }
         if (rowsFolded) {
             if (rowsScroll != null) rowsScroll.setVisibility(View.GONE);
             emptyView.setVisibility(View.GONE);
             return;
         }
-        if (rowsScroll != null) rowsScroll.setVisibility(View.VISIBLE);
+        if (rowsScroll != null) {
+            // Sheet mengembang: tabel bisa di-scroll, tinggi dibatasi
+            // ~65% layar supaya bilah bawah tetap kelihatan di bawahnya.
+            int cap = (int) (rowsScroll.getResources().getDisplayMetrics().heightPixels * 0.65f);
+            ViewGroup.LayoutParams lp = rowsScroll.getLayoutParams();
+            if (lp != null && lp.height != cap) {
+                lp.height = cap;
+                rowsScroll.setLayoutParams(lp);
+            }
+            rowsScroll.setVisibility(View.VISIBLE);
+        }
         if (lastReadFailed) {
             emptyView.setText(R.string.geomac_traffic_failed);
             emptyView.setVisibility(View.VISIBLE);
@@ -191,10 +237,13 @@ public final class TrafficLive {
         trafficOn = on;
         if (on) {
             card.setVisibility(View.VISIBLE);
+            if (liveDot != null) liveDot.setVisibility(View.VISIBLE);
+            refreshRowsVisibility();
             start();
         } else {
             stop();
             clearOverlays();
+            if (liveDot != null) liveDot.setVisibility(View.GONE);
             card.setVisibility(View.GONE);
         }
     }
@@ -214,6 +263,7 @@ public final class TrafficLive {
         trafficOn = false;
         stop();
         clearOverlays();
+        if (liveDot != null) liveDot.setVisibility(View.GONE);
         card.setVisibility(View.GONE);
     }
 

@@ -91,6 +91,13 @@ public class AtlasBottomBar {
         refresh();
     }
 
+    /** Id tab yang sedang aktif (null bila tidak ada). Dipakai GeoMac
+     *  supaya listener dismiss sheet lama tidak menghapus status aktif
+     *  sheet baru (race saat membuka sheet lain). */
+    public String getActiveId() {
+        return activeId;
+    }
+
     private void refresh() {
         for (int i = 0; i < buttons.size(); i++) {
             boolean on = ids.get(i).equals(activeId);

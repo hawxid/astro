@@ -8,8 +8,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -29,16 +27,17 @@ import java.util.Map;
 /**
  * The single place to change Atlas layers (redesign Fase 1).
  * Replaces the two chip groups + fold buttons + Settings satellite switch:
- * basemap as radio rows, layers and features as switch rows, all rendered
- * from LayerStore. User changes go to Host, which gates (Windy key),
- * writes the store, applies, then calls refresh() — the sheet never
- * applies a layer itself, so it can never disagree with the map.
+ * layers and features as switch rows, all rendered from LayerStore.
+ * Basemap TIDAK lagi di sini (batch fix+atlas): satu-satunya kontrol
+ * basemap adalah pill mode Jalan/Satelit di bilah bawah (AtlasModePill).
+ * User changes go to Host, which gates (Windy key), writes the store,
+ * applies, then calls refresh() — the sheet never applies a layer itself,
+ * so it can never disagree with the map.
  */
 public class LayerSheet extends BottomSheetDialogFragment {
 
     public interface Host {
         void onLayerToggle(String id, boolean on);
-        void onBasemapSelected(boolean satellite);
     }
 
     private LayerStore store;
@@ -46,8 +45,6 @@ public class LayerSheet extends BottomSheetDialogFragment {
     private boolean updating;
     private final Map<String, SwitchMaterial> switches = new HashMap<>();
     private final Map<String, TextView> subtitles = new HashMap<>();
-    private RadioButton streetRadio;
-    private RadioButton satelliteRadio;
 
     public void bind(LayerStore store, Host host) {
         this.store = store;
@@ -67,10 +64,6 @@ public class LayerSheet extends BottomSheetDialogFragment {
             if (sub != null) {
                 sub.setText(layer.source + " · " + (layer.isOn() ? "Aktif" : "Mati"));
             }
-        }
-        if (streetRadio != null && satelliteRadio != null) {
-            streetRadio.setChecked(!store.isSatellite());
-            satelliteRadio.setChecked(store.isSatellite());
         }
         updating = false;
     }
@@ -98,33 +91,6 @@ public class LayerSheet extends BottomSheetDialogFragment {
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         title.setTypeface(null, Typeface.BOLD);
         root.addView(title);
-
-        root.addView(sectionHeader(R.string.atlas_sheet_basemap));
-        RadioGroup basemap = new RadioGroup(requireContext());
-        basemap.setOrientation(RadioGroup.VERTICAL);
-        streetRadio = new RadioButton(requireContext());
-        streetRadio.setId(View.generateViewId());
-        streetRadio.setText(R.string.atlas_sheet_basemap_street);
-        streetRadio.setChecked(!store.isSatellite());
-        satelliteRadio = new RadioButton(requireContext());
-        satelliteRadio.setId(View.generateViewId());
-        satelliteRadio.setText(R.string.geomac_layer_satellite);
-        satelliteRadio.setChecked(store.isSatellite());
-        basemap.addView(streetRadio);
-        basemap.addView(satelliteRadio);
-        basemap.setOnCheckedChangeListener((group, checkedId) -> {
-            if (updating) return;
-            if (host != null) {
-                // State dari checkedId, BUKAN dari isChecked() salah satu
-                // tombol: RadioButton tanpa id membuat RadioGroup gagal
-                // mutual exclusion (mCheckedId=-1), sehingga radio Jalan
-                // yang sudah checked sejak awal tidak pernah bisa ditekan
-                // lagi setelah satelit dipilih. Id eksplisit + checkedId
-                // menutup kelas bug itu sepenuhnya.
-                host.onBasemapSelected(checkedId == satelliteRadio.getId());
-            }
-        });
-        root.addView(basemap);
 
         root.addView(sectionHeader(R.string.atlas_sheet_layers));
         for (AtlasLayer layer : store.all()) {

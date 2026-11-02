@@ -144,7 +144,7 @@
                 app:iconPadding="6dp"
                 app:iconSize="16dp"
                 app:iconTint="@color/astro_accent"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/wpair_dlg_magic"
@@ -193,7 +193,7 @@
                 app:iconPadding="4dp"
                 app:iconSize="14dp"
                 app:iconTint="#C62828"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/wpair_dlg_flood"
@@ -216,7 +216,7 @@
                 app:iconPadding="4dp"
                 app:iconSize="14dp"
                 app:iconTint="#EF6C00"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
         </LinearLayout>
 
         <com.google.android.material.textview.MaterialTextView
@@ -248,7 +248,7 @@
             app:iconPadding="6dp"
             app:iconSize="16dp"
             app:iconTint="#00897B"
-            app:strokeColor="@color/light_lite_contrast" />
+            app:strokeColor="@color/osiris_gold" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -276,7 +276,7 @@
                 app:iconPadding="4dp"
                 app:iconSize="14dp"
                 app:iconTint="@color/astro_accent"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/wpair_dlg_record"
@@ -299,7 +299,7 @@
                 app:iconPadding="4dp"
                 app:iconSize="14dp"
                 app:iconTint="#C62828"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
         </LinearLayout>
 
         <LinearLayout
@@ -328,7 +328,7 @@
                 app:iconPadding="6dp"
                 app:iconSize="14dp"
                 app:iconTint="#5E35B1"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/wpair_dlg_close"

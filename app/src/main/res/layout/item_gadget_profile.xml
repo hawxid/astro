@@ -7,7 +7,7 @@
     app:cardBackgroundColor="@color/light_contrast"
     app:cardCornerRadius="20dp"
     app:cardElevation="0dp"
-    app:strokeColor="@color/light_lite_contrast"
+    app:strokeColor="@color/osiris_gold"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -100,9 +100,9 @@
                 android:id="@+id/gp_apply_btn"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:backgroundTint="#1565C0"
+                android:backgroundTint="@color/osiris_gold"
                 android:text="@string/arsenal_apply"
-                android:textColor="@android:color/white"
+                android:textColor="#0B0B10"
                 app:cornerRadius="14dp" />
         </LinearLayout>
     </LinearLayout>

@@ -6,7 +6,7 @@
     android:layout_gravity="center"
     android:layout_margin="10dp"
     app:cardCornerRadius="18dp"
-    app:strokeColor="@color/grey"
+    app:strokeColor="@color/osiris_gold"
     app:strokeWidth="1dp">
 
     <LinearLayout

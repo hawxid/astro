@@ -67,7 +67,7 @@
                     app:cardBackgroundColor="@color/light_contrast"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/light_lite_contrast"
+                    app:strokeColor="@color/osiris_gold"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -298,7 +298,7 @@
                     android:letterSpacing="0.08"
                     android:text="@string/wifi_section_networks"
                     android:textAllCaps="true"
-                    android:textColor="#AB47BC"
+                    android:textColor="@color/osiris_gold"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -309,7 +309,7 @@
                     app:cardBackgroundColor="@color/light_contrast"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/light_lite_contrast"
+                    app:strokeColor="@color/osiris_gold"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -376,7 +376,7 @@
                     app:cardBackgroundColor="@color/light_contrast"
                     app:cardCornerRadius="20dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/light_lite_contrast"
+                    app:strokeColor="@color/osiris_gold"
                     app:strokeWidth="1dp">
 
                     <androidx.recyclerview.widget.RecyclerView

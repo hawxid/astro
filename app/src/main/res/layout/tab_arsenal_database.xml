@@ -17,7 +17,7 @@
             app:cardBackgroundColor="@color/light_contrast"
             app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
-            app:strokeColor="@color/light_lite_contrast"
+            app:strokeColor="@color/osiris_gold"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -99,7 +99,7 @@
                         app:cardBackgroundColor="@color/light_contrast"
                         app:cardCornerRadius="16dp"
                         app:cardElevation="0dp"
-                        app:strokeColor="@color/light_lite_contrast"
+                        app:strokeColor="@color/osiris_gold"
                         app:strokeWidth="1dp">
 
                         <LinearLayout
@@ -196,7 +196,7 @@
                         app:cardBackgroundColor="@color/light_contrast"
                         app:cardCornerRadius="16dp"
                         app:cardElevation="0dp"
-                        app:strokeColor="@color/light_lite_contrast"
+                        app:strokeColor="@color/osiris_gold"
                         app:strokeWidth="1dp">
 
                         <LinearLayout
@@ -307,7 +307,7 @@
                 app:cardBackgroundColor="@color/light_contrast"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="0dp"
-                app:strokeColor="@color/light_lite_contrast"
+                app:strokeColor="@color/osiris_gold"
                 app:strokeWidth="1dp">
 
                 <LinearLayout

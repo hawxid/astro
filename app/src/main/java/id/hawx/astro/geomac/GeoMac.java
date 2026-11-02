@@ -49,6 +49,7 @@ import id.hawx.astro.geomac.ui.GeoMarkers;
 import id.hawx.astro.geomac.ui.GeoMacSearchSheet;
 import id.hawx.astro.geomac.ui.LayerSheet;
 import id.hawx.astro.geomac.ui.AtlasBottomBar;
+import id.hawx.astro.geomac.ui.AtlasModePill;
 import id.hawx.astro.utils.Core;
 
 import org.osmdroid.api.IMapController;
@@ -94,6 +95,7 @@ public class GeoMac extends Fragment {
     private LayerSheet layerSheet;
     private GeoMacSearchSheet searchSheet;
     private AtlasBottomBar bottomBar;
+    private AtlasModePill modePill;
     private TextView satCredit;
 
     private GeoPin.Category filter = null;
@@ -178,14 +180,13 @@ public class GeoMac extends Fragment {
         gpsLive = new GpsLive(activity, context, map,
                 () -> alive.get() && isAdded());
 
-        wireSearchButton(view);
         wireFilterChips(view);
-        wirePanel(view);
-        wireLayersButton(view);
         wireBottomBar(view);
+        wireModePill(view);
         wireActionBar(view);
         restoreFilterState(view);
         refreshOverlay();
+        refreshBottomClearance();
 
         receiver.setTitle(getString(R.string.geomac_title));
     }
@@ -214,7 +215,12 @@ public class GeoMac extends Fragment {
             layerSheet.dismissAllowingStateLoss();
             layerSheet = null;
         }
+        if (searchSheet != null) {
+            searchSheet.dismissAllowingStateLoss();
+            searchSheet = null;
+        }
         bottomBar = null;
+        modePill = null;
         if (layers != null) {
             layers.hideAll();
             layers = null;
@@ -238,10 +244,10 @@ public class GeoMac extends Fragment {
         super.onDestroy();
     }
 
-    /** Bilah bawah v1 (batch gede 2026-11-01): daftar tab TERPUSAT di sini.
-     *  Tambah tab = tambah satu baris di daftar ini (id, label, ikon, aksi)
-     *  — tidak perlu mengubah AtlasBottomBar maupun layout. Pill mode-switcher
-     *  TIDAK ikut v1 (tile malam belum diputuskan). */
+    /** Bilah bawah (batch gede 2026-11-01 + fix+atlas 2026-11-02): daftar
+     *  tab TERPUSAT di sini. Tambah tab = tambah satu baris di daftar ini
+     *  (id, label, ikon, aksi) — tidak perlu mengubah AtlasBottomBar maupun
+     *  layout. Pill mode Jalan/Satelit hidup terpisah (wireModePill). */
     private void wireBottomBar(View view) {
         LinearLayout tabs = view.findViewById(R.id.geomac_bar_tabs);
         if (tabs == null) return;
@@ -256,7 +262,10 @@ public class GeoMac extends Fragment {
     /** Tandai tab aktif + reset saat sheet-nya ditutup (swipe/backdrop).
      *  Hook dipasang lewat post() supaya transaksi show() sudah jalan
      *  (getDialog() baru ada setelah itu); bila dialog null, status aktif
-     *  tetap sampai tab lain diketuk — tidak merusak fungsi. */
+     *  tetap sampai tab lain diketuk — tidak merusak fungsi.
+     *  Listener hanya clearActive bila tab itu MASIH aktif: tanpa ini,
+     *  dismiss sheet lama (saat membuka sheet baru) akan menghapus status
+     *  aktif sheet baru yang baru saja di-set (race). */
     private void markBarTab(String tabId, Object sheet) {
         if (bottomBar == null) return;
         bottomBar.setActive(tabId);
@@ -269,21 +278,36 @@ public class GeoMac extends Fragment {
             }
             if (d != null) {
                 d.setOnDismissListener(dlg -> {
-                    if (bottomBar != null) bottomBar.clearActive();
+                    if (bottomBar != null && tabId.equals(bottomBar.getActiveId())) {
+                        bottomBar.clearActive();
+                    }
                 });
             }
         });
     }
 
-    private void wireSearchButton(View view) {
-        MaterialButton btn = view.findViewById(R.id.geomac_btn_search);
-        if (btn != null) {
-            btn.setOnClickListener(v -> openSearchSheet());
+    /** Tutup sheet layer sebelum menampilkan sheet search (anti-tumpuk).
+     *  Dipanggil di awal openSearchSheet; pasangan simetrisnya ada di
+     *  openLayerSheet. Field yang ditutup di-null supaya refreshLayerSheet
+     *  tidak menyentuh fragment yang sudah di-dismiss. */
+    private void dismissLayerSheet() {
+        if (layerSheet != null) {
+            layerSheet.dismissAllowingStateLoss();
+            layerSheet = null;
+        }
+    }
+
+    private void dismissSearchSheet() {
+        if (searchSheet != null) {
+            searchSheet.dismissAllowingStateLoss();
+            searchSheet = null;
         }
     }
 
     private void openSearchSheet() {
         if (!isAdded() || store == null) return;
+        if (getParentFragmentManager().findFragmentByTag("atlas_search") != null) return;
+        dismissLayerSheet();
         GeoMacSearchSheet sheet = new GeoMacSearchSheet();
         searchSheet = sheet;
         sheet.bind(new GeoMacSearchSheet.Host() {
@@ -335,29 +359,16 @@ public class GeoMac extends Fragment {
         });
     }
 
-    private void wireLayersButton(View view) {
-        MaterialButton btn = view.findViewById(R.id.geomac_btn_layers);
-        if (btn != null) {
-            btn.setOnClickListener(v -> openLayerSheet());
-        }
-    }
-
     private void openLayerSheet() {
         if (!isAdded() || layerStore == null) return;
+        if (getParentFragmentManager().findFragmentByTag("atlas_layers") != null) return;
+        dismissSearchSheet();
         LayerSheet sheet = new LayerSheet();
         layerSheet = sheet;
         sheet.bind(layerStore, new LayerSheet.Host() {
             @Override
             public void onLayerToggle(String id, boolean on) {
                 applyLayerToggle(id, on);
-            }
-
-            @Override
-            public void onBasemapSelected(boolean satellite) {
-                if (layerStore == null) return;
-                layerStore.setSatellite(satellite);
-                applyBasemap(satellite);
-                refreshLayerSheet();
             }
         });
         sheet.show(getParentFragmentManager(), "atlas_layers");
@@ -437,21 +448,85 @@ public class GeoMac extends Fragment {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
-    private void wirePanel(View view) {
-        View panel = view.findViewById(R.id.geomac_panel);
-        MaterialButton hide = view.findViewById(R.id.geomac_btn_hide);
-        MaterialButton restore = view.findViewById(R.id.geomac_btn_restore);
-        // X hides the WHOLE panel; the floating restore button brings it back.
-        // Layer controls moved to the Layer Sheet (redesign Fase 1); there
-        // is no per-section folding anymore.
-        hide.setOnClickListener(v -> {
-            panel.setVisibility(View.GONE);
-            restore.setVisibility(View.VISIBLE);
+    /** Pill mode basemap (batch fix+atlas, gaya OSIRIS): 2 tombol saja —
+     *  Jalan + Satelit, rata kiri di atas bilah tab. Tombol aktif berbingkai
+     *  emas + ikon/teks emas; non-aktif abu. TANPA tombol bulan/night
+     *  (Atlas tidak punya sumber tile gelap). Ketuk = jalur basemap yang
+     *  sama seperti radio lama (setSatellite + applyBasemap, pref sama). */
+    private void wireModePill(View view) {
+        LinearLayout buttons = view.findViewById(R.id.geomac_mode_buttons);
+        if (buttons == null) return;
+        List<AtlasModePill.Mode> list = new ArrayList<>();
+        list.add(new AtlasModePill.Mode("street", R.string.atlas_sheet_basemap_street,
+                R.drawable.map, () -> setBasemap(false)));
+        list.add(new AtlasModePill.Mode("satellite", R.string.atlas_mode_satellite,
+                R.drawable.web, () -> setBasemap(true)));
+        modePill = new AtlasModePill(buttons, list);
+        refreshModePill();
+    }
+
+    private void refreshModePill() {
+        if (modePill == null || layerStore == null) return;
+        modePill.setActive(layerStore.isSatellite() ? "satellite" : "street");
+    }
+
+    /** Satu-satunya jalur ganti basemap (dulu radio di LayerSheet). */
+    private void setBasemap(boolean satellite) {
+        if (layerStore == null) return;
+        layerStore.setSatellite(satellite);
+        applyBasemap(satellite);
+        refreshModePill();
+        refreshLayerSheet();
+    }
+
+    /** Jarak elemen overlay peta dari tumpukan bawah, diukur runtime.
+     *  Latar: bilah bawah terukur ~70-80dp di perangkat padahal hitungan
+     *  layout hanya 52dp — menaikkan angka margin hardcoded tidak akan
+     *  pernah dijamin benar. Karena itu tinggi tumpukan (status + chips +
+     *  pill mode + tab) dibaca setelah layout, lalu margin bawah overlay
+     *  dihitung dari tepi atas tumpukan + gap 12dp. Elemen tengah
+     *  ditumpuk vertikal (FAB, lalu kredit satelit, lalu panel trafik)
+     *  supaya tidak saling menutupi; counter (kiri) sejajar FAB.
+     *  Dipanggil sekali setelah wiring (via post) + setiap ganti basemap
+     *  (visibilitas kredit satelit berubah). */
+    private void refreshBottomClearance() {
+        View root = getView();
+        if (root == null) return;
+        root.post(() -> {
+            if (!isAdded()) return;
+            View stack = root.findViewById(R.id.geomac_bottom_stack);
+            View fab = root.findViewById(R.id.geomac_fab_cluster);
+            View counterCard = root.findViewById(R.id.geomac_counter);
+            View trafficCard = root.findViewById(R.id.geomac_traffic_card);
+            if (stack == null) return;
+            int stackTop = stack.getHeight()
+                    + ((ViewGroup.MarginLayoutParams) stack.getLayoutParams()).bottomMargin;
+            int gap = dp(12);
+            int base = stackTop + gap;
+            setBottomMargin(counterCard, base);
+            setBottomMargin(fab, base);
+            int fabTop = base + (fab != null ? fab.getHeight() : 0) + gap;
+            if (satCredit != null) setBottomMargin(satCredit, fabTop);
+            int trafficBase = fabTop;
+            if (satCredit != null && satCredit.getVisibility() == View.VISIBLE) {
+                trafficBase = fabTop + satCredit.getHeight() + gap;
+            }
+            setBottomMargin(trafficCard, trafficBase);
         });
-        restore.setOnClickListener(v -> {
-            restore.setVisibility(View.GONE);
-            panel.setVisibility(View.VISIBLE);
-        });
+    }
+
+    private void setBottomMargin(View v, int margin) {
+        if (v == null) return;
+        ViewGroup.LayoutParams lp = v.getLayoutParams();
+        if (lp instanceof ViewGroup.MarginLayoutParams) {
+            ((ViewGroup.MarginLayoutParams) lp).bottomMargin = margin;
+            v.setLayoutParams(lp);
+        }
+    }
+
+    private int dp(int v) {
+        if (context == null) return v;
+        return Math.round(v * context.getResources().getDisplayMetrics().density);
     }
 
     private void applyBasemap(boolean satellite) {
@@ -461,6 +536,7 @@ public class GeoMac extends Fragment {
             satCredit.setVisibility(satellite ? View.VISIBLE : View.GONE);
         }
         map.invalidate();
+        refreshBottomClearance();
     }
 
     private void askWindyKey() {

@@ -11,7 +11,7 @@
     app:cardBackgroundColor="@color/light_contrast"
     app:cardCornerRadius="18dp"
     app:cardElevation="0dp"
-    app:strokeColor="@color/light_lite_contrast"
+    app:strokeColor="@color/osiris_gold"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -177,7 +177,7 @@
                 android:textColor="@color/astro_accent"
                 android:textSize="12sp"
                 app:cornerRadius="12dp"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/wpair_btn_magic"
@@ -210,7 +210,7 @@
                 app:icon="@drawable/expand_icon"
                 app:iconSize="16dp"
                 app:iconTint="@color/grey"
-                app:strokeColor="@color/light_lite_contrast" />
+                app:strokeColor="@color/osiris_gold" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
