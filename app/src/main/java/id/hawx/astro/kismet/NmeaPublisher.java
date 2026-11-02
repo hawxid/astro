@@ -1,8 +1,11 @@
 package id.hawx.astro.kismet;
 
 import android.content.Context;
+import android.location.Location;
+import android.location.LocationListener;
 import android.location.LocationManager;
 import android.location.OnNmeaMessageListener;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 
@@ -35,6 +38,18 @@ import java.nio.charset.StandardCharsets;
  *   berbagi network namespace Android, jadi localhost mencapai
  *   listener gpsd di chroot (bukti: Kismet chroot konek ke gpsd
  *   di ::1:2947 pada PoC — namespace yang sama).
+ * - FIX 2026-11-02 (nol kalimat di perangkat): listener NMEA SAJA
+ *   tidak mengaktifkan mesin GPS — tanpa location request, hardware
+ *   tidak tracking dan tidak ada kalimat sama sekali (gpspipe -r/-w
+ *   nol kalimat, bahkan bukan void; efek pengamat GpsLive: layer
+ *   GPS Atlas melepas listener di onPause, jadi semua gpspipe yang
+ *   dijalankan dari terminal selalu melihat mesin idle). Karena itu
+ *   start() JUGA memanggil requestLocationUpdates(GPS_PROVIDER)
+ *   dengan dummy listener (callback-nya no-op; NMEA-lah yang
+ *   diteruskan) supaya mesin tracking selama publisher hidup.
+ *   Gerbang pun DIPERKETAT ke GPS_PROVIDER saja: NETWORK_PROVIDER
+ *   tidak menghasilkan NMEA, jadi lolos lewat network adalah
+ *   jebakan (dulu anyProviderEnabled()).
  * - Sisi chroot, gpsd membaca feed itu LEWAT URL udp:// DOKUMENTER
  *   (gpsd(8): "UDP feed — A URI with the prefix udp:// ... The
  *   daemon will open a socket listening for UDP datagrams ...
@@ -59,6 +74,10 @@ public final class NmeaPublisher {
     /** Port publisher NetHunter (10110). */
     private static final int UDP_PORT = 10110;
 
+    /** Interval/distance dummy request (disamakan GpsLive: 2 detik, 5 m). */
+    private static final long MIN_TIME_MS = 2000L;
+    private static final float MIN_DISTANCE_M = 5f;
+
     private final Context appContext;
 
     private LocationManager locationManager;
@@ -66,6 +85,7 @@ public final class NmeaPublisher {
     private InetAddress target;
     private HandlerThread thread;
     private OnNmeaMessageListener listener;
+    private LocationListener dummyListener;
     private volatile boolean running;
 
     public NmeaPublisher(@NonNull Context context) {
@@ -74,10 +94,10 @@ public final class NmeaPublisher {
 
     /**
      * Mulai publisher. Melempar IOException bila LocationManager
-     * tidak ada, tidak ada provider lokasi yang menyala, atau
-     * listener/socket gagal dipasang (termasuk SecurityException
-     * bila izin lokasi ternyata belum diberikan — manager sudah
-     * menggerbang izin sebelum memanggil ini, ini jaring kedua).
+     * tidak ada, GPS_PROVIDER tidak menyala, atau listener/socket/
+     * request gagal dipasang (termasuk SecurityException bila izin
+     * lokasi ternyata belum diberikan — manager sudah menggerbang
+     * izin sebelum memanggil ini, ini jaring kedua).
      * Idempotent: start kedua tanpa stop diabaikan.
      */
     public synchronized void start() throws IOException {
@@ -87,8 +107,9 @@ public final class NmeaPublisher {
         if (locationManager == null) {
             throw new IOException("LocationManager tidak tersedia");
         }
-        if (!anyProviderEnabled()) {
-            throw new IOException("Layanan lokasi tidak aktif");
+        if (!gpsProviderEnabled()) {
+            throw new IOException(
+                    "GPS perangkat tidak aktif — nyalakan GPS di pengaturan");
         }
         try {
             socket = new DatagramSocket();
@@ -132,6 +153,46 @@ public final class NmeaPublisher {
             stopQuietly();
             throw new IOException("Listener NMEA gagal: " + e.getMessage());
         }
+        // AKTIVASI mesin GPS (fix 2026-11-02): listener NMEA saja
+        // tidak membangunkan hardware. Dummy listener ini tidak
+        // berbuat apa-apa — tugasnya hanya membuat LocationManager
+        // men-tracking GPS_PROVIDER selama publisher hidup, supaya
+        // kalimat NMEA mengalir. Looper eksplisit = thread publisher
+        // sendiri (bukan main thread; thread pemanggil manager
+        // belum tentu punya Looper).
+        dummyListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(@NonNull Location location) {
+                // No-op: posisi tidak dipakai, NMEA-lah yang diteruskan.
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status,
+                    Bundle extras) {
+                // No-op.
+            }
+
+            @Override
+            public void onProviderEnabled(@NonNull String provider) {
+                // No-op.
+            }
+
+            @Override
+            public void onProviderDisabled(@NonNull String provider) {
+                // No-op.
+            }
+        };
+        try {
+            locationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER, MIN_TIME_MS,
+                    MIN_DISTANCE_M, dummyListener, thread.getLooper());
+        } catch (SecurityException e) {
+            stopQuietly();
+            throw new IOException("Izin lokasi belum diberikan");
+        } catch (RuntimeException e) {
+            stopQuietly();
+            throw new IOException("Request lokasi GPS gagal: " + e.getMessage());
+        }
         running = true;
     }
 
@@ -145,18 +206,11 @@ public final class NmeaPublisher {
         stopQuietly();
     }
 
-    /** GPS_PROVIDER dulu, fallback NETWORK_PROVIDER (pola B6 GpsLive). */
-    private boolean anyProviderEnabled() {
+    /** NMEA HANYA berasal dari hardware GPS: gerbang wajib GPS_PROVIDER. */
+    private boolean gpsProviderEnabled() {
         try {
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                return true;
-            }
-        } catch (Exception ignored) {
-        }
-        try {
-            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                return true;
-            }
+            return locationManager.isProviderEnabled(
+                    LocationManager.GPS_PROVIDER);
         } catch (Exception ignored) {
         }
         return false;
@@ -171,6 +225,13 @@ public final class NmeaPublisher {
         } catch (Exception ignored) {
         }
         listener = null;
+        try {
+            if (locationManager != null && dummyListener != null) {
+                locationManager.removeUpdates(dummyListener);
+            }
+        } catch (Exception ignored) {
+        }
+        dummyListener = null;
         try {
             if (socket != null) socket.close();
         } catch (Exception ignored) {
