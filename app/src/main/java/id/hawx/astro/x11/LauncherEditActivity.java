@@ -52,11 +52,14 @@ public class LauncherEditActivity extends AppCompatActivity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16), dp(16), dp(16), dp(16));
+        // Dasar gelap panel OSIRIS (temuan #8: tone OSIRIS).
+        root.setBackgroundColor(0xFF0B0B10);
 
         TextView title = new TextView(this);
         title.setText(existing == null ? "Launcher Baru" : "Edit Launcher");
         title.setTextSize(20);
         title.setTypeface(null, Typeface.BOLD);
+        title.setTextColor(0xFFD4AF37);
         root.addView(title);
 
         fName = field(root, "Nama", "mis. Wireshark");
@@ -74,6 +77,21 @@ public class LauncherEditActivity extends AppCompatActivity {
                         "WebView — jendela web kustom (HTML lokal)",
                         "WebUI — server web di chroot (buka di webview)"});
         fType.setAdapter(ad);
+        // Latar gelap + border emas tipis; panah dropdown bawaan tetap
+        // dipertahankan (ganti background mentah = panah hilang): drawable
+        // border dilapis DI BAWAH background bawaan spinner.
+        android.graphics.drawable.GradientDrawable spinBg = new android.graphics.drawable.GradientDrawable();
+        spinBg.setColor(0xFF12121A);
+        spinBg.setStroke(dp(1), 0xFFD4AF37);
+        spinBg.setCornerRadius(dp(8));
+        android.graphics.drawable.Drawable origSpin = fType.getBackground();
+        if (origSpin != null) {
+            fType.setBackground(new android.graphics.drawable.LayerDrawable(
+                    new android.graphics.drawable.Drawable[]{spinBg, origSpin}));
+        } else {
+            fType.setBackground(spinBg);
+        }
+        fType.setPadding(dp(12), dp(10), dp(36), dp(10));
         root.addView(fType);
         // Baris Port/Path dibuat SEBELUM listener dipasang, supaya
         // listener tidak pernah menyentuh field yang belum di-assign
@@ -88,6 +106,7 @@ public class LauncherEditActivity extends AppCompatActivity {
         // listener menampilkan/menyembunyikannya per tipe.
         fLaunchTerminal = new CheckBox(this);
         fLaunchTerminal.setText("Buka terminal xterm juga (mode 2 jendela)");
+        fLaunchTerminal.setTextColor(0xFFE8E8EA);
         root.addView(fLaunchTerminal);
         fLaunchTerminal.setVisibility(View.GONE);
         showWebuiFields(false);
@@ -125,10 +144,12 @@ public class LauncherEditActivity extends AppCompatActivity {
 
         fMultiple = new CheckBox(this);
         fMultiple.setText("Boleh banyak jendela (tap saat jalan = luncurkan lagi, bukan fokus)");
+        fMultiple.setTextColor(0xFFE8E8EA);
         root.addView(fMultiple);
 
         fFloating = new CheckBox(this);
         fFloating.setText("Buka sebagai jendela floating (display sendiri, bukan layar penuh)");
+        fFloating.setTextColor(0xFFE8E8EA);
         root.addView(fFloating);
 
         if (existing != null) {
@@ -191,6 +212,7 @@ public class LauncherEditActivity extends AppCompatActivity {
         }
 
         ScrollView outer = new ScrollView(this);
+        outer.setBackgroundColor(0xFF0B0B10);
         outer.addView(root);
         setContentView(outer);
     }
@@ -209,6 +231,7 @@ public class LauncherEditActivity extends AppCompatActivity {
         t.setText(text);
         t.setPadding(0, dp(12), 0, dp(2));
         t.setTypeface(null, Typeface.BOLD);
+        t.setTextColor(0xFFE8E8EA);
         return t;
     }
 
@@ -217,14 +240,31 @@ public class LauncherEditActivity extends AppCompatActivity {
         EditText e = new EditText(this);
         e.setHint(hint);
         e.setSingleLine(true);
+        // Latar gelap + border emas tipis ala OSIRIS; teks terang,
+        // hint abu-abu terbaca (background bawaan diganti total).
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(0xFF12121A);
+        bg.setStroke(dp(1), 0xFFD4AF37);
+        bg.setCornerRadius(dp(8));
+        e.setBackground(bg);
+        e.setTextColor(0xFFE8E8EA);
+        e.setHintTextColor(0xFF8A8A95);
+        e.setPadding(dp(12), dp(10), dp(12), dp(10));
         root.addView(e);
         return e;
     }
 
     private Button btn(String text, View.OnClickListener l) {
         Button b = new Button(this);
-        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD4AF37));
+        // WAJIB background emas EKSPLISIT: tint bawaan TIDAK
+        // me-render di perangkat untuk plain Button (temuan #8, bukti
+        // screenshot) — drawable gold langsung, pola roundBg MainActivity.
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(0xFFD4AF37);
+        bg.setCornerRadius(dp(10));
+        b.setBackground(bg);
         b.setTextColor(0xFF0B0B10);
+        b.setPadding(dp(16), dp(10), dp(16), dp(10));
         b.setText(text);
         b.setOnClickListener(l);
         return b;
