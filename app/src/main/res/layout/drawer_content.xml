@@ -176,6 +176,10 @@
             layout="@layout/drawer_row" />
 
 <include
+            android:id="@+id/kismet_item"
+            layout="@layout/drawer_row" />
+
+<include
             android:id="@+id/osint_item"
             layout="@layout/drawer_row" />
 
