@@ -1,4 +1,4 @@
-/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 4 */
+/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 5 */
 /* Astro Tools untuk WebUI Kismet — injeksi Fase 2 (2026-11-02).
  *
  * Dipasang BUKAN sebagai modul /dynamic.js Kismet (mekanisme
@@ -28,6 +28,13 @@
  * di-down). Sesudah job selesai/dihentikan, JS menghidupkan
  * hopping lagi (set_hop.cmd). Kunci memakai sesi login WebUI
  * (admin) sehingga tidak butuh password.
+ * v5 (bundle SSID+mdk4+handshake, 2026-11-03): menu membedakan
+ * AP vs client — client hanya dapat deauth aireplay surgical
+ * (-a AP -c client, AP dibaca dari halaman detail, gagal
+ * terlihat bila tidak ada) dan ambil handshake; mdk4 tidak
+ * ditawarkan untuk client. Tombol "Ambil handshake" memanggil
+ * endpoint bridge baru yang mengekstrak handshake dari pcapng
+ * Kismet ke /sdcard/Astro/captured (daftar handshake Astro).
  * dengan token dari cookie astro_tools_token (dipasang panel
  * Kismet saat membuka WebUI — buka WebUI dari panel, bukan dari
  * browser langsung, supaya cookie ada).
@@ -306,7 +313,29 @@
         var type = detailField('Type') || '';
         var wifi = /wi-fi/i.test(type) || (ch !== null);
         var known = wifi || /bluetooth|btle|\bble\b/i.test(type);
-        return { mac: mac, channel: ch, wifi: wifi, known: known };
+        /* AP vs client: hanya dari label Type halaman detail
+         * (client dicek dulu supaya string gabungan tidak salah
+         * jadi AP). AP-asosiasi untuk client: coba beberapa
+         * label, yang pertama lolos regex MAC yang dipakai;
+         * bila tidak ada, ap = '' dan tombol client fail-visible
+         * (tidak ditebak). */
+        var kind = 'unknown';
+        if (/wi-fi/i.test(type)) {
+            if (/client/i.test(type)) kind = 'client';
+            else if (/\bAP\b/i.test(type)) kind = 'ap';
+        }
+        var ap = '';
+        if (kind === 'client') {
+            var labels = ['Associated AP', 'AP', 'BSSID', 'Associated BSSID'];
+            for (var i = 0; i < labels.length; i++) {
+                var v = detailField(labels[i]);
+                if (v && MAC_RE.test(v)) { ap = v; break; }
+            }
+        } else if (kind === 'ap') {
+            ap = mac;
+        }
+        return { mac: mac, channel: ch, wifi: wifi, known: known,
+            kind: kind, ap: ap };
     }
 
     function isDetailPage() {
@@ -321,17 +350,43 @@
         menuEl.style.display = 'block';
     }
 
-    function showDeviceMenu(mac, channel, wifi) {
+    function showDeviceMenu(mac, channel, wifi, kind, ap) {
         current = { mac: mac, channel: channel, wifi: wifi };
+        var titleKind = wifi ? (kind === 'ap' ? 'WiFi AP' :
+            kind === 'client' ? 'WiFi client' : 'WiFi') : 'BT';
         document.getElementById('astro-tools-title').textContent =
-            'Astro Tools — ' + mac + (wifi ? ' (WiFi, ch ' + channel + ')' : ' (BT)');
+            'Astro Tools — ' + mac + ' (' + titleKind +
+            (wifi ? ', ch ' + channel : '') + ')';
         var btns = document.getElementById('astro-tools-btns');
         btns.innerHTML = '';
         lastJobId = null;
         if (wifi) {
             if (!channel) {
                 showResult('Channel tidak diketahui untuk perangkat ini — aksi WiFi butuh channel.');
+            } else if (kind === 'client') {
+                /* Client: HANYA surgical — aireplay -a AP -c
+                 * client (satu client itu saja yang jatuh) dan
+                 * ambil handshake. mdk4/airodump tidak ditawarkan
+                 * untuk client (tidak surgical). Tanpa AP yang
+                 * terbaca, kedua tombol dibatalkan fail-visible. */
+                if (!ap) {
+                    showResult('AP tidak dikenali dari halaman detail ini — deauth client dan ambil handshake dibatalkan (tidak ditebak).');
+                } else {
+                    addBtn('Deauth client (aireplay, 30 dtk)', function () {
+                        return runWifiAction('Deauth client (aireplay, 30 dtk)',
+                            '/wifi/deauth/aireplay',
+                            { bssid: ap, client: mac, channel: channel, duration: 30 },
+                            channel);
+                    });
+                    addBtn('Ambil handshake', function () {
+                        return call('/wifi/handshake/extract',
+                            { bssid: ap, client: mac });
+                    });
+                }
             } else {
+                /* AP atau WiFi tak dikenal: perilaku lama (mdk4
+                 * terskop -b, aireplay broadcast ke client AP itu,
+                 * airodump) + tombol ambil handshake. */
                 addBtn('Deauth mdk4 (30 dtk)', function () {
                     return runWifiAction('Deauth mdk4 (30 dtk)',
                         '/wifi/deauth/mdk4',
@@ -349,6 +404,9 @@
                         '/wifi/capture/airodump',
                         { bssid: mac, channel: channel, duration: 60 },
                         channel);
+                });
+                addBtn('Ambil handshake', function () {
+                    return call('/wifi/handshake/extract', { bssid: mac });
                 });
             }
         } else {
@@ -402,7 +460,9 @@
                 }
                 var channel = data['kismet.device.base.channel'];
                 var phy = data['kismet.device.base.phyname'] || '';
-                showDeviceMenu(mac, channel, (phy === 'IEEE802.11'));
+                var isWifi = (phy === 'IEEE802.11');
+                showDeviceMenu(mac, channel, isWifi,
+                    isWifi ? 'unknown' : 'bt', mac);
                 return;
             }
             /* data null → jatuh ke jalur detail (press bisa saja
@@ -415,7 +475,7 @@
                 showMessage('Tipe perangkat tidak dikenali dari halaman detail ini.');
                 return;
             }
-            showDeviceMenu(d.mac, d.channel, d.wifi);
+            showDeviceMenu(d.mac, d.channel, d.wifi, d.kind, d.ap);
             return;
         }
         /* Jalur 3: fail-visible. */

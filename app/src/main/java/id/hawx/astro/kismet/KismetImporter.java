@@ -15,8 +15,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -31,12 +33,19 @@ import java.util.Set;
  * Frida: asset -> filesDir -> copyFile ke chroot) karena query
  * inline `python3 -c` lewat dua lapis quoting (string Java ->
  * shell chroot) rapuh; script-nya bisa di-py_compile.
- * Hanya tiga kolom yang dibaca — devmac, avg_lat, avg_lon —
- * karena HANYA ketiganya yang terbukti ada di KismetDB v11
- * lewat PoC (row D6:C5:DB:99:1E:66, 48.1173/11.516666667).
- * SSID sengaja TIDAK dibaca (tidak ada kolom SSID yang
- * terbukti); pin tanpa SSID menampilkan BSSID sebagai judul
- * (fallback yang sudah ada di GeoMac).
+ * Kolom yang dibaca — devmac, avg_lat, avg_lon — terbukti ada
+ * di KismetDB v11 lewat PoC (row D6:C5:DB:99:1E:66,
+ * 48.1173/11.516666667). Nama SSID dibaca dari kolom json
+ * devices (kismet.device.base.name, hanya untuk phy
+ * IEEE802.11; nama == MAC berarti SSID tak diketahui) atau
+ * kolom nama polos bila json tidak ada — skrip menemukan
+ * kolom dari skema asli dulu, jadi skema tak dikenal tidak
+ * pernah menggagalkan import (nama kosong = perilaku lama).
+ * Bila nama dari Kismet kosong, dipakai nama pin lama untuk
+ * BSSID yang sama (mis. dari scan bawaan); pin tanpa SSID
+ * menampilkan BSSID sebagai judul (fallback GeoMac).
+ * Upsert menyegarkan SSID, jadi pin Kismet lama ikut
+ * ke-rename saat import berikutnya.
  *
  * Logika per BSSID — SERAGAM, tidak perlu tahu toggle GPS
  * (data yang bicara; keputusan user 2026-11-02):
@@ -142,7 +151,10 @@ public final class KismetImporter {
             return new Result(0, 0, 0, "tidak ada capture Kismet", true);
         }
         // Dedupe dalam satu file (satu baris per BSSID, terakhir menang).
+        // SSID adalah field ke-4 (split limit 4: pipe di dalam SSID
+        // tidak memecah baris); skrip lama 3 field tetap diterima.
         LinkedHashMap<String, double[]> rows = new LinkedHashMap<>();
+        LinkedHashMap<String, String> names = new LinkedHashMap<>();
         for (String raw : lines) {
             String line = raw == null ? "" : raw.trim();
             if (line.isEmpty()) continue;
@@ -153,7 +165,7 @@ public final class KismetImporter {
                 return new Result(0, 0, 0, "database capture tidak terbaca: "
                         + line.substring("DBERROR:".length()), false);
             }
-            String[] parts = line.split("\\|", -1);
+            String[] parts = line.split("\\|", 4);
             if (parts.length < 3) continue;
             String bssid = parts[0].trim();
             if (bssid.isEmpty()) continue;
@@ -161,6 +173,8 @@ public final class KismetImporter {
                 double lat = Double.parseDouble(parts[1].trim());
                 double lon = Double.parseDouble(parts[2].trim());
                 rows.put(bssid.toUpperCase(), new double[]{lat, lon});
+                names.put(bssid.toUpperCase(),
+                        parts.length >= 4 ? parts[3].trim() : "");
             } catch (NumberFormatException ignored) {
                 // Baris koordinat rusak dilewati (bukan digagalkan).
             }
@@ -170,9 +184,15 @@ public final class KismetImporter {
         }
         GeoStore store = new GeoStore(appContext);
         Set<String> existing = new HashSet<>();
+        Map<String, String> existingSsid = new HashMap<>();
         try {
             for (GeoPin p : store.all()) {
-                if (p.bssid != null) existing.add(p.bssid);
+                if (p.bssid != null) {
+                    existing.add(p.bssid);
+                    if (p.ssid != null && !p.ssid.isEmpty()) {
+                        existingSsid.put(p.bssid, p.ssid);
+                    }
+                }
             }
         } catch (Exception ignored) {
         }
@@ -190,13 +210,21 @@ public final class KismetImporter {
                 db = GeoLookup.coordsFor(core, bssid);
             } catch (Exception ignored) {
             }
+            // Nama: dari Kismet dulu, lalu nama pin lama untuk
+            // BSSID yang sama (mis. dari scan bawaan), lalu kosong
+            // (= judul BSSID, perilaku lama). Kunci dedup tetap BSSID.
+            String ssid = names.getOrDefault(bssid, "");
+            if (ssid.isEmpty()) {
+                String old = existingSsid.get(bssid);
+                if (old != null) ssid = old;
+            }
             GeoPin pin = null;
             if (db != null) {
-                pin = new GeoPin(bssid, "", db[0], db[1],
+                pin = new GeoPin(bssid, ssid, db[0], db[1],
                         GeoPin.Category.KISMET, now, NOTE_DB);
             } else if (hasDetection(lat, lon)) {
                 // 2. Fallback lokasi deteksi (hanya bila non-nol).
-                pin = new GeoPin(bssid, "", lat, lon,
+                pin = new GeoPin(bssid, ssid, lat, lon,
                         GeoPin.Category.KISMET, now, NOTE_DETECTION);
             } else {
                 // 3. Tidak ada koordinat dari mana pun -> lewati.

@@ -1,4 +1,4 @@
-# ASTRO_KISMET_TOOLS_BRIDGE_VERSION = 2
+# ASTRO_KISMET_TOOLS_BRIDGE_VERSION = 3
 #!/usr/bin/env python3
 """Astro Kismet tools bridge — Fase 1 (2026-11-02).
 
@@ -45,6 +45,19 @@ menghidupkan hopping lagi (set_hop.cmd). focus_channel tetap
 set + baca balik + ulang 3x (temuan PoC 2026-11-02) — kini
 hanya dipakai /kismet/freeze manual, bukan jalur aksi.
 
+Bundle SSID+mdk4+handshake (2026-11-03, marker 2->3 supaya manager
+menimpa bridge lama saat tools Start): JS membedakan tap AP vs
+client (client hanya aireplay surgical -a AP -c client; mdk4 tidak
+ditawarkan untuk client); endpoint handshake baru di bawah
+mengekstrak handshake dari pcapng panel Kismet ke folder daftar
+handshake Astro (/sdcard/Astro/captured — direktori yang sama
+dengan yang dibaca HandshakeStorage, jadi file langsung muncul
+di daftar tanpa langkah salin). Ekstraksi TIDAK butuh Kismet
+jalan (membaca log) dan TIDAK butuh kunci channel. Tool:
+hcxpcapngtool dulu (hasil terverifikasi .hc22000), fallback
+tshark (EAPOL saja, belum terverifikasi); bila keduanya tidak
+ada, endpoint gagal terlihat (bukan file kosong).
+
 Endpoint (semua bertoken kecuali /health):
 - GET  /health                 (tanpa token, liveness saja)
 - GET  /status                 (kismet pid, beku?, channel, jobs)
@@ -56,6 +69,7 @@ Endpoint (semua bertoken kecuali /health):
                                 duration, kismet_locked: true}
 - POST /wifi/capture/airodump  {bssid?, channel, duration?,
                                 kismet_locked: true}
+- POST /wifi/handshake/extract {bssid, client?} -> file di captured/
 - POST /bt/l2ping              {mac, count?}
 - POST /bt/sdptool             {mac}
 - GET  /jobs                   (daftar job)
@@ -69,9 +83,11 @@ Berhenti: pkill -f astro_kismet_tools_bridge.py (dari manager,
 """
 
 import atexit
+import glob
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -89,6 +105,8 @@ BRIDGE_VERSION = 1
 TOKEN_HEADER = "X-Astro-Token"
 WLAN_IF = "wlan0"
 WORK_DIR = "/tmp/astro_kismet_tools"
+KISMET_LOG_DIR = "/tmp/astro_kismet"
+HS_OUT_DIR = "/sdcard/Astro/captured"
 MAX_BODY = 64 * 1024
 FOCUS_RETRIES = 3
 FOCUS_SLEEP_SEC = 0.5
@@ -456,6 +474,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._aireplay(body)
             elif path == "/wifi/capture/airodump":
                 self._airodump(body)
+            elif path == "/wifi/handshake/extract":
+                self._handshake(body)
             elif path == "/bt/l2ping":
                 self._l2ping(body)
             elif path == "/bt/sdptool":
@@ -589,6 +609,100 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(200, {"ok": True, "job": job["id"],
                          "kind": "airodump", "prefix": prefix})
+
+    def _handshake(self, body):
+        bssid = body.get("bssid", "")
+        client = body.get("client", "")
+        if not valid_mac(bssid):
+            self._send(400, {"ok": False, "error": "BSSID tidak valid"})
+            return
+        if client and not valid_mac(client):
+            self._send(400, {"ok": False, "error": "client tidak valid"})
+            return
+        # Sengaja TIDAK cek Kismet jalan: ekstraksi membaca file
+        # log, jadi bisa sesudah Stop; snapshot saat dibaca (bila
+        # client reconnect SESUDAH ekstraksi, tap tombolnya lagi).
+        files = sorted(
+            glob.glob(os.path.join(KISMET_LOG_DIR, "*.pcapng")),
+            key=os.path.getmtime)
+        if not files:
+            self._send(404, {"ok": False,
+                             "error": "tidak ada file pcapng di /tmp/astro_kismet"})
+            return
+        src = files[-1]
+        try:
+            os.makedirs(WORK_DIR, exist_ok=True)
+            os.makedirs(HS_OUT_DIR, exist_ok=True)
+        except Exception as e:
+            self._send(500, {"ok": False,
+                             "error": "folder kerja tidak bisa dibuat: %s" % e})
+            return
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        ap_hex = bssid.replace(":", "").lower()
+        client_hex = client.replace(":", "").lower() if client else ""
+        # 1. hcxpcapngtool -> .hc22000 terverifikasi. Garis harus
+        # mengandung MAC target; untuk client: AP DAN client
+        # (handshake client itu spesifik, bukan sembarang client).
+        tmp_all = os.path.join(WORK_DIR, "hs-all.hc22000")
+        rc, _, _ = run_cmd(
+            ["hcxpcapngtool", "-o", tmp_all, src], timeout=300)
+        if rc == 0:
+            try:
+                with open(tmp_all, "r", errors="replace") as f:
+                    hits = [ln.rstrip("\n") for ln in f
+                            if ap_hex in ln.lower()
+                            and (not client_hex
+                                 or client_hex in ln.lower())]
+            except OSError:
+                hits = []
+            if hits:
+                fname = "%s_%s.hc22000" % (bssid.upper(), ts)
+                try:
+                    with open(os.path.join(HS_OUT_DIR, fname), "w") as f:
+                        f.write("\n".join(hits) + "\n")
+                except OSError as e:
+                    self._send(500, {"ok": False,
+                                     "error": "gagal menulis %s: %s" % (fname, e)})
+                    return
+                self._send(200, {"ok": True, "file": fname,
+                                 "verified": True, "tool": "hcxpcapngtool",
+                                 "count": len(hits)})
+                return
+        # 2. Fallback tshark: EAPOL saja, BELUM terverifikasi
+        # handshake lengkap (file tetap berguna untuk crack nanti).
+        tmp_cap = os.path.join(WORK_DIR, "hs-filter.pcapng")
+        filt = ("(wlan.bssid == %s || wlan.sa == %s || wlan.da == %s)"
+                " && eapol" % (bssid.lower(), bssid.lower(), bssid.lower()))
+        if client_hex:
+            filt = ("(%s) && (wlan.sa == %s || wlan.da == %s)"
+                    % (filt, client.lower(), client.lower()))
+        rc, _, _ = run_cmd(
+            ["tshark", "-r", src, "-Y", filt, "-w", tmp_cap], timeout=300)
+        if rc == 0 and os.path.exists(tmp_cap):
+            rc2, pktout, _ = run_cmd(
+                ["tshark", "-r", tmp_cap, "-T", "fields", "-e", "frame.number"],
+                timeout=60)
+            n = len([l for l in pktout.splitlines() if l.strip()]) \
+                if rc2 == 0 else 0
+            if n > 0:
+                fname = "%s_%s.pcapng" % (bssid.upper(), ts)
+                try:
+                    shutil.copyfile(tmp_cap, os.path.join(HS_OUT_DIR, fname))
+                except OSError as e:
+                    self._send(500, {"ok": False,
+                                     "error": "gagal menyalin %s: %s" % (fname, e)})
+                    return
+                self._send(200, {"ok": True, "file": fname,
+                                 "verified": False, "tool": "tshark",
+                                 "packets": n,
+                                 "note": "EAPOL saja, belum terverifikasi "
+                                         "handshake lengkap"})
+                return
+        self._send(404, {"ok": False,
+                         "error": "tidak ada handshake untuk %s di capture ini "
+                         "(client mungkin belum reconnect — deauth dulu lalu "
+                         "ambil lagi), atau hcxpcapngtool/tshark tidak "
+                         "tersedia" % bssid})
 
     def _l2ping(self, body):
         mac = body.get("mac", "")
