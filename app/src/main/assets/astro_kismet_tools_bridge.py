@@ -1,4 +1,4 @@
-# ASTRO_KISMET_TOOLS_BRIDGE_VERSION = 1
+# ASTRO_KISMET_TOOLS_BRIDGE_VERSION = 2
 #!/usr/bin/env python3
 """Astro Kismet tools bridge — Fase 1 (2026-11-02).
 
@@ -34,21 +34,28 @@ Keamanan (aturan keras, dari diskusi 2026-11-01/02):
   Allow-Origin khusus origin WebUI itu. Token tetap wajib untuk
   semua endpoint kecuali /health; CORS bukan pengganti token.
 
-Aturan fokus channel (temuan PoC 2026-11-02 22:29): set pertama
-bisa kalah dari transisi hop yang sedang berjalan saat STOP
-mendarat (set 6 -> baca 7). Karena itu focus_channel SELALU
-set + baca balik + ulangi sampai cocok (maks 3x) sebelum tool
-jalan.
+v4 (2026-11-03): aksi WiFi TIDAK LAGI freeze + iw set channel —
+iw terbukti tidak nempel di perangkat (minta 4, terbaca 7 sesudah
+3x) dan melawan hopping Kismet. Sebagai gantinya, JS mengunci
+channel lewat API bawaan Kismet (set_channel.cmd) SEBELUM
+memanggil bridge; bridge menjalankan tool TANPA freeze, TANPA
+iw, dan TANPA down interface — interface tidak pernah di-down
+di jalur mana pun. Sesudah job selesai/dihentikan, JS
+menghidupkan hopping lagi (set_hop.cmd). focus_channel tetap
+set + baca balik + ulang 3x (temuan PoC 2026-11-02) — kini
+hanya dipakai /kismet/freeze manual, bukan jalur aksi.
 
 Endpoint (semua bertoken kecuali /health):
 - GET  /health                 (tanpa token, liveness saja)
 - GET  /status                 (kismet pid, beku?, channel, jobs)
 - POST /kismet/freeze          {channel} -> STOP + fokus channel
 - POST /kismet/resume          {} -> CONT (ditolak bila ada job)
-- POST /wifi/deauth/mdk4       {bssid, channel, duration}
+- POST /wifi/deauth/mdk4       {bssid, channel, duration,
+                                kismet_locked: true}
 - POST /wifi/deauth/aireplay   {bssid, client?, count?, channel,
-                                duration}
-- POST /wifi/capture/airodump  {bssid?, channel, duration?}
+                                duration, kismet_locked: true}
+- POST /wifi/capture/airodump  {bssid?, channel, duration?,
+                                kismet_locked: true}
 - POST /bt/l2ping              {mac, count?}
 - POST /bt/sdptool             {mac}
 - GET  /jobs                   (daftar job)
@@ -339,16 +346,24 @@ def wifi_prep(channel):
     return True, "ok"
 
 
-def start_wifi_job(kind, target, argv, channel, duration):
-    """Freeze + fokus + start job. Bila start gagal, beku dilepas."""
-    ok, msg = wifi_prep(channel)
-    if not ok:
-        return None, msg
-    job, msg = JOBS.start(kind, target, argv, True, duration)
-    if job is None:
-        FREEZE.release(manual=False)
-        return None, msg
-    return job, "ok"
+def start_wifi_job(kind, target, argv, channel, duration,
+                   locked=False):
+    """Start job WiFi. v4: bila locked=True, channel SUDAH dikunci
+    Kismet via API-nya (oleh JS) — bridge TIDAK freeze, TIDAK iw,
+    TIDAK down interface; hanya pastikan Kismet jalan. Bila
+    locked=False, tolak eksplisit: jalur freeze+iw lama terbukti
+    tidak nempel di perangkat, jadi tidak lagi dipakai diam-diam
+    (pesan ini tidak boleh muncul pada JS v4 — JS selalu mengunci
+    dulu sebelum memanggil bridge)."""
+    if locked:
+        if not kismet_pids():
+            return None, "Kismet tidak jalan — Start dari panel dulu"
+        job, msg = JOBS.start(kind, target, argv, False, duration)
+        if job is None:
+            return None, msg
+        return job, "ok"
+    return None, ("channel belum dikunci via API Kismet — "
+                  "kunci dulu lewat menu (otomatis saat tap aksi)")
 
 
 # ---------------------------------------------------------------- http
@@ -501,6 +516,7 @@ class Handler(BaseHTTPRequestHandler):
             "mdk4-deauth", bssid,
             ["mdk4", WLAN_IF, "d", "-b", bl_path],
             channel, duration,
+            locked=bool(body.get("kismet_locked")),
         )
         if job is None:
             self._send(409, {"ok": False, "error": msg})
@@ -536,6 +552,7 @@ class Handler(BaseHTTPRequestHandler):
         argv.append(WLAN_IF)
         job, msg = start_wifi_job(
             "aireplay-deauth", bssid, argv, channel, duration,
+            locked=bool(body.get("kismet_locked")),
         )
         if job is None:
             self._send(409, {"ok": False, "error": msg})
@@ -565,6 +582,7 @@ class Handler(BaseHTTPRequestHandler):
         dur = clamp_duration(duration) if duration else None
         job, msg = start_wifi_job(
             "airodump", bssid or "semua", argv, channel, dur,
+            locked=bool(body.get("kismet_locked")),
         )
         if job is None:
             self._send(409, {"ok": False, "error": msg})

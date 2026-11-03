@@ -1,4 +1,4 @@
-/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 3 */
+/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 4 */
 /* Astro Tools untuk WebUI Kismet — injeksi Fase 2 (2026-11-02).
  *
  * Dipasang BUKAN sebagai modul /dynamic.js Kismet (mekanisme
@@ -22,6 +22,12 @@
  * utama = DOM halaman detail (ketuk baris → detail → long-press
  * di detail); baris DataTables tetap didukung bila event-nya
  * sampai.
+ * v4: aksi WiFi mengunci channel lewat API bawaan Kismet
+ * (set_channel.cmd) SEBELUM memanggil bridge — TANPA SIGSTOP,
+ * TANPA iw, TANPA down interface (interface tidak pernah
+ * di-down). Sesudah job selesai/dihentikan, JS menghidupkan
+ * hopping lagi (set_hop.cmd). Kunci memakai sesi login WebUI
+ * (admin) sehingga tidak butuh password.
  * dengan token dari cookie astro_tools_token (dipasang panel
  * Kismet saat membuka WebUI — buka WebUI dari panel, bukan dari
  * browser langsung, supaya cookie ada).
@@ -62,6 +68,147 @@
                 }
                 return obj;
             });
+        });
+    }
+
+    /* ---------------- API bawaan Kismet (v4) ---------------- */
+    /* Dijalankan dari origin WebUI (127.0.0.1:2501) sehingga
+     * cookie sesi login admin ikut terkirim — tidak butuh
+     * password. Channel dikunci Kismet sendiri selagi source
+     * tetap terbuka; interface TIDAK PERNAH di-down. */
+
+    function kismetFetch(path, body) {
+        return fetch(path, {
+            method: body ? 'POST' : 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            body: body ? JSON.stringify(body) : undefined
+        }).then(function (res) {
+            return res.json().then(function (obj) {
+                if (!res.ok) {
+                    throw new Error('Kismet HTTP ' + res.status);
+                }
+                return obj;
+            });
+        });
+    }
+
+    function findWifiSourceUuid() {
+        return kismetFetch('/datasource/all_sources.json').then(function (data) {
+            var list = Array.isArray(data) ? data :
+                (data && Array.isArray(data.sources) ? data.sources :
+                Object.keys(data || {}).map(function (k) { return data[k]; }));
+            var fallback = null;
+            for (var i = 0; i < list.length; i++) {
+                var r = list[i] || {};
+                var uuid = r['kismet.datasource.uuid'] || '';
+                if (!uuid) continue;
+                var name = r['kismet.datasource.name'] ||
+                           r['kismet.datasource.interface'] || '';
+                var type = r['kismet.datasource.type'] || '';
+                if (name === 'wlan0') return uuid;
+                if (!fallback && /wifi/i.test(type) &&
+                    JSON.stringify(r).indexOf('wlan0') !== -1) {
+                    fallback = uuid;
+                }
+            }
+            if (fallback) return fallback;
+            throw new Error('Source wlan0 tidak ditemukan di Kismet.');
+        });
+    }
+
+    function lockChannel(uuid, channel) {
+        return kismetFetch('/datasource/by-uuid/' +
+            encodeURIComponent(uuid) + '/set_channel.cmd',
+            { channel: String(channel) });
+    }
+
+    function resumeHopping(uuid) {
+        return kismetFetch('/datasource/by-uuid/' +
+            encodeURIComponent(uuid) + '/set_hop.cmd', {});
+    }
+
+    function bridgeGet(path) {
+        var t = token();
+        if (!t) return Promise.reject(new Error('Token bridge tidak ada.'));
+        return fetch(BRIDGE + path, {
+            headers: { 'X-Astro-Token': t }
+        }).then(function (res) {
+            return res.json().then(function (obj) {
+                if (!res.ok || !obj.ok) {
+                    throw new Error(obj.error || ('HTTP ' + res.status));
+                }
+                return obj;
+            });
+        });
+    }
+
+    /* Job WiFi aktif (v4): hanya satu yang memegang kunci channel.
+     * Loop polling menghidupkan hopping lagi HANYA bila job yang
+     * dipoll masih yang aktif — job baru yang menimpa mengambil
+     * alih kunci (tanpa set_hop prematur dari loop lama). */
+    var activeWifi = null; /* {job, uuid} */
+
+    function pollWifiJob(jobId) {
+        var fails = 0;
+        var timer = setInterval(function () {
+            bridgeGet('/jobs').then(function (obj) {
+                fails = 0;
+                /* Entri job TIDAK dihapus bridge saat selesai —
+                 * yang menandai selesai adalah running=false. */
+                var alive = false;
+                var jobs = obj.jobs || [];
+                for (var i = 0; i < jobs.length; i++) {
+                    if (jobs[i].id === jobId && jobs[i].running) {
+                        alive = true; break;
+                    }
+                }
+                if (!alive) {
+                    clearInterval(timer);
+                    if (activeWifi && activeWifi.job === jobId) {
+                        var uuid = activeWifi.uuid;
+                        activeWifi = null;
+                        resumeHopping(uuid).catch(function () {});
+                    }
+                }
+            }).catch(function () {
+                fails++;
+                if (fails >= 3) {
+                    clearInterval(timer);
+                    if (activeWifi && activeWifi.job === jobId) {
+                        var uuid = activeWifi.uuid;
+                        activeWifi = null;
+                        resumeHopping(uuid).catch(function () {});
+                    }
+                }
+            });
+        }, 2000);
+    }
+
+    function runWifiAction(label, bridgePath, bridgeBody, channel) {
+        showResult('Mengunci channel ' + channel + ' via Kismet…');
+        var uuid = null;
+        return findWifiSourceUuid().then(function (u) {
+            uuid = u;
+            return lockChannel(uuid, channel);
+        }).then(function () {
+            showResult('Channel ' + channel + ' terkunci, menjalankan ' +
+                label + '…');
+            var body = {};
+            for (var k in bridgeBody) body[k] = bridgeBody[k];
+            body.kismet_locked = true;
+            return call(bridgePath, body).catch(function (e) {
+                /* Kunci sudah didapat tapi tool gagal start:
+                 * kembalikan hopping, jangan tinggal terkunci. */
+                resumeHopping(uuid).catch(function () {});
+                throw e;
+            });
+        }).then(function (obj) {
+            if (obj.job) {
+                lastJobId = obj.job;
+                activeWifi = { job: obj.job, uuid: uuid };
+                pollWifiJob(obj.job);
+            }
+            return obj;
         });
     }
 
@@ -186,19 +333,22 @@
                 showResult('Channel tidak diketahui untuk perangkat ini — aksi WiFi butuh channel.');
             } else {
                 addBtn('Deauth mdk4 (30 dtk)', function () {
-                    return call('/wifi/deauth/mdk4', {
-                        bssid: mac, channel: channel, duration: 30
-                    });
+                    return runWifiAction('Deauth mdk4 (30 dtk)',
+                        '/wifi/deauth/mdk4',
+                        { bssid: mac, channel: channel, duration: 30 },
+                        channel);
                 });
                 addBtn('Deauth aireplay (30 dtk)', function () {
-                    return call('/wifi/deauth/aireplay', {
-                        bssid: mac, channel: channel, duration: 30
-                    });
+                    return runWifiAction('Deauth aireplay (30 dtk)',
+                        '/wifi/deauth/aireplay',
+                        { bssid: mac, channel: channel, duration: 30 },
+                        channel);
                 });
                 addBtn('Tangkap airodump (60 dtk)', function () {
-                    return call('/wifi/capture/airodump', {
-                        bssid: mac, channel: channel, duration: 60
-                    });
+                    return runWifiAction('Tangkap airodump (60 dtk)',
+                        '/wifi/capture/airodump',
+                        { bssid: mac, channel: channel, duration: 60 },
+                        channel);
                 });
             }
         } else {
@@ -213,7 +363,15 @@
             if (!lastJobId) {
                 return Promise.reject(new Error('Belum ada job dari menu ini.'));
             }
-            return call('/jobs/stop', { id: lastJobId });
+            var stopped = lastJobId;
+            return call('/jobs/stop', { id: stopped }).then(function (obj) {
+                if (activeWifi && activeWifi.job === stopped) {
+                    var uuid = activeWifi.uuid;
+                    activeWifi = null;
+                    resumeHopping(uuid).catch(function () {});
+                }
+                return obj;
+            });
         });
         if (wifi && channel) showResult('Pilih aksi.');
         menuEl.style.display = 'block';
