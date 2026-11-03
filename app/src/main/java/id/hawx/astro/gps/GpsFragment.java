@@ -10,6 +10,8 @@ import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -71,6 +73,20 @@ public class GpsFragment extends Fragment {
     private final AtomicBoolean alive = new AtomicBoolean(true);
     private final AtomicBoolean agpsBusy = new AtomicBoolean(false);
     private boolean receiverRegistered;
+
+    // Poll cadangan: snapshot dibaca ulang tiap 1 detik selama menu
+    // terbuka. Broadcast tick tetap jalur cepatnya, tapi tampilan
+    // tidak boleh lagi tertinggal bila satu tick terlewat. Poll
+    // HANYA jalan saat resumed (dihentikan di onPause), jadi
+    // biayanya nol saat menu tertutup.
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            applySnapshot();
+            uiHandler.postDelayed(this, 1000L);
+        }
+    };
 
     private MaterialTextView statusValue;
     private MaterialTextView usedValue;
@@ -158,10 +174,13 @@ public class GpsFragment extends Fragment {
             receiverRegistered = true;
         }
         applySnapshot();
+        uiHandler.removeCallbacks(pollRunnable);
+        uiHandler.post(pollRunnable);
     }
 
     @Override
     public void onPause() {
+        uiHandler.removeCallbacks(pollRunnable);
         if (receiverRegistered) {
             try {
                 context.unregisterReceiver(snapshotReceiver);
@@ -213,6 +232,11 @@ public class GpsFragment extends Fragment {
             Intent stop = new Intent(context, GpsLockService.class);
             stop.setAction(GpsLockService.ACTION_STOP);
             context.stopService(stop);
+            // Umpan balik langsung: tombol + status berubah saat itu
+            // juga, tidak menunggu broadcast OFF dari service.
+            lockBtn.setText(R.string.gps_lock_btn);
+            statusValue.setText(R.string.gps_off);
+            statusValue.setTextColor(COLOR_GREY);
             return;
         }
         if (ContextCompat.checkSelfPermission(context,
@@ -231,6 +255,11 @@ public class GpsFragment extends Fragment {
             return;
         }
         startDrivingService();
+        // Umpan balik langsung: tombol + status berubah saat itu
+        // juga, tidak menunggu kalimat NMEA pertama dari service.
+        lockBtn.setText(R.string.gps_unlock_btn);
+        statusValue.setText(R.string.gps_searching);
+        statusValue.setTextColor(COLOR_GOLD);
     }
 
     private void startDrivingService() {
