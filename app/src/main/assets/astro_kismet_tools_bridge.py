@@ -1,4 +1,4 @@
-# ASTRO_KISMET_TOOLS_BRIDGE_VERSION = 3
+# ASTRO_KISMET_TOOLS_BRIDGE_VERSION = 4
 #!/usr/bin/env python3
 """Astro Kismet tools bridge — Fase 1 (2026-11-02).
 
@@ -147,10 +147,15 @@ def clamp_duration(d):
 
 def run_cmd(argv, timeout=15):
     """Jalankan perintah, kembalikan (rc, stdout, stderr). FileNotFound
-    (tool belum terinstal) menjadi rc 127 + pesan, bukan crash."""
+    (tool belum terinstal) menjadi rc 127 + pesan, bukan crash.
+    errors=replace: output tool bisa mengandung byte non-UTF8
+    (mis. SSID biner yang digemakan hcxpcapngtool) — tanpa ini,
+    text=True strict melempar UnicodeDecodeError dan menggagalkan
+    endpoint (temuan 2026-11-03: byte 0xa5 di output hcxpcapngtool)."""
     try:
         p = subprocess.run(
-            argv, capture_output=True, text=True, timeout=timeout
+            argv, capture_output=True, text=True, errors="replace",
+            timeout=timeout
         )
         return p.returncode, p.stdout or "", p.stderr or ""
     except FileNotFoundError:
