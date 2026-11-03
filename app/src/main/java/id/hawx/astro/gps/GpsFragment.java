@@ -48,9 +48,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   Locker lainnya (bunyi, getar, keep screen on, dst.)
  *   DICORET atas perintah Hawx — bukan kelupaan.
  *
- * Komposisi dengan Kismet: menu ini TIDAK menyentuh gpsd/UDP.
- * Panel Kismet (GPS ON) tetap pakai publisher+gpsd sendiri;
- * begitu menu mengunci engine, Kismet ikut lock karena
+ * Komposisi dengan Kismet: kartu "GPSd bridge" di bawah
+ * mengelola gpsd chroot BERSAMA panel Kismet (satu gpsd, satu
+ * publisher — bukti kepemilikan = PID file gpsd, lihat
+ * GpsdBridge). Panel Kismet (GPS ON) tetap pakai rantai
+ * publisher+gpsd sendiri, tapi memakai ulang gpsd menu yang
+ * sudah jalan (tidak start kedua, tidak membunuhnya saat
+ * Stop); begitu menu mengunci engine, Kismet ikut lock karena
  * publisher meneruskan kalimat fix yang sama.
  *
  * Threading: service mengirim broadcast tick; fragment hanya
@@ -72,7 +76,9 @@ public class GpsFragment extends Fragment {
 
     private final AtomicBoolean alive = new AtomicBoolean(true);
     private final AtomicBoolean agpsBusy = new AtomicBoolean(false);
+    private final AtomicBoolean gpsdBusy = new AtomicBoolean(false);
     private boolean receiverRegistered;
+    private boolean pendingGpsdStart;
 
     // Poll cadangan: snapshot dibaca ulang tiap 1 detik selama menu
     // terbuka. Broadcast tick tetap jalur cepatnya, tapi tampilan
@@ -88,6 +94,19 @@ public class GpsFragment extends Fragment {
         }
     };
 
+    // Poll status gpsd (klasifikasi butuh chroot + socket, jadi
+    // lewat thread latar, bukan UI thread): tiap 5 detik selama
+    // menu terbuka, berhenti total saat onPause.
+    private final Runnable gpsdPollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshGpsdBridge();
+            uiHandler.postDelayed(this, 5000L);
+        }
+    };
+
+    private GpsdBridge.State lastGpsdState = GpsdBridge.State.STOPPED;
+
     private MaterialTextView statusValue;
     private MaterialTextView usedValue;
     private MaterialTextView inViewValue;
@@ -99,6 +118,9 @@ public class GpsFragment extends Fragment {
     private MaterialButton lockBtn;
     private MaterialButton mapsBtn;
     private MaterialButton agpsBtn;
+    private MaterialButton gpsdBtn;
+    private MaterialTextView gpsdStatusValue;
+    private MaterialTextView gpsdNoteValue;
     private SkyPlotView skyPlot;
     private LinearLayout satsContainer;
 
@@ -110,6 +132,7 @@ public class GpsFragment extends Fragment {
     private String agpsRejectedText;
     private String agpsDeniedText;
     private String agpsFailedFormat;
+    private String gpsdPermText;
 
     private final BroadcastReceiver snapshotReceiver = new BroadcastReceiver() {
         @Override
@@ -158,10 +181,13 @@ public class GpsFragment extends Fragment {
         agpsRejectedText = getString(R.string.gps_agps_rejected);
         agpsDeniedText = getString(R.string.gps_agps_denied);
         agpsFailedFormat = getString(R.string.gps_agps_failed);
+        gpsdPermText = getString(R.string.kismet_gps_perm);
         lockBtn.setOnClickListener(v -> toggleDriving());
         mapsBtn.setOnClickListener(v -> openMaps());
         agpsBtn.setOnClickListener(v -> forceAgps());
+        gpsdBtn.setOnClickListener(v -> toggleGpsdBridge());
         applySnapshot();
+        refreshGpsdBridge();
     }
 
     @Override
@@ -176,11 +202,14 @@ public class GpsFragment extends Fragment {
         applySnapshot();
         uiHandler.removeCallbacks(pollRunnable);
         uiHandler.post(pollRunnable);
+        uiHandler.removeCallbacks(gpsdPollRunnable);
+        uiHandler.post(gpsdPollRunnable);
     }
 
     @Override
     public void onPause() {
         uiHandler.removeCallbacks(pollRunnable);
+        uiHandler.removeCallbacks(gpsdPollRunnable);
         if (receiverRegistered) {
             try {
                 context.unregisterReceiver(snapshotReceiver);
@@ -204,9 +233,19 @@ public class GpsFragment extends Fragment {
         if (requestCode != REQ_LOCATION) return;
         if (grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startDrivingService();
+            if (pendingGpsdStart) {
+                pendingGpsdStart = false;
+                startGpsdBridge();
+            } else {
+                startDrivingService();
+            }
         } else {
-            toast(permDeniedText);
+            if (pendingGpsdStart) {
+                pendingGpsdStart = false;
+                toast(gpsdPermText);
+            } else {
+                toast(permDeniedText);
+            }
         }
     }
 
@@ -222,6 +261,9 @@ public class GpsFragment extends Fragment {
         lockBtn = view.findViewById(R.id.gps_lock_btn);
         mapsBtn = view.findViewById(R.id.gps_maps_btn);
         agpsBtn = view.findViewById(R.id.gps_agps_btn);
+        gpsdBtn = view.findViewById(R.id.gpsd_btn);
+        gpsdStatusValue = view.findViewById(R.id.gpsd_status_value);
+        gpsdNoteValue = view.findViewById(R.id.gpsd_note_value);
         skyPlot = view.findViewById(R.id.gps_sky_plot);
         satsContainer = view.findViewById(R.id.gps_sats_container);
     }
@@ -310,6 +352,130 @@ public class GpsFragment extends Fragment {
                 agpsBusy.set(false);
             }
         });
+    }
+
+    /** Tombol kartu GPSd bridge: Start bila STOPPED, Stop bila
+     * MENU/ORPHAN, ditahan (toast penjelasan) untuk state lain.
+     * State dibaca terakhir oleh refresh — tombol tidak pernah
+     * mengklasifikasi sendiri di UI thread (chroot + socket). */
+    private void toggleGpsdBridge() {
+        if (gpsdBusy.get()) return;
+        if (lastGpsdState == GpsdBridge.State.STOPPED) {
+            if (ContextCompat.checkSelfPermission(context,
+                    Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                pendingGpsdStart = true;
+                requestPermissions(
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        REQ_LOCATION);
+                return;
+            }
+            startGpsdBridge();
+        } else if (GpsdBridge.isStoppable(lastGpsdState)) {
+            stopGpsdBridge();
+        } else {
+            toast(getString(R.string.gps_gpsd_not_stoppable));
+        }
+    }
+
+    private void startGpsdBridge() {
+        if (!gpsdBusy.compareAndSet(false, true)) return;
+        runBg(() -> {
+            try {
+                GpsdBridge.startFromMenu(context);
+                toast(getString(R.string.gps_gpsd_started));
+            } catch (Exception e) {
+                String m = e.getMessage();
+                toast(String.format(Locale.US,
+                        getString(R.string.gps_gpsd_failed),
+                        m != null ? m : "?"));
+            } finally {
+                gpsdBusy.set(false);
+                refreshGpsdBridge();
+            }
+        });
+    }
+
+    private void stopGpsdBridge() {
+        if (!gpsdBusy.compareAndSet(false, true)) return;
+        runBg(() -> {
+            try {
+                GpsdBridge.stopFromMenu(context);
+                toast(getString(R.string.gps_gpsd_stopped_toast));
+            } catch (Exception e) {
+                String m = e.getMessage();
+                toast(String.format(Locale.US,
+                        getString(R.string.gps_gpsd_failed),
+                        m != null ? m : "?"));
+            } finally {
+                gpsdBusy.set(false);
+                refreshGpsdBridge();
+            }
+        });
+    }
+
+    /** Baca klasifikasi gpsd di thread latar, tampilkan di UI. */
+    private void refreshGpsdBridge() {
+        runBg(() -> {
+            GpsdBridge.State s;
+            try {
+                s = GpsdBridge.classify(context);
+            } catch (Exception ignored) {
+                return;
+            }
+            runUi(() -> applyGpsdState(s));
+        });
+    }
+
+    /** Terapkan state gpsd ke kartu (UI thread, guard uiReady). */
+    private void applyGpsdState(GpsdBridge.State s) {
+        if (!uiReady()) return;
+        lastGpsdState = s;
+        switch (s) {
+            case MENU:
+                gpsdStatusValue.setText(R.string.gps_gpsd_menu);
+                gpsdStatusValue.setTextColor(COLOR_LIVE);
+                gpsdNoteValue.setText(R.string.gps_gpsd_note_menu);
+                gpsdBtn.setText(R.string.gps_gpsd_stop);
+                gpsdBtn.setEnabled(true);
+                break;
+            case MENU_SHARED:
+                gpsdStatusValue.setText(R.string.gps_gpsd_shared);
+                gpsdStatusValue.setTextColor(COLOR_LIVE);
+                gpsdNoteValue.setText(R.string.gps_gpsd_note_shared);
+                gpsdBtn.setText(R.string.gps_gpsd_stop);
+                gpsdBtn.setEnabled(false);
+                break;
+            case PANEL:
+                gpsdStatusValue.setText(R.string.gps_gpsd_panel);
+                gpsdStatusValue.setTextColor(COLOR_INFO);
+                gpsdNoteValue.setText(R.string.gps_gpsd_note_panel);
+                gpsdBtn.setText(R.string.gps_gpsd_stop);
+                gpsdBtn.setEnabled(false);
+                break;
+            case ORPHAN:
+                gpsdStatusValue.setText(R.string.gps_gpsd_orphan);
+                gpsdStatusValue.setTextColor(COLOR_GOLD);
+                gpsdNoteValue.setText(R.string.gps_gpsd_note_orphan);
+                gpsdBtn.setText(R.string.gps_gpsd_stop);
+                gpsdBtn.setEnabled(true);
+                break;
+            case FOREIGN:
+                gpsdStatusValue.setText(R.string.gps_gpsd_foreign);
+                gpsdStatusValue.setTextColor(COLOR_GREY);
+                gpsdNoteValue.setText(R.string.gps_gpsd_note_foreign);
+                gpsdBtn.setText(R.string.gps_gpsd_start);
+                gpsdBtn.setEnabled(false);
+                break;
+            case STOPPED:
+            default:
+                gpsdStatusValue.setText(R.string.gps_gpsd_stopped);
+                gpsdStatusValue.setTextColor(COLOR_GREY);
+                gpsdNoteValue.setText(R.string.gps_gpsd_note_stopped);
+                gpsdBtn.setText(R.string.gps_gpsd_start);
+                gpsdBtn.setEnabled(true);
+                break;
+        }
     }
 
     /** Terapkan snapshot terakhir ke UI (UI thread, guard uiReady). */

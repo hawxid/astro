@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat;
 
 import id.hawx.astro.R;
 import id.hawx.astro.bluetooth.BluebinderController;
+import id.hawx.astro.gps.GpsdBridge;
 import id.hawx.astro.utils.Core;
 import id.hawx.astro.x11.WebUiLauncher;
 
@@ -867,44 +868,67 @@ public final class KismetManager {
         if (!hasGpsd) {
             throw new IOException(gpsNoGpsdText);
         }
-        // 3. 2947 harus kosong. gpsd asing TIDAK PERNAH dibunuh:
-        // gagal jelas, pengguna menghentikan gpsd itu sendiri
-        // (mis. dari terminal: pkill -x gpsd) lalu Start lagi.
+        // 3. 2947 harus kosong — ATAU diisi gpsd milik Astro yang
+        // bisa dipakai ulang (batch gpsd-bridge): kartu menu GPS
+        // atau launch panel sebelumnya. gpsd ASING tetap TIDAK
+        // PERNAH dibunuh: gagal jelas, pengguna menghentikan
+        // gpsd itu sendiri (terminal: pkill -x gpsd, atau tombol
+        // Stop kartu menu GPS) lalu Start lagi.
         // Catatan PoC: paket Debian gpsd AUTO-START daemon tanpa
         // device saat install — daemon itulah yang paling
         // mungkin mengisi 2947 di sini.
+        // Reuse: gpsd yang ada dipakai apa adanya (tidak start
+        // kedua). Publisher: bila publisher menu masih hidup di
+        // proses ini, ia sudah memberi makan gpsd — panel tidak
+        // start publisher lagi. Bila gpsd orphan (publisher mati
+        // bersama proses lama), panel start publisher sendiri
+        // untuk memberi makan gpsd yang ada; gpsd tetap BUKAN
+        // milik panel (gpsGpsdOwned false) sehingga Stop panel
+        // tidak membunuhnya — ia kembali jadi orphan yang bisa
+        // di-Stop dari kartu menu GPS.
+        boolean reuseGpsd = false;
         if (WebUiLauncher.isListening(GPSD_PORT)) {
-            throw new IOException(gpsBusyText);
+            if (!GpsdBridge.isOurGpsd(appContext)) {
+                throw new IOException(gpsBusyText);
+            }
+            reuseGpsd = true;
         }
         // 4. Publisher Android (sumber NMEA) dulu, baru gpsd —
         // supaya tidak ada jeda tanpa sumber sesudah gpsd up.
-        NmeaPublisher pub = new NmeaPublisher(appContext);
-        try {
-            pub.start();
-        } catch (IOException e) {
-            String m = e.getMessage();
-            throw new IOException(m != null ? m : gpsFailedText);
-        }
-        publisher = pub;
-        // 5. gpsd atas feed UDP. Daemonize sendiri; -P menulis
-        // PID daemon (bukan parent setsid).
-        chroot("mkdir -p " + LOG_DIR + " && setsid gpsd -P " + GPSD_PID
-                + " udp://" + GPSD_UDP_HOST + ":" + GPSD_UDP_PORT
-                + " > " + GPSD_LOG + " 2>&1 < /dev/null &");
-        boolean gpsdUp = false;
-        for (int i = 0; i < GPSD_POLL_TRIES && !gpsdUp; i++) {
-            sleepQuietly(POLL_MS);
-            gpsdUp = WebUiLauncher.isListening(GPSD_PORT);
-        }
-        if (!gpsdUp) {
+        // Jalur reuse: publisher hanya di-start bila tidak ada
+        // publisher menu yang hidup (orphan butuh feeder baru);
+        // gpsd tidak di-start ulang (langkah 5 dilewati).
+        if (!reuseGpsd || !GpsdBridge.isMenuFeeding()) {
+            NmeaPublisher pub = new NmeaPublisher(appContext);
             try {
-                pub.stop();
-            } catch (Throwable ignored) {
+                pub.start();
+            } catch (IOException e) {
+                String m = e.getMessage();
+                throw new IOException(m != null ? m : gpsFailedText);
             }
-            publisher = null;
-            throw new IOException(gpsNoAnswerText);
+            publisher = pub;
         }
-        gpsGpsdOwned = true;
+        if (!reuseGpsd) {
+            // 5. gpsd atas feed UDP. Daemonize sendiri; -P menulis
+            // PID daemon (bukan parent setsid).
+            chroot("mkdir -p " + LOG_DIR + " && setsid gpsd -P " + GPSD_PID
+                    + " udp://" + GPSD_UDP_HOST + ":" + GPSD_UDP_PORT
+                    + " > " + GPSD_LOG + " 2>&1 < /dev/null &");
+            boolean gpsdUp = false;
+            for (int i = 0; i < GPSD_POLL_TRIES && !gpsdUp; i++) {
+                sleepQuietly(POLL_MS);
+                gpsdUp = WebUiLauncher.isListening(GPSD_PORT);
+            }
+            if (!gpsdUp) {
+                try {
+                    publisher.stop();
+                } catch (Throwable ignored) {
+                }
+                publisher = null;
+                throw new IOException(gpsNoAnswerText);
+            }
+            gpsGpsdOwned = true;
+        }
         // 6. Baris gps= ke site conf (bukti PoC — flag
         // --use-gpsd-gps TIDAK mengaktifkan GPS di 2026.10).
         // Sed menghapus baris gps= lama dulu (idempotent, dan

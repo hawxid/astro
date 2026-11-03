@@ -1,4 +1,4 @@
-/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 5 */
+/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 6 */
 /* Astro Tools untuk WebUI Kismet — injeksi Fase 2 (2026-11-02).
  *
  * Dipasang BUKAN sebagai modul /dynamic.js Kismet (mekanisme
@@ -35,6 +35,12 @@
  * ditawarkan untuk client. Tombol "Ambil handshake" memanggil
  * endpoint bridge baru yang mengekstrak handshake dari pcapng
  * Kismet ke /sdcard/Astro/captured (daftar handshake Astro).
+ * v6 (durasi adjustable, 2026-11-03): tombol berdurasi
+ * (mdk4/aireplay/airodump) punya kolom angka sendiri (detik,
+ * 1..300 sesuai clamp bridge) — tidak lagi hardcode 30/60.
+ * Nilai terakhir diingat per aksi via localStorage (guard
+ * try/catch: WebView tanpa DOM storage tetap bisa disetel,
+ * hanya tidak diingat). Label tombol ikut durasi terpilih.
  * dengan token dari cookie astro_tools_token (dipasang panel
  * Kismet saat membuka WebUI — buka WebUI dari panel, bukan dari
  * browser langsung, supaya cookie ada).
@@ -275,6 +281,80 @@
         document.getElementById('astro-tools-btns').appendChild(b);
     }
 
+    /* Durasi adjustable (v6): kolom angka per tombol berdurasi.
+     * Batas 1..300 = clamp bridge (DEFAULT 30, MAX 300); nilai
+     * di luar batas dijepit, bukan ditolak diam-diam. */
+    var DUR_MIN = 1;
+    var DUR_MAX = 300;
+
+    function clampDur(v, defVal) {
+        var n = parseInt(v, 10);
+        if (isNaN(n)) return defVal;
+        if (n < DUR_MIN) return DUR_MIN;
+        if (n > DUR_MAX) return DUR_MAX;
+        return n;
+    }
+
+    function durStored(key, defVal) {
+        try {
+            var v = window.localStorage.getItem('astro_tools_dur_' + key);
+            if (v !== null) return clampDur(v, defVal);
+        } catch (e) {}
+        return defVal;
+    }
+
+    function durSave(key, val) {
+        try {
+            window.localStorage.setItem('astro_tools_dur_' + key, String(val));
+        } catch (e) {}
+    }
+
+    /* Baris: [kolom detik] [tombol]. Label tombol ikut durasi
+     * terpilih; fn menerima durasi (detik) saat tap. */
+    function addTimedBtn(labelBase, key, defVal, fn) {
+        var row = document.createElement('div');
+        row.style.cssText = 'margin:2px 0';
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.min = String(DUR_MIN);
+        input.max = String(DUR_MAX);
+        input.value = String(durStored(key, defVal));
+        input.style.cssText = 'width:64px;padding:6px;margin-right:4px';
+        input.title = 'Durasi (detik, 1-300)';
+        var b = document.createElement('button');
+        b.style.cssText = 'padding:6px 10px';
+        function syncLabel() {
+            b.textContent = labelBase + ' (' +
+                clampDur(input.value, defVal) + ' dtk)';
+        }
+        input.addEventListener('change', function () {
+            var d = clampDur(input.value, defVal);
+            input.value = String(d);
+            durSave(key, d);
+            syncLabel();
+        });
+        syncLabel();
+        b.addEventListener('click', function () {
+            var d = clampDur(input.value, defVal);
+            input.value = String(d);
+            durSave(key, d);
+            syncLabel();
+            b.disabled = true;
+            showResult('Menjalankan ' + labelBase + ' (' + d + ' dtk)…');
+            fn(d).then(function (obj) {
+                if (obj.job) lastJobId = obj.job;
+                showResult(JSON.stringify(obj, null, 2));
+            }).catch(function (e) {
+                showResult('Gagal: ' + e.message);
+            }).finally(function () {
+                b.disabled = false;
+            });
+        });
+        row.appendChild(input);
+        row.appendChild(b);
+        document.getElementById('astro-tools-btns').appendChild(row);
+    }
+
     /* ---------------- sumber data perangkat ---------------- */
     /* Jalur 1: baris DataTables (daftar). Jalur 2 (v3, pivot):
      * DOM halaman detail — dibaca dari label yang sudah tampil
@@ -372,10 +452,10 @@
                 if (!ap) {
                     showResult('AP tidak dikenali dari halaman detail ini — deauth client dan ambil handshake dibatalkan (tidak ditebak).');
                 } else {
-                    addBtn('Deauth client (aireplay, 30 dtk)', function () {
-                        return runWifiAction('Deauth client (aireplay, 30 dtk)',
+                    addTimedBtn('Deauth client (aireplay)', 'client_deauth', 30, function (d) {
+                        return runWifiAction('Deauth client (aireplay, ' + d + ' dtk)',
                             '/wifi/deauth/aireplay',
-                            { bssid: ap, client: mac, channel: channel, duration: 30 },
+                            { bssid: ap, client: mac, channel: channel, duration: d },
                             channel);
                     });
                     addBtn('Ambil handshake', function () {
@@ -387,22 +467,22 @@
                 /* AP atau WiFi tak dikenal: perilaku lama (mdk4
                  * terskop -b, aireplay broadcast ke client AP itu,
                  * airodump) + tombol ambil handshake. */
-                addBtn('Deauth mdk4 (30 dtk)', function () {
-                    return runWifiAction('Deauth mdk4 (30 dtk)',
+                addTimedBtn('Deauth mdk4', 'mdk4', 30, function (d) {
+                    return runWifiAction('Deauth mdk4 (' + d + ' dtk)',
                         '/wifi/deauth/mdk4',
-                        { bssid: mac, channel: channel, duration: 30 },
+                        { bssid: mac, channel: channel, duration: d },
                         channel);
                 });
-                addBtn('Deauth aireplay (30 dtk)', function () {
-                    return runWifiAction('Deauth aireplay (30 dtk)',
+                addTimedBtn('Deauth aireplay', 'ap_aireplay', 30, function (d) {
+                    return runWifiAction('Deauth aireplay (' + d + ' dtk)',
                         '/wifi/deauth/aireplay',
-                        { bssid: mac, channel: channel, duration: 30 },
+                        { bssid: mac, channel: channel, duration: d },
                         channel);
                 });
-                addBtn('Tangkap airodump (60 dtk)', function () {
-                    return runWifiAction('Tangkap airodump (60 dtk)',
+                addTimedBtn('Tangkap airodump', 'airodump', 60, function (d) {
+                    return runWifiAction('Tangkap airodump (' + d + ' dtk)',
                         '/wifi/capture/airodump',
-                        { bssid: mac, channel: channel, duration: 60 },
+                        { bssid: mac, channel: channel, duration: d },
                         channel);
                 });
                 addBtn('Ambil handshake', function () {
