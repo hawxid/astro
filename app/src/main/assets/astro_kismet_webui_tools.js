@@ -1,4 +1,4 @@
-/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 2 */
+/* ASTRO_KISMET_WEBUI_TOOLS_VERSION = 3 */
 /* Astro Tools untuk WebUI Kismet — injeksi Fase 2 (2026-11-02).
  *
  * Dipasang BUKAN sebagai modul /dynamic.js Kismet (mekanisme
@@ -15,9 +15,13 @@
  *   kismet.device.base.channel (channel WiFi),
  *   kismet.device.base.phyname ('IEEE802.11' = WiFi).
  *
- * Interaksi (sesuai spek Hawx): LONG-PRESS pada baris perangkat
- * (touch ~600 ms; klik kanan sebagai fallback non-touch) membuka
- * menu aksi; menu memanggil bridge Astro di 127.0.0.1:18082
+ * Interaksi: LONG-PRESS (touch ~600 ms; klik kanan sebagai
+ * fallback non-touch) membuka menu aksi; menu memanggil bridge
+ * Astro di 127.0.0.1:18082. v3 (pivot): long-press di daftar
+ * terbukti tidak jalan di perangkat (v1+v2), jadi sumber data
+ * utama = DOM halaman detail (ketuk baris → detail → long-press
+ * di detail); baris DataTables tetap didukung bila event-nya
+ * sampai.
  * dengan token dari cookie astro_tools_token (dipasang panel
  * Kismet saat membuka WebUI — buka WebUI dari panel, bukan dari
  * browser langsung, supaya cookie ada).
@@ -117,42 +121,61 @@
         document.getElementById('astro-tools-btns').appendChild(b);
     }
 
-    function openMenu(tr) {
-        ensureMenu();
-        if (typeof window.jQuery === 'undefined' ||
-            typeof window.jQuery.fn.DataTable === 'undefined') {
-            document.getElementById('astro-tools-title').textContent = 'Astro Tools';
-            document.getElementById('astro-tools-btns').innerHTML = '';
-            showResult('DataTables tidak tersedia di halaman ini.');
-            menuEl.style.display = 'block';
-            return;
+    /* ---------------- sumber data perangkat ---------------- */
+    /* Jalur 1: baris DataTables (daftar). Jalur 2 (v3, pivot):
+     * DOM halaman detail — dibaca dari label yang sudah tampil
+     * (MAC Address / Channel / Type), tanpa butuh DataTables dan
+     * tanpa butuh jQuery. */
+
+    var MAC_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+
+    function detailField(label) {
+        var all = document.getElementsByTagName('*');
+        for (var i = 0; i < all.length; i++) {
+            var el = all[i];
+            var t = (el.firstChild && el.firstChild.nodeType === 3)
+                ? el.firstChild.nodeValue.trim() : '';
+            if (t !== label) continue;
+            var sib = el.nextElementSibling;
+            if (sib && sib.textContent.trim()) return sib.textContent.trim();
+            var p = el.parentNode;
+            if (p) {
+                var kids = p.children;
+                for (var j = 0; j < kids.length; j++) {
+                    if (kids[j] !== el && kids[j].textContent.trim()) {
+                        return kids[j].textContent.trim();
+                    }
+                }
+            }
         }
-        var data;
-        try {
-            data = window.jQuery(tr).closest('table').DataTable().row(tr).data();
-        } catch (e) {
-            data = null;
-        }
-        if (!data) {
-            document.getElementById('astro-tools-title').textContent = 'Astro Tools';
-            document.getElementById('astro-tools-btns').innerHTML = '';
-            showResult('Data baris tidak terbaca.');
-            menuEl.style.display = 'block';
-            return;
-        }
-        var mac = data['kismet.device.base.macaddr'] ||
-                  data['kismet.device.base.mac'] || '';
-        var channel = data['kismet.device.base.channel'];
-        var phy = data['kismet.device.base.phyname'] || '';
-        if (!mac) {
-            document.getElementById('astro-tools-title').textContent = 'Astro Tools';
-            document.getElementById('astro-tools-btns').innerHTML = '';
-            showResult('MAC tidak terbaca dari baris ini.');
-            menuEl.style.display = 'block';
-            return;
-        }
-        var wifi = (phy === 'IEEE802.11');
-        current = { mac: mac, channel: channel, phy: phy, wifi: wifi };
+        return '';
+    }
+
+    function readDetailDevice() {
+        var mac = detailField('MAC Address');
+        if (!mac || !MAC_RE.test(mac)) return null;
+        var ch = parseInt(detailField('Channel'), 10);
+        if (isNaN(ch)) ch = null;
+        var type = detailField('Type') || '';
+        var wifi = /wi-fi/i.test(type) || (ch !== null);
+        var known = wifi || /bluetooth|btle|\bble\b/i.test(type);
+        return { mac: mac, channel: ch, wifi: wifi, known: known };
+    }
+
+    function isDetailPage() {
+        return !!document.body &&
+            document.body.textContent.indexOf('MAC Address') !== -1;
+    }
+
+    function showMessage(text) {
+        document.getElementById('astro-tools-title').textContent = 'Astro Tools';
+        document.getElementById('astro-tools-btns').innerHTML = '';
+        showResult(text);
+        menuEl.style.display = 'block';
+    }
+
+    function showDeviceMenu(mac, channel, wifi) {
+        current = { mac: mac, channel: channel, wifi: wifi };
         document.getElementById('astro-tools-title').textContent =
             'Astro Tools — ' + mac + (wifi ? ' (WiFi, ch ' + channel + ')' : ' (BT)');
         var btns = document.getElementById('astro-tools-btns');
@@ -194,6 +217,58 @@
         });
         if (wifi && channel) showResult('Pilih aksi.');
         menuEl.style.display = 'block';
+    }
+
+    function openMenu(tr) {
+        ensureMenu();
+        /* Jalur 1: baris DataTables — hanya bila tabelnya memang
+         * sudah jadi DataTable (isDataTable, tanpa menginisiasi
+         * tabel biasa milik Kismet). */
+        if (tr && typeof window.jQuery !== 'undefined' &&
+            typeof window.jQuery.fn.DataTable !== 'undefined') {
+            var data = null;
+            try {
+                var tbl = window.jQuery(tr).closest('table');
+                if (window.jQuery.fn.dataTable.isDataTable(tbl)) {
+                    data = tbl.DataTable().row(tr).data();
+                }
+            } catch (e) {
+                data = null;
+            }
+            if (data) {
+                var mac = data['kismet.device.base.macaddr'] ||
+                          data['kismet.device.base.mac'] || '';
+                if (!mac) {
+                    showMessage('MAC tidak terbaca dari baris ini.');
+                    return;
+                }
+                var channel = data['kismet.device.base.channel'];
+                var phy = data['kismet.device.base.phyname'] || '';
+                showDeviceMenu(mac, channel, (phy === 'IEEE802.11'));
+                return;
+            }
+            /* data null → jatuh ke jalur detail (press bisa saja
+             * di baris tabel halaman detail). */
+        }
+        /* Jalur 2: DOM halaman detail. */
+        var d = readDetailDevice();
+        if (d) {
+            if (!d.known) {
+                showMessage('Tipe perangkat tidak dikenali dari halaman detail ini.');
+                return;
+            }
+            showDeviceMenu(d.mac, d.channel, d.wifi);
+            return;
+        }
+        /* Jalur 3: fail-visible. */
+        if (!tr) {
+            showMessage('Buka halaman detail device dulu (ketuk baris), lalu long-press di sana.');
+        } else if (typeof window.jQuery === 'undefined' ||
+            typeof window.jQuery.fn.DataTable === 'undefined') {
+            showMessage('DataTables tidak tersedia di halaman ini.');
+        } else {
+            showMessage('Data baris tidak terbaca.');
+        }
     }
 
     /* ---------------- long-press ---------------- */
@@ -239,7 +314,7 @@
     document.addEventListener('touchstart', function (ev) {
         clearPress();
         var tr = ev.target ? rowOf(ev.target) : null;
-        if (!tr) return;
+        if (!tr && !isDetailPage()) return;
         pressRow = tr;
         pressStart = Date.now();
         pressTimer = setTimeout(function () {
@@ -251,7 +326,7 @@
     }, { passive: true, capture: true });
 
     document.addEventListener('touchend', function () {
-        if (pressRow && pressStart &&
+        if (pressStart &&
             (Date.now() - pressStart >= LONGPRESS_MS)) {
             var tr = pressRow;
             clearPress();
@@ -265,7 +340,7 @@
 
     document.addEventListener('contextmenu', function (ev) {
         var tr = ev.target ? rowOf(ev.target) : null;
-        if (!tr) return;
+        if (!tr && !isDetailPage()) return;
         ev.preventDefault();
         openMenu(tr);
     }, { capture: true });
