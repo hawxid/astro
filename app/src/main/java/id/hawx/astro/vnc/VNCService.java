@@ -126,6 +126,21 @@ public class VNCService extends Service {
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
 
+        // Default remote path: attach x11vnc to the Lorie display :0, so a
+        // remote viewer sees the SAME session as the local Desktop button.
+        // -localhost is intentionally omitted so hotspot clients (TV) can
+        // connect; auth comes from /root/.vnc/passwd when present.
+        // Resolution is unused here: the Lorie display geometry is fixed.
+        core.customChrootCommand("export DISPLAY=:0; "
+                + "if [ -s /root/.vnc/passwd ]; then AUTH=\"-rfbauth /root/.vnc/passwd\"; else AUTH=\"\"; fi; "
+                + "setsid nohup x11vnc -xkb -noxrecord -noxfixes -noxdamage -display :0 -forever -bg $AUTH -rfbport " + port + " -noshm > /tmp/x11vnc-lorie.log 2>&1 < /dev/null &");
+    }
+
+    // Fallback, NOT wired to UI: the previous Xvfb-based VNC session.
+    // Kept so the Lorie-attach path can be reverted quickly if its device
+    // PoC fails (e.g. GPU-composited content not captured by x11vnc).
+    @SuppressWarnings("unused")
+    private void startXvfbVnc(String resolution, String port) {
         core.customChrootCommand("mkdir -p /tmp; setsid nohup vncserver-start -p " + port
                 + " -r " + resolution + " > /tmp/vncserver-start.log 2>&1 < /dev/null &");
     }
@@ -151,7 +166,11 @@ public class VNCService extends Service {
         sendBroadcast(intent);
 
         vnc = null;
-        core.customChrootCommand("vncserver-stop");
+        // Kill the Lorie-attached x11vnc. Only tear down the Xvfb session
+        // (vncserver-stop also kills XFCE components) when Xvfb is actually
+        // running, so stopping VNC never kills the local Lorie desktop.
+        core.customChrootCommand("pkill -f 'x11vnc.*-rfbport' 2>/dev/null; "
+                + "if pidof Xvfb >/dev/null 2>&1; then vncserver-stop; fi");
 
         timer.cancel();
         stopForeground(false);
@@ -159,7 +178,7 @@ public class VNCService extends Service {
     }
 
     private boolean isVNCStarted() {
-        java.util.ArrayList<String> out = core.customChrootCommand("pidof Xvfb", true);
+        java.util.ArrayList<String> out = core.customChrootCommand("pidof x11vnc Xvfb", true);
         for (String l : out) {
             if (l == null) continue;
             String t = l.trim();
@@ -170,7 +189,7 @@ public class VNCService extends Service {
 
     public void checkVNC() {
         if (isVNCStarted()) {
-            notification.setContentText("Running VNC Server on localhost:" + port);
+            notification.setContentText("Running VNC Server on port " + port);
             notification.build();
             NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             mNotificationManager.notify(33, notification.build());

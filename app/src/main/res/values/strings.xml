@@ -239,8 +239,7 @@ attacks</string>
 changer</string>
     <string name="dashboard_tile_wpair">Whisper
 Pair</string>
-    <string name="dashboard_tile_vnc">VNC
-desktop</string>
+    <string name="dashboard_tile_vnc">Desktop</string>
     <string name="dashboard_tile_usb">USB
 Arsenal</string>
     <string name="dashboard_tile_manager">Core

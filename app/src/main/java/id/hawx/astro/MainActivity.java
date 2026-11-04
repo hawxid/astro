@@ -1367,7 +1367,7 @@ public class MainActivity extends AppCompatActivity {
         m.put(R.id.metasploit_item,   new DrawerSpec("Metasploit",       R.drawable.shield,      0xFFD4AF37));
         m.put(R.id.wordlists_item,    new DrawerSpec("Wordlists",        R.drawable.summarize,   0xFFD4AF37));
         m.put(R.id.geomac_item,       new DrawerSpec("GeoMac",           R.drawable.map,         0xFFD4AF37));
-        m.put(R.id.vnc_item,          new DrawerSpec("VNC desktop",      R.drawable.vnc,         0xFFD4AF37));
+        m.put(R.id.vnc_item,          new DrawerSpec("Desktop",      R.drawable.vnc,         0xFFD4AF37));
         m.put(R.id.usb_arsenal_item,  new DrawerSpec("USB Arsenal",      R.drawable.usb,         0xFFD4AF37));
         m.put(R.id.manager_item,      new DrawerSpec("Core manager",     R.drawable.tune,        0xFFD4AF37));
         m.put(R.id.about_item,        new DrawerSpec("About",            R.drawable.info_outlined, 0xFFD4AF37));

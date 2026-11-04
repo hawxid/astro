@@ -47,6 +47,7 @@ import id.hawx.astro.vnc.install.VncInstallStage;
 import id.hawx.astro.utils.AdvancedProcess;
 import id.hawx.astro.utils.Core;
 import id.hawx.astro.utils.SimpleProcess;
+import id.hawx.astro.x11.XSessionManager;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -86,6 +87,7 @@ public class VNCFragment extends Fragment {
     private TextInputLayout passwdLayout;
 
     private MaterialButton install;
+    private MaterialButton openDesktop;
     private MaterialButton toggle;
     private MaterialButton uninstall;
     private MaterialButton changePasswd;
@@ -160,6 +162,7 @@ public class VNCFragment extends Fragment {
         buildStageRows(LayoutInflater.from(context));
 
         install = view.findViewById(R.id.install_vnc);
+        openDesktop = view.findViewById(R.id.open_desktop_lorie);
         toggle = view.findViewById(R.id.toggle_vnc);
         uninstall = view.findViewById(R.id.uninstall_vnc);
         changePasswd = view.findViewById(R.id.change_passwd);
@@ -169,6 +172,7 @@ public class VNCFragment extends Fragment {
         wireSettingsDefaults();
         wireConnectionCard();
         wireInstall();
+        wireOpenDesktop();
         wireToggle();
         wireUninstall();
         wireChangePassword();
@@ -257,7 +261,7 @@ public class VNCFragment extends Fragment {
 
     private void wireInstall() {
         install.setOnClickListener(v -> new MaterialAlertDialogBuilder(context)
-                .setTitle("VNC installer")
+                .setTitle("Desktop installer")
                 .setMessage("This will install XFCE + x11vnc into the chroot. ~600 MB download.")
                 .setPositiveButton(android.R.string.ok, (di, i) -> new Thread(() -> {
                     if (!stageVncScripts()) {
@@ -528,6 +532,23 @@ public class VNCFragment extends Fragment {
         };
     }
 
+    private void wireOpenDesktop() {
+        openDesktop.setOnClickListener(v -> {
+            XSessionManager.get(context).start((ok, message) -> {
+                if (!isSafe()) return;
+                if (!ok) {
+                    core.toaster("Could not start Lorie display: " + message);
+                    return;
+                }
+                core.threadChrootCommand("export DISPLAY=:0; "
+                        + "pgrep -x xfsettingsd >/dev/null 2>&1 || setsid xfsettingsd >/tmp/xfsettingsd.log 2>&1 </dev/null & "
+                        + "pgrep -x xfce4-panel >/dev/null 2>&1 || setsid xfce4-panel >/tmp/xfce4-panel.log 2>&1 </dev/null & "
+                        + "pgrep -x xfdesktop >/dev/null 2>&1 || setsid xfdesktop >/tmp/xfdesktop.log 2>&1 </dev/null &");
+                XSessionManager.get(context).openViewer();
+            });
+        });
+    }
+
     private void wireToggle() {
         toggle.setOnClickListener(v -> {
             if (isVNCStarted()) {
@@ -622,6 +643,7 @@ public class VNCFragment extends Fragment {
     private void vncInstalled() {
         hideInstallSurfaces();
         install.setVisibility(View.GONE);
+        openDesktop.setVisibility(View.VISIBLE);
         resolutionLayout.setVisibility(View.VISIBLE);
         portLayout.setVisibility(View.VISIBLE);
         toggle.setVisibility(View.VISIBLE);
@@ -637,6 +659,7 @@ public class VNCFragment extends Fragment {
     private void vncNotInstalled() {
         if (logAdapter.size() == 0) hideInstallSurfaces();
         install.setVisibility(View.VISIBLE);
+        openDesktop.setVisibility(View.GONE);
         resolutionLayout.setVisibility(View.GONE);
         portLayout.setVisibility(View.GONE);
         toggle.setVisibility(View.GONE);
@@ -670,7 +693,7 @@ public class VNCFragment extends Fragment {
     }
 
     private boolean isVNCStarted() {
-        java.util.ArrayList<String> out = core.customChrootCommand("pidof Xvfb", true);
+        java.util.ArrayList<String> out = core.customChrootCommand("pidof x11vnc Xvfb", true);
         for (String l : out) {
             if (l == null) continue;
             String t = l.trim();
@@ -700,7 +723,7 @@ public class VNCFragment extends Fragment {
         changePasswd.setEnabled(true);
         passwdLayout.setEnabled(true);
         setStatePill("OFF", 0xFFF9A825, false);
-        installed.setText("Stopped · tap Start to spin up xvfb + x11vnc");
+        installed.setText("Stopped · tap Start to share the Lorie desktop over VNC");
     }
 
     private void setStatePill(String text, int color, boolean spinning) {
