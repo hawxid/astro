@@ -245,6 +245,7 @@ Arsenal</string>
     <string name="dashboard_tile_manager">Core
 manager</string>
     <string name="dashboard_tile_logs">Logs</string>
+    <string name="dashboard_tile_hydramedusa">Hydra &amp; Medusa</string>
     <string name="dashboard_customize_all">All</string>
     <string name="dashboard_customize_none">None</string>
     <string name="dashboard_card_terminal_title">Open Terminal</string>
@@ -846,6 +847,21 @@ manager</string>
     <string name="hydra_validation_creds">Enter a password (or switch to wordlists)</string>
     <string name="hydra_validation_wordlist">Pick a wordlist — drop files into /sdcard/Astro/wordlists</string>
     <string name="hydra_toast_copied">Copied to clipboard</string>
+
+    <string name="hm_subtitle">Login brute-force with Hydra or Medusa, on systems you own.</string>
+    <string name="hm_status_idle">Pick a tool, service, target, and creds, then Launch</string>
+    <string name="hm_tool_hydra">Hydra</string>
+    <string name="hm_tool_medusa">Medusa</string>
+    <string name="hm_section_tool">Tool</string>
+    <string name="hm_hint_output_file">Output file (optional)</string>
+    <string name="hm_hint_extra_flags">Extra flags (e.g. -e nsr -w 5)</string>
+    <string name="hm_section_preview">Command preview</string>
+    <string name="hm_btn_copy_command">Copy command</string>
+    <string name="hm_terminal_title">Log</string>
+    <string name="hm_status_running">Running…</string>
+    <string name="hm_status_none">No credentials found</string>
+    <string name="hm_status_stopped">Stopped</string>
+    <string name="hm_status_error">Error</string>
 
     <string name="geomac_title">Atlas</string>
     <string name="geomac_subtitle_idle">Map of looked-up, scanned and cracked APs</string>

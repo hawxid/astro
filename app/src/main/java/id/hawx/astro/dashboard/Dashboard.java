@@ -272,6 +272,9 @@ public class Dashboard extends Fragment {
         t.add(new Tool("nmap", R.string.dashboard_tile_nmap, R.drawable.scanner,
                 R.drawable.dashboard_tile_bg_purple, accent, false,
                 () -> receiver.changeFragment(R.id.nmap_item)));
+        t.add(new Tool("hydramedusa", R.string.dashboard_tile_hydramedusa, R.drawable.key,
+                R.drawable.dashboard_tile_bg_red, accent, false,
+                () -> receiver.changeFragment(R.id.hydramedusa_item)));
         t.add(new Tool("hid", R.string.dashboard_tile_hid, R.drawable.keyboard,
                 R.drawable.dashboard_tile_bg_red, accent, false,
                 () -> receiver.changeFragment(R.id.hid_item)));
@@ -326,6 +329,7 @@ public class Dashboard extends Fragment {
                 {"metasploit", R.string.dashboard_tile_metasploit, true},
                 {"goose", R.string.dashboard_card_goose_title, true},
                 {"nmap", R.string.dashboard_tile_nmap, false},
+                {"hydramedusa", R.string.dashboard_tile_hydramedusa, false},
                 {"hid", R.string.dashboard_tile_hid, false},
                 {"wordlists", R.string.dashboard_tile_wordlists, false},
                 {"macchanger", R.string.dashboard_tile_macchanger, false},

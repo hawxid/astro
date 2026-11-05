@@ -233,6 +233,10 @@
             android:id="@+id/metasploit_item"
             layout="@layout/drawer_row" />
 
+        <include
+            android:id="@+id/hydramedusa_item"
+            layout="@layout/drawer_row" />
+
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

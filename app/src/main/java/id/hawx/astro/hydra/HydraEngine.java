@@ -30,11 +30,14 @@ public final class HydraEngine {
         public final int threads;
         public final boolean verbose;
         public final boolean stopOnFirst;
+        public final String outputFile;
+        public final String extraFlags;
 
         public Spec(String service, String target, String port,
                     String loginWordlist, String passwordWordlist,
                     String singleLogin, String singlePassword,
-                    int threads, boolean verbose, boolean stopOnFirst) {
+                    int threads, boolean verbose, boolean stopOnFirst,
+                    String outputFile, String extraFlags) {
             this.service = service;
             this.target = target;
             this.port = port;
@@ -45,6 +48,8 @@ public final class HydraEngine {
             this.threads = threads;
             this.verbose = verbose;
             this.stopOnFirst = stopOnFirst;
+            this.outputFile = outputFile;
+            this.extraFlags = extraFlags;
         }
     }
 
@@ -157,7 +162,9 @@ public final class HydraEngine {
         closeTranscript();
     }
 
-    private String buildCommand(Spec spec) {
+    /** The exact command that will run — also used for the UI preview.
+     *  Flags first, then target, then service (positionals, service last). */
+    public static String buildCommand(Spec spec) {
         StringBuilder cmd = new StringBuilder("hydra ");
         if (spec.threads > 0) cmd.append("-t ").append(spec.threads).append(' ');
         if (spec.verbose) cmd.append("-V ");
@@ -176,10 +183,11 @@ public final class HydraEngine {
         } else if (notEmpty(spec.passwordWordlist)) {
             cmd.append("-P ").append(spec.passwordWordlist).append(' ');
         }
-
-        cmd.append(spec.service).append("://").append(spec.target);
-        if (notEmpty(spec.port)) cmd.append(':').append(spec.port);
-        return cmd.toString();
+        if (notEmpty(spec.port)) cmd.append("-s ").append(spec.port).append(' ');
+        if (notEmpty(spec.outputFile)) cmd.append("-o ").append(spec.outputFile).append(' ');
+        if (notEmpty(spec.extraFlags)) cmd.append(spec.extraFlags.trim()).append(' ');
+        cmd.append(spec.target).append(' ').append(spec.service);
+        return cmd.toString().trim();
     }
 
     private void handleLine(String rawLine) {
@@ -252,7 +260,7 @@ public final class HydraEngine {
         return s != null && !s.isEmpty();
     }
 
-    private static String shellQuote(String value) {
+    public static String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
 }

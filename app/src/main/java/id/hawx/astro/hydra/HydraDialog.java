@@ -39,14 +39,14 @@ import java.util.Map;
 
 public final class HydraDialog {
 
-    private static final String[] HYDRA_SERVICES = new String[] {
+    static final String[] HYDRA_SERVICES = new String[] {
             "ssh", "ftp", "ftps", "telnet", "smb", "rdp", "mysql", "mssql",
             "postgres", "vnc", "snmp", "redis", "pop3", "pop3s", "imap",
             "imaps", "smtp", "smtps", "rexec", "rlogin", "cisco", "cisco-enable",
             "ldap2", "ldap2s", "ldap3", "asterisk", "svn", "xmpp"
     };
 
-    private static final Map<String, String> DEFAULT_PORTS = new LinkedHashMap<>();
+    static final Map<String, String> DEFAULT_PORTS = new LinkedHashMap<>();
     static {
         DEFAULT_PORTS.put("ssh", "22");
         DEFAULT_PORTS.put("ftp", "21");
@@ -277,7 +277,9 @@ public final class HydraDialog {
                     singleMode ? singleP : "",
                     (int) threadsSlider.getValue(),
                     verboseChip.isChecked(),
-                    firstChip.isChecked()
+                    firstChip.isChecked(),
+                    "",
+                    ""
             );
 
             if (engineRef[0] == null) {
@@ -315,7 +317,9 @@ public final class HydraDialog {
         loginWlLayout.setVisibility(needLogin ? View.VISIBLE : View.GONE);
     }
 
-    private static void openFullscreen(Context context, Activity activity, TextView source) {
+    /** Fullscreen log dialog mirroring a console TextView live.
+     *  Package-private so HydraMedusaFragment reuses the exact same log. */
+    static void openFullscreen(Context context, Activity activity, TextView source) {
         Dialog fs = new Dialog(context, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
         fs.setContentView(R.layout.hydra_output_fullscreen);
         Window w = fs.getWindow();
