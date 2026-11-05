@@ -543,6 +543,51 @@
             app:iconPadding="8dp"
             app:iconTint="@color/light_contrast" />
 
+        <LinearLayout
+            android:id="@+id/desktop_audio_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginBottom="10dp"
+                android:letterSpacing="0.08"
+                android:text="SUARA DESKTOP"
+                android:textAllCaps="true"
+                android:textColor="@color/astro_accent"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/desktop_audio_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginBottom="10dp"
+                android:text="Mati"
+                android:textColor="@color/grey"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toggle_desktop_audio"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:backgroundTint="#5E35B1"
+                android:text="Nyalakan suara desktop"
+                android:textColor="@color/light_contrast"
+                android:textSize="15sp"
+                app:cornerRadius="16dp"
+                app:icon="@drawable/run"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                app:iconTint="@color/light_contrast" />
+        </LinearLayout>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/change_passwd"
             style="@style/Widget.Material3.Button.OutlinedButton"

@@ -92,6 +92,10 @@ public class VNCFragment extends Fragment {
     private MaterialButton uninstall;
     private MaterialButton changePasswd;
 
+    private View audioSection;
+    private MaterialButton toggleAudio;
+    private TextView audioStatus;
+
     private AdvancedProcess installProcess;
     private AdvancedProcess uninstallProcess;
     private SimpleProcess changePasswdProcess;
@@ -167,6 +171,10 @@ public class VNCFragment extends Fragment {
         uninstall = view.findViewById(R.id.uninstall_vnc);
         changePasswd = view.findViewById(R.id.change_passwd);
 
+        audioSection = view.findViewById(R.id.desktop_audio_section);
+        toggleAudio = view.findViewById(R.id.toggle_desktop_audio);
+        audioStatus = view.findViewById(R.id.desktop_audio_status);
+
         cancelled.set(false);
 
         wireSettingsDefaults();
@@ -174,6 +182,7 @@ public class VNCFragment extends Fragment {
         wireInstall();
         wireOpenDesktop();
         wireToggle();
+        wireDesktopAudio();
         wireUninstall();
         wireChangePassword();
 
@@ -559,6 +568,29 @@ public class VNCFragment extends Fragment {
         });
     }
 
+    private void wireDesktopAudio() {
+        DesktopAudioReceiver receiver = DesktopAudioReceiver.get(context);
+        receiver.setListener(() -> {
+            if (isSafe()) renderDesktopAudio();
+        });
+        toggleAudio.setOnClickListener(v -> {
+            DesktopAudioReceiver r = DesktopAudioReceiver.get(context);
+            if (r.isRunning()) r.stop();
+            else r.start();
+            renderDesktopAudio();
+        });
+        renderDesktopAudio();
+    }
+
+    private void renderDesktopAudio() {
+        if (!isSafe()) return;
+        DesktopAudioReceiver receiver = DesktopAudioReceiver.get(context);
+        boolean on = receiver.isRunning();
+        toggleAudio.setText(on ? "Matikan suara desktop" : "Nyalakan suara desktop");
+        toggleAudio.setIconResource(on ? R.drawable.stop : R.drawable.run);
+        audioStatus.setText(receiver.getDetail());
+    }
+
     private void wireUninstall() {
         uninstall.setOnClickListener(v -> new MaterialAlertDialogBuilder(context)
                 .setTitle("Uninstall VNC?")
@@ -653,6 +685,7 @@ public class VNCFragment extends Fragment {
         sectionConnection.setVisibility(View.VISIBLE);
         connectionCard.setVisibility(View.VISIBLE);
         sectionSettings.setVisibility(View.VISIBLE);
+        audioSection.setVisibility(View.VISIBLE);
         renderConnectionCard();
     }
 
@@ -669,6 +702,7 @@ public class VNCFragment extends Fragment {
         sectionConnection.setVisibility(View.GONE);
         connectionCard.setVisibility(View.GONE);
         sectionSettings.setVisibility(View.GONE);
+        audioSection.setVisibility(View.GONE);
         installed.setText("Not installed — tap install to fetch ~600 MB.");
         setStatePill("OFF", 0xFF757575, false);
     }
@@ -793,6 +827,7 @@ public class VNCFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        renderDesktopAudio();
         new Thread(() -> {
             if (isVNCInstalled() && activity != null && isAdded()) {
                 activity.runOnUiThread(this::checkVNCStarted);
@@ -833,6 +868,10 @@ public class VNCFragment extends Fragment {
             if (activity != null) activity.unregisterReceiver(mBroadcastReceiver);
         } catch (IllegalArgumentException ignored) {
         }
+        // Listener dilepas, tapi receiver TIDAK dimatikan: suara desktop
+        // sengaja hidup melewati menu ditutup (singleton proses); matinya
+        // eksplisit lewat toggle saat menu dibuka lagi.
+        DesktopAudioReceiver.get(context).setListener(null);
         super.onDestroyView();
     }
 
