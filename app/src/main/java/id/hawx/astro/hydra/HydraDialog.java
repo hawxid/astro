@@ -86,14 +86,15 @@ public final class HydraDialog {
         TextInputEditText hostField = dialog.findViewById(R.id.hydra_host);
         TextInputEditText portField = dialog.findViewById(R.id.hydra_port);
 
-        ChipGroup modeGroup = dialog.findViewById(R.id.hydra_mode_group);
-        Chip modeWordlists = dialog.findViewById(R.id.hydra_mode_wordlists);
-        Chip modeSingle = dialog.findViewById(R.id.hydra_mode_single);
-        LinearLayout wlBlock = dialog.findViewById(R.id.hydra_block_wordlists);
-        LinearLayout singleBlock = dialog.findViewById(R.id.hydra_block_single);
+        LinearLayout loginBlock = dialog.findViewById(R.id.hydra_login_block);
+        ChipGroup loginModeGroup = dialog.findViewById(R.id.hydra_login_mode_group);
+        ChipGroup passwordModeGroup = dialog.findViewById(R.id.hydra_password_mode_group);
         MaterialAutoCompleteTextView loginWl = dialog.findViewById(R.id.hydra_login_wl);
         TextInputLayout loginWlLayout = dialog.findViewById(R.id.hydra_login_wl_layout);
+        TextInputLayout singleLoginLayout = dialog.findViewById(R.id.hydra_single_login_layout);
         MaterialAutoCompleteTextView passwordWl = dialog.findViewById(R.id.hydra_password_wl);
+        TextInputLayout passwordWlLayout = dialog.findViewById(R.id.hydra_password_wl_layout);
+        TextInputLayout singlePasswordLayout = dialog.findViewById(R.id.hydra_single_password_layout);
         TextInputEditText singleLogin = dialog.findViewById(R.id.hydra_single_login);
         TextInputEditText singlePassword = dialog.findViewById(R.id.hydra_single_password);
 
@@ -101,6 +102,7 @@ public final class HydraDialog {
         TextView threadsValue = dialog.findViewById(R.id.hydra_threads_value);
         Chip verboseChip = dialog.findViewById(R.id.hydra_chip_verbose);
         Chip firstChip = dialog.findViewById(R.id.hydra_chip_first);
+        Chip loopChip = dialog.findViewById(R.id.hydra_chip_loop);
 
         LinearProgressIndicator progress = dialog.findViewById(R.id.hydra_dialog_progress);
         MaterialCardView foundCard = dialog.findViewById(R.id.hydra_found_card);
@@ -168,13 +170,20 @@ public final class HydraDialog {
             customSvcLayout.setVisibility(showCustom ? View.VISIBLE : View.GONE);
             String defPort = DEFAULT_PORTS.get(selectedService[0]);
             if (defPort != null) portField.setText(defPort);
-            updateLoginVisibility(selectedService[0], loginWlLayout);
+            updateLoginVisibility(selectedService[0], loginBlock);
         });
 
-        modeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            boolean wl = checkedIds.contains(R.id.hydra_mode_wordlists);
-            wlBlock.setVisibility(wl ? View.VISIBLE : View.GONE);
-            singleBlock.setVisibility(wl ? View.GONE : View.VISIBLE);
+        loginModeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            boolean list = checkedIds.get(0) == R.id.hydra_login_mode_list;
+            loginWlLayout.setVisibility(list ? View.VISIBLE : View.GONE);
+            singleLoginLayout.setVisibility(list ? View.GONE : View.VISIBLE);
+        });
+        passwordModeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            boolean list = checkedIds.get(0) == R.id.hydra_password_mode_list;
+            passwordWlLayout.setVisibility(list ? View.VISIBLE : View.GONE);
+            singlePasswordLayout.setVisibility(list ? View.GONE : View.VISIBLE);
         });
 
         final HydraEngine[] engineRef = { null };
@@ -248,19 +257,20 @@ public final class HydraDialog {
             String singleP = textOf(singlePassword);
             String wlL = loginList[0] == null ? "" : wordlistStore.guestPathQuoted(loginList[0]);
             String wlP = passwordList[0] == null ? "" : wordlistStore.guestPathQuoted(passwordList[0]);
-            boolean singleMode = modeSingle.isChecked();
+            boolean loginListMode = loginWlLayout.getVisibility() == View.VISIBLE;
+            boolean passwordListMode = passwordWlLayout.getVisibility() == View.VISIBLE;
 
             if (service.length() < 2 || host.length() < 3) {
                 Toast.makeText(context, R.string.hydra_validation_target, Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (singleMode) {
-                if (singleP.isEmpty()) {
-                    Toast.makeText(context, R.string.hydra_validation_creds, Toast.LENGTH_SHORT).show();
+            if (passwordListMode) {
+                if (wlP.isEmpty()) {
+                    Toast.makeText(context, R.string.hydra_validation_wordlist, Toast.LENGTH_SHORT).show();
                     return;
                 }
-            } else if (wlP.isEmpty()) {
-                Toast.makeText(context, R.string.hydra_validation_wordlist, Toast.LENGTH_SHORT).show();
+            } else if (singleP.isEmpty()) {
+                Toast.makeText(context, R.string.hydra_validation_creds, Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -271,15 +281,16 @@ public final class HydraDialog {
 
             HydraEngine.Spec spec = new HydraEngine.Spec(
                     service, host, port,
-                    singleMode ? "" : wlL,
-                    singleMode ? "" : wlP,
-                    singleMode ? singleL : "",
-                    singleMode ? singleP : "",
+                    loginListMode ? wlL : "",
+                    passwordListMode ? wlP : "",
+                    loginListMode ? "" : singleL,
+                    passwordListMode ? "" : singleP,
                     (int) threadsSlider.getValue(),
                     verboseChip.isChecked(),
                     firstChip.isChecked(),
                     "",
-                    ""
+                    "",
+                    loopChip.isChecked()
             );
 
             if (engineRef[0] == null) {
@@ -311,10 +322,10 @@ public final class HydraDialog {
         dialog.show();
     }
 
-    private static void updateLoginVisibility(String service, TextInputLayout loginWlLayout) {
+    private static void updateLoginVisibility(String service, View loginBlock) {
         String single = " redis adam6500 cisco oracle-listener s7-300 snmp vnc rsh rpcap ";
         boolean needLogin = !single.contains(" " + service + " ");
-        loginWlLayout.setVisibility(needLogin ? View.VISIBLE : View.GONE);
+        loginBlock.setVisibility(needLogin ? View.VISIBLE : View.GONE);
     }
 
     /** Fullscreen log dialog mirroring a console TextView live.

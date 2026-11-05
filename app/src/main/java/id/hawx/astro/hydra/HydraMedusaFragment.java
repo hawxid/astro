@@ -112,6 +112,7 @@ public class HydraMedusaFragment extends Fragment {
         int threads = THREADS_DEFAULT_HYDRA;
         boolean verbose;
         boolean stopOnFirst;
+        boolean loopUsers;
         String outputFile = "";
         String extraFlags = "";
     }
@@ -129,9 +130,12 @@ public class HydraMedusaFragment extends Fragment {
     private MaterialAutoCompleteTextView customSvcField;
     private TextInputEditText targetField;
     private TextInputEditText portField;
-    private ChipGroup modeGroup;
-    private View blockWordlists;
-    private View blockSingle;
+    private ChipGroup loginModeGroup;
+    private ChipGroup passwordModeGroup;
+    private View loginWlLayout;
+    private View passwordWlLayout;
+    private View singleLoginLayout;
+    private View singlePasswordLayout;
     private MaterialAutoCompleteTextView loginWlField;
     private MaterialAutoCompleteTextView passwordWlField;
     private TextInputEditText singleLoginField;
@@ -140,6 +144,7 @@ public class HydraMedusaFragment extends Fragment {
     private MaterialTextView threadsValue;
     private Chip verboseChip;
     private Chip firstChip;
+    private Chip loopChip;
     private TextInputEditText outputFileField;
     private TextInputEditText extraFlagsField;
     private MaterialTextView previewText;
@@ -193,9 +198,12 @@ public class HydraMedusaFragment extends Fragment {
         customSvcField = view.findViewById(R.id.hm_service_custom);
         targetField = view.findViewById(R.id.hm_target);
         portField = view.findViewById(R.id.hm_port);
-        modeGroup = view.findViewById(R.id.hm_mode_group);
-        blockWordlists = view.findViewById(R.id.hm_block_wordlists);
-        blockSingle = view.findViewById(R.id.hm_block_single);
+        loginModeGroup = view.findViewById(R.id.hm_login_mode_group);
+        passwordModeGroup = view.findViewById(R.id.hm_password_mode_group);
+        loginWlLayout = view.findViewById(R.id.hm_login_wl_layout);
+        passwordWlLayout = view.findViewById(R.id.hm_password_wl_layout);
+        singleLoginLayout = view.findViewById(R.id.hm_single_login_layout);
+        singlePasswordLayout = view.findViewById(R.id.hm_single_password_layout);
         loginWlField = view.findViewById(R.id.hm_login_wl);
         passwordWlField = view.findViewById(R.id.hm_password_wl);
         singleLoginField = view.findViewById(R.id.hm_single_login);
@@ -204,6 +212,7 @@ public class HydraMedusaFragment extends Fragment {
         threadsValue = view.findViewById(R.id.hm_threads_value);
         verboseChip = view.findViewById(R.id.hm_chip_verbose);
         firstChip = view.findViewById(R.id.hm_chip_first);
+        loopChip = view.findViewById(R.id.hm_chip_loop);
         outputFileField = view.findViewById(R.id.hm_output_file);
         extraFlagsField = view.findViewById(R.id.hm_extra_flags);
         previewText = view.findViewById(R.id.hm_preview);
@@ -222,7 +231,7 @@ public class HydraMedusaFragment extends Fragment {
 
         wireToolSwitch();
         wireServiceField();
-        wireModeSwitch();
+        wireCredentialModes();
         wireInputs();
         wireWordlistPickers();
         wireButtons();
@@ -350,12 +359,23 @@ public class HydraMedusaFragment extends Fragment {
         return service.substring(0, 1).toUpperCase(Locale.US) + service.substring(1);
     }
 
-    private void wireModeSwitch() {
-        modeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
+    /** Each credential picks its own mode: the login field and the
+     *  password field each have a List | Single pair, so a single
+     *  username can be combined with a password list (and the other
+     *  three combinations). Toggling one field leaves the other alone. */
+    private void wireCredentialModes() {
+        loginModeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
             if (checkedIds.isEmpty()) return;
-            boolean single = checkedIds.get(0) == R.id.hm_mode_single;
-            blockWordlists.setVisibility(single ? View.GONE : View.VISIBLE);
-            blockSingle.setVisibility(single ? View.VISIBLE : View.GONE);
+            boolean list = checkedIds.get(0) == R.id.hm_login_mode_list;
+            loginWlLayout.setVisibility(list ? View.VISIBLE : View.GONE);
+            singleLoginLayout.setVisibility(list ? View.GONE : View.VISIBLE);
+            updatePreview();
+        });
+        passwordModeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            boolean list = checkedIds.get(0) == R.id.hm_password_mode_list;
+            passwordWlLayout.setVisibility(list ? View.VISIBLE : View.GONE);
+            singlePasswordLayout.setVisibility(list ? View.GONE : View.VISIBLE);
             updatePreview();
         });
     }
@@ -426,6 +446,7 @@ public class HydraMedusaFragment extends Fragment {
         });
         verboseChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
         firstChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        loopChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
     }
 
     private void wireButtons() {
@@ -476,34 +497,37 @@ public class HydraMedusaFragment extends Fragment {
         f.threads = clampThreads(Math.round(threadsSlider.getValue()));
         f.verbose = verboseChip.isChecked();
         f.stopOnFirst = firstChip.isChecked();
+        f.loopUsers = loopChip.isChecked();
         f.outputFile = quotePath(textOf(outputFileField).trim());
         f.extraFlags = textOf(extraFlagsField).trim();
         return f;
     }
 
     private HydraEngine.Spec buildHydraSpec(FormValues f) {
-        boolean single = blockSingle.getVisibility() == View.VISIBLE;
+        boolean loginList = loginWlLayout.getVisibility() == View.VISIBLE;
+        boolean passwordList = passwordWlLayout.getVisibility() == View.VISIBLE;
         return new HydraEngine.Spec(
                 f.service, f.target, f.port,
-                single ? "" : f.loginWordlist,
-                single ? "" : f.passwordWordlist,
-                single ? f.singleLogin : "",
-                single ? f.singlePassword : "",
+                loginList ? f.loginWordlist : "",
+                passwordList ? f.passwordWordlist : "",
+                loginList ? "" : f.singleLogin,
+                passwordList ? "" : f.singlePassword,
                 f.threads, f.verbose, f.stopOnFirst,
-                f.outputFile, f.extraFlags
+                f.outputFile, f.extraFlags, f.loopUsers
         );
     }
 
     private MedusaEngine.Spec buildMedusaSpec(FormValues f) {
-        boolean single = blockSingle.getVisibility() == View.VISIBLE;
+        boolean loginList = loginWlLayout.getVisibility() == View.VISIBLE;
+        boolean passwordList = passwordWlLayout.getVisibility() == View.VISIBLE;
         return new MedusaEngine.Spec(
                 f.service, f.target, f.port,
-                single ? "" : f.loginWordlist,
-                single ? "" : f.passwordWordlist,
-                single ? f.singleLogin : "",
-                single ? f.singlePassword : "",
+                loginList ? f.loginWordlist : "",
+                passwordList ? f.passwordWordlist : "",
+                loginList ? "" : f.singleLogin,
+                passwordList ? "" : f.singlePassword,
                 f.threads, f.verbose, f.stopOnFirst,
-                f.outputFile, f.extraFlags
+                f.outputFile, f.extraFlags, f.loopUsers
         );
     }
 
@@ -518,7 +542,7 @@ public class HydraMedusaFragment extends Fragment {
 
     private void runTool() {
         FormValues f = collectForm();
-        boolean single = blockSingle.getVisibility() == View.VISIBLE;
+        boolean passwordList = passwordWlLayout.getVisibility() == View.VISIBLE;
         if (f.service.isEmpty() || f.service.length() < 2) {
             toast(R.string.hydra_validation_target);
             return;
@@ -527,13 +551,15 @@ public class HydraMedusaFragment extends Fragment {
             toast(R.string.hydra_validation_target);
             return;
         }
-        if (single) {
-            if (f.singleLogin.isEmpty() && f.singlePassword.isEmpty()) {
-                toast(R.string.hydra_validation_creds);
+        // A password must be supplied in whatever form its own field
+        // is in; the login is optional (some services take none).
+        if (passwordList) {
+            if (f.passwordWordlist.isEmpty()) {
+                toast(R.string.hydra_validation_wordlist);
                 return;
             }
-        } else if (f.passwordWordlist.isEmpty()) {
-            toast(R.string.hydra_validation_wordlist);
+        } else if (f.singlePassword.isEmpty()) {
+            toast(R.string.hydra_validation_creds);
             return;
         }
 

@@ -723,6 +723,7 @@
     <string name="hydra_dialog_status_idle">选择服务、目标和凭据 → 启动</string>
     <string name="hydra_dialog_status_found">找到凭据</string>
     <string name="hydra_dialog_status_progress">已尝试 %1$d / %2$d</string>
+    <string name="hydra_status_aborted">目标停止响应（连接错误过多）</string>
     <string name="hydra_section_service">服务</string>
     <string name="hydra_section_target">目标</string>
     <string name="hydra_section_credentials">凭据</string>
@@ -741,6 +742,8 @@
     <string name="hydra_hint_port">端口</string>
     <string name="hydra_mode_wordlists">字典</string>
     <string name="hydra_mode_single">单个凭据</string>
+    <string name="hydra_mode_list">列表</string>
+    <string name="hydra_mode_single_short">单个</string>
     <string name="hydra_hint_login_wordlist">登录名字典</string>
     <string name="hydra_hint_password_wordlist">密码字典</string>
     <string name="hydra_hint_single_login">登录名</string>
@@ -748,6 +751,7 @@
     <string name="hydra_threads_label">并行任务数</string>
     <string name="hydra_chip_verbose">详细</string>
     <string name="hydra_chip_first">匹配即停</string>
+    <string name="hydra_chip_loop_users">轮询用户</string>
     <string name="hydra_btn_launch">启动</string>
     <string name="hydra_btn_stop">停止</string>
     <string name="hydra_btn_close">关闭</string>

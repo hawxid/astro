@@ -32,12 +32,13 @@ public final class HydraEngine {
         public final boolean stopOnFirst;
         public final String outputFile;
         public final String extraFlags;
+        public final boolean loopUsers;
 
         public Spec(String service, String target, String port,
                     String loginWordlist, String passwordWordlist,
                     String singleLogin, String singlePassword,
                     int threads, boolean verbose, boolean stopOnFirst,
-                    String outputFile, String extraFlags) {
+                    String outputFile, String extraFlags, boolean loopUsers) {
             this.service = service;
             this.target = target;
             this.port = port;
@@ -50,6 +51,7 @@ public final class HydraEngine {
             this.stopOnFirst = stopOnFirst;
             this.outputFile = outputFile;
             this.extraFlags = extraFlags;
+            this.loopUsers = loopUsers;
         }
     }
 
@@ -95,6 +97,11 @@ public final class HydraEngine {
     private FileWriter transcript;
     private File transcriptFile;
     private final ArrayList<Credential> credentials = new ArrayList<>();
+    // Set when hydra aborts because the target stopped accepting
+    // connections ("too many connection errors" / "did not complete"),
+    // so the status can say the target died instead of the misleading
+    // "No credentials found" for a run that never finished.
+    private boolean abortedByServer;
 
     public HydraEngine(Activity activity, Context context, Core core, Listener listener) {
         this.activity = activity;
@@ -118,6 +125,7 @@ public final class HydraEngine {
     public synchronized void start(Spec spec) {
         if (state == State.RUNNING) return;
         credentials.clear();
+        abortedByServer = false;
         openTranscript(spec);
 
         String cmd = buildCommand(spec);
@@ -134,6 +142,8 @@ public final class HydraEngine {
                 if (!credentials.isEmpty()) {
                     setState(State.FOUND, "Found " + credentials.size() + " credential"
                             + (credentials.size() == 1 ? "" : "s"));
+                } else if (abortedByServer) {
+                    setState(State.ERROR, context.getString(R.string.hydra_status_aborted));
                 } else {
                     setState(State.NONE, "No credentials found");
                 }
@@ -169,6 +179,7 @@ public final class HydraEngine {
         if (spec.threads > 0) cmd.append("-t ").append(spec.threads).append(' ');
         if (spec.verbose) cmd.append("-V ");
         if (spec.stopOnFirst) cmd.append("-F ");
+        if (spec.loopUsers) cmd.append("-u ");
 
         boolean needLogin = !NO_LOGIN_SERVICES.contains(" " + spec.service + " ");
         if (needLogin) {
@@ -192,6 +203,11 @@ public final class HydraEngine {
 
     private void handleLine(String rawLine) {
         if (rawLine == null) return;
+        if (rawLine.contains("too many connection errors")
+                || rawLine.contains("did not complete")
+                || rawLine.contains("was disabled")) {
+            abortedByServer = true;
+        }
         appendTranscript(rawLine);
         listener.onLine(rawLine);
 

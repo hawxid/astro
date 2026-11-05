@@ -43,12 +43,13 @@ public final class MedusaEngine {
         public final boolean stopOnFirst;
         public final String outputFile;
         public final String extraFlags;
+        public final boolean loopUsers;
 
         public Spec(String service, String target, String port,
                     String loginWordlist, String passwordWordlist,
                     String singleLogin, String singlePassword,
                     int threads, boolean verbose, boolean stopOnFirst,
-                    String outputFile, String extraFlags) {
+                    String outputFile, String extraFlags, boolean loopUsers) {
             this.service = service;
             this.target = target;
             this.port = port;
@@ -61,6 +62,7 @@ public final class MedusaEngine {
             this.stopOnFirst = stopOnFirst;
             this.outputFile = outputFile;
             this.extraFlags = extraFlags;
+            this.loopUsers = loopUsers;
         }
     }
 
@@ -186,6 +188,7 @@ public final class MedusaEngine {
         if (spec.threads > 0) cmd.append("-t ").append(spec.threads).append(' ');
         if (spec.stopOnFirst) cmd.append("-f ");
         if (spec.verbose) cmd.append("-v ");
+        if (spec.loopUsers) cmd.append("-L ");
         if (notEmpty(spec.outputFile)) cmd.append("-O ").append(spec.outputFile).append(' ');
         if (notEmpty(spec.extraFlags)) cmd.append(spec.extraFlags.trim()).append(' ');
         return cmd.toString().trim();
