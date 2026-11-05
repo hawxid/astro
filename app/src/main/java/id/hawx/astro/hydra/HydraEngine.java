@@ -3,6 +3,7 @@ package id.hawx.astro.hydra;
 import android.app.Activity;
 import android.content.Context;
 
+import id.hawx.astro.R;
 import id.hawx.astro.utils.AdvancedProcess;
 import id.hawx.astro.utils.Core;
 
