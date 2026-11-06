@@ -30,6 +30,52 @@ public final class MedusaEngine {
 
     public enum State { IDLE, RUNNING, FOUND, NONE, ERROR, KILLED }
 
+    /** Service-specific options, built by the UI from the
+     *  service-option fields. Every field is optional: an empty
+     *  field means its -m flag is omitted (so an advanced user can
+     *  leave a field blank and pass the -m flag via Extra flags
+     *  instead). Only the fields for the selected service are used.
+     *  web-form (from medusa -M web-form -q, device-verified):
+     *  FORM, FORM-DATA "<method>?<userfield>=&<passfield>=",
+     *  DENY-SIGNAL, USER-AGENT. http (from the module docs):
+     *  DIR, FORM "<userfield>=^USER^&<passfield>=^PASS^",
+     *  DENY-SIGNAL, NTLM / DIGEST. */
+    public static final class ServiceOptions {
+        public final String webFormAction;
+        public final String webFormMethod;
+        public final String webFormUserField;
+        public final String webFormPassField;
+        public final String webFormDeny;
+        public final String webFormUserAgent;
+        public final String httpDir;
+        public final String httpUserField;
+        public final String httpPassField;
+        public final String httpDeny;
+        public final String httpAuth;
+
+        public ServiceOptions(String webFormAction, String webFormMethod,
+                              String webFormUserField, String webFormPassField,
+                              String webFormDeny, String webFormUserAgent,
+                              String httpDir, String httpUserField, String httpPassField,
+                              String httpDeny, String httpAuth) {
+            this.webFormAction = webFormAction;
+            this.webFormMethod = webFormMethod;
+            this.webFormUserField = webFormUserField;
+            this.webFormPassField = webFormPassField;
+            this.webFormDeny = webFormDeny;
+            this.webFormUserAgent = webFormUserAgent;
+            this.httpDir = httpDir;
+            this.httpUserField = httpUserField;
+            this.httpPassField = httpPassField;
+            this.httpDeny = httpDeny;
+            this.httpAuth = httpAuth;
+        }
+
+        public static ServiceOptions empty() {
+            return new ServiceOptions("", "", "", "", "", "", "", "", "", "", "");
+        }
+    }
+
     public static final class Spec {
         public final String service;
         public final String target;
@@ -49,13 +95,15 @@ public final class MedusaEngine {
         public final int giveUp;
         public final int retrySleep;
         public final int retries;
+        public final ServiceOptions serviceOptions;
 
         public Spec(String service, String target, String port,
                     String loginWordlist, String passwordWordlist,
                     String singleLogin, String singlePassword,
                     int threads, boolean verbose, boolean stopOnFirst,
                     String outputFile, String extraFlags, boolean loopUsers,
-                    boolean ssl, String extraChecks, int giveUp, int retrySleep, int retries) {
+                    boolean ssl, String extraChecks, int giveUp, int retrySleep, int retries,
+                    ServiceOptions serviceOptions) {
             this.service = service;
             this.target = target;
             this.port = port;
@@ -74,6 +122,7 @@ public final class MedusaEngine {
             this.giveUp = giveUp;
             this.retrySleep = retrySleep;
             this.retries = retries;
+            this.serviceOptions = serviceOptions == null ? ServiceOptions.empty() : serviceOptions;
         }
     }
 
@@ -181,7 +230,10 @@ public final class MedusaEngine {
     }
 
     /** The exact command that will run — also used for the UI preview.
-     *  Retry fields are omitted when unset (medusa defaults: -g 3, -r 3). */
+     *  Retry fields are omitted when unset (medusa defaults: -g 3, -r 3).
+     *  Service-option -m flags are emitted after -L (so the built
+     *  web-form command matches the device-verified order exactly)
+     *  and before Extra flags, which stay last as the escape hatch. */
     public static String buildCommand(Spec spec) {
         StringBuilder cmd = new StringBuilder("medusa ");
         cmd.append("-h ").append(spec.target).append(' ');
@@ -203,12 +255,72 @@ public final class MedusaEngine {
         if (spec.stopOnFirst) cmd.append("-f ");
         if (spec.verbose) cmd.append("-v ");
         if (spec.loopUsers) cmd.append("-L ");
+        appendServiceOptions(cmd, spec);
         if (spec.giveUp > 0) cmd.append("-g ").append(spec.giveUp).append(' ');
         if (spec.retrySleep > 0) cmd.append("-r ").append(spec.retrySleep).append(' ');
         if (spec.retries > 0) cmd.append("-R ").append(spec.retries).append(' ');
         if (notEmpty(spec.outputFile)) cmd.append("-O ").append(spec.outputFile).append(' ');
         if (notEmpty(spec.extraFlags)) cmd.append(spec.extraFlags.trim()).append(' ');
         return cmd.toString().trim();
+    }
+
+    /** Service-option -m flags, only for the selected service and
+     *  only for the fields that are filled. web-form: FORM, FORM-DATA,
+     *  DENY-SIGNAL, USER-AGENT (in that order, matching the
+     *  device-verified command). http: DIR, FORM, DENY-SIGNAL, NTLM / DIGEST. */
+    private static void appendServiceOptions(StringBuilder cmd, Spec spec) {
+        ServiceOptions o = spec.serviceOptions;
+        if (o == null) return;
+        if ("web-form".equals(spec.service)) {
+            if (notEmpty(o.webFormAction)) {
+                cmd.append("-m FORM:").append(dq(o.webFormAction)).append(' ');
+            }
+            String data = buildWebFormData(o);
+            if (data != null) cmd.append("-m FORM-DATA:").append(dq(data)).append(' ');
+            if (notEmpty(o.webFormDeny)) {
+                cmd.append("-m DENY-SIGNAL:").append(dq(o.webFormDeny)).append(' ');
+            }
+            if (notEmpty(o.webFormUserAgent)) {
+                cmd.append("-m USER-AGENT:").append(dq(o.webFormUserAgent)).append(' ');
+            }
+        } else if ("http".equals(spec.service)) {
+            if (notEmpty(o.httpDir)) cmd.append("-m DIR:").append(o.httpDir).append(' ');
+            String form = buildHttpForm(o);
+            if (form != null) cmd.append("-m FORM:").append(dq(form)).append(' ');
+            if (notEmpty(o.httpDeny)) {
+                cmd.append("-m DENY-SIGNAL:").append(dq(o.httpDeny)).append(' ');
+            }
+            if ("NTLM".equals(o.httpAuth)) cmd.append("-m NTLM ");
+            else if ("DIGEST".equals(o.httpAuth)) cmd.append("-m DIGEST ");
+        }
+    }
+
+    /** web-form FORM-DATA: "<method>?<userfield>=&<passfield>=".
+     *  The username field must come first, then the password field
+     *  (per medusa -M web-form -q). Null when either field name is
+     *  empty, so a bare "user=&pass=" is never emitted and the
+     *  module never falls back to its default field names. */
+    private static String buildWebFormData(ServiceOptions o) {
+        if (notEmpty(o.webFormUserField) && notEmpty(o.webFormPassField)) {
+            String method = notEmpty(o.webFormMethod) ? o.webFormMethod : "post";
+            return method + "?" + o.webFormUserField + "=&" + o.webFormPassField + "=";
+        }
+        return null;
+    }
+
+    /** http FORM: "<userfield>=^USER^&<passfield>=^PASS^".
+     *  Null when either field name is empty. */
+    private static String buildHttpForm(ServiceOptions o) {
+        if (notEmpty(o.httpUserField) && notEmpty(o.httpPassField)) {
+            return o.httpUserField + "=^USER^&" + o.httpPassField + "=^PASS^";
+        }
+        return null;
+    }
+
+    /** Double-quote a -m value for the shell (medusa examples use
+     *  double quotes; the values may hold spaces or &). */
+    private static String dq(String value) {
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private void handleLine(String rawLine) {

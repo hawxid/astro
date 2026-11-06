@@ -38,13 +38,19 @@ public final class HydraEngine {
         public final String extraChecks;
         public final int waitSeconds;
         public final boolean restore;
+        // Optional service argument, appended after the service name
+        // (e.g. http-post-form "/path:user=^USER^&pass=^PASS^:failure"
+        // or http-get "/index.html"). Built by the UI from the
+        // service-option fields; empty when the service takes none.
+        public final String serviceArg;
 
         public Spec(String service, String target, String port,
                     String loginWordlist, String passwordWordlist,
                     String singleLogin, String singlePassword,
                     int threads, boolean verbose, boolean stopOnFirst,
                     String outputFile, String extraFlags, boolean loopUsers,
-                    boolean ssl, String extraChecks, int waitSeconds, boolean restore) {
+                    boolean ssl, String extraChecks, int waitSeconds, boolean restore,
+                    String serviceArg) {
             this.service = service;
             this.target = target;
             this.port = port;
@@ -62,6 +68,7 @@ public final class HydraEngine {
             this.extraChecks = extraChecks;
             this.waitSeconds = waitSeconds;
             this.restore = restore;
+            this.serviceArg = serviceArg;
         }
     }
 
@@ -183,7 +190,8 @@ public final class HydraEngine {
     }
 
     /** The exact command that will run — also used for the UI preview.
-     *  Flags first, then target, then service (positionals, service last). */
+     *  Flags first, then target, then service (positionals, service last),
+     *  then the optional service argument (e.g. the http-form argument). */
     public static String buildCommand(Spec spec) {
         StringBuilder cmd = new StringBuilder("hydra ");
         if (spec.threads > 0) cmd.append("-t ").append(spec.threads).append(' ');
@@ -215,6 +223,7 @@ public final class HydraEngine {
         if (notEmpty(spec.outputFile)) cmd.append("-o ").append(spec.outputFile).append(' ');
         if (notEmpty(spec.extraFlags)) cmd.append(spec.extraFlags.trim()).append(' ');
         cmd.append(spec.target).append(' ').append(spec.service);
+        if (notEmpty(spec.serviceArg)) cmd.append(' ').append(spec.serviceArg);
         return cmd.toString().trim();
     }
 

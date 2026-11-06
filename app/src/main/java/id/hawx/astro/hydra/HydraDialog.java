@@ -7,6 +7,8 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 import android.view.Window;
 import android.widget.ImageView;
@@ -43,7 +45,8 @@ public final class HydraDialog {
             "ssh", "ftp", "ftps", "telnet", "smb", "rdp", "mysql", "mssql",
             "postgres", "vnc", "snmp", "redis", "pop3", "pop3s", "imap",
             "imaps", "smtp", "smtps", "rexec", "rlogin", "cisco", "cisco-enable",
-            "ldap2", "ldap2s", "ldap3", "asterisk", "svn", "xmpp"
+            "ldap2", "ldap2s", "ldap3", "asterisk", "svn", "xmpp",
+            "http-post-form", "http-get-form", "http-get", "http-post", "http-head"
     };
 
     static final Map<String, String> DEFAULT_PORTS = new LinkedHashMap<>();
@@ -63,6 +66,11 @@ public final class HydraDialog {
         DEFAULT_PORTS.put("pop3", "110");
         DEFAULT_PORTS.put("imap", "143");
         DEFAULT_PORTS.put("smtp", "25");
+        DEFAULT_PORTS.put("http-post-form", "80");
+        DEFAULT_PORTS.put("http-get-form", "80");
+        DEFAULT_PORTS.put("http-get", "80");
+        DEFAULT_PORTS.put("http-post", "80");
+        DEFAULT_PORTS.put("http-head", "80");
     }
 
     private HydraDialog() {}
@@ -83,6 +91,12 @@ public final class HydraDialog {
         ChipGroup serviceGroup = dialog.findViewById(R.id.hydra_service_group);
         TextInputLayout customSvcLayout = dialog.findViewById(R.id.hydra_service_custom_layout);
         MaterialAutoCompleteTextView customSvc = dialog.findViewById(R.id.hydra_service_custom);
+        // Service options: http-post-form / http-get-form fields.
+        View svcOptionsBox = dialog.findViewById(R.id.hydra_svc_options);
+        TextInputEditText hfPathField = dialog.findViewById(R.id.hydra_svc_hf_path);
+        TextInputEditText hfUserField = dialog.findViewById(R.id.hydra_svc_hf_user);
+        TextInputEditText hfPassField = dialog.findViewById(R.id.hydra_svc_hf_pass);
+        TextInputEditText hfFailureField = dialog.findViewById(R.id.hydra_svc_hf_failure);
         TextInputEditText hostField = dialog.findViewById(R.id.hydra_host);
         TextInputEditText portField = dialog.findViewById(R.id.hydra_port);
 
@@ -169,6 +183,8 @@ public final class HydraDialog {
             else if (id == R.id.hydra_chip_postgres) selectedService[0] = "postgres";
             else if (id == R.id.hydra_chip_telnet) selectedService[0] = "telnet";
             else if (id == R.id.hydra_chip_vnc) selectedService[0] = "vnc";
+            else if (id == R.id.hydra_chip_http_post_form) selectedService[0] = "http-post-form";
+            else if (id == R.id.hydra_chip_http_get_form) selectedService[0] = "http-get-form";
             else if (id == R.id.hydra_chip_custom) {
                 selectedService[0] = "";
                 showCustom = true;
@@ -177,6 +193,22 @@ public final class HydraDialog {
             String defPort = DEFAULT_PORTS.get(selectedService[0]);
             if (defPort != null) portField.setText(defPort);
             updateLoginVisibility(selectedService[0], loginBlock);
+            updateSvcOptions(selectedService[0], svcOptionsBox);
+        });
+        customSvc.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (selectedService[0] != null && !selectedService[0].isEmpty()) return;
+                updateSvcOptions(s.toString(), svcOptionsBox);
+            }
         });
 
         loginModeGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
@@ -300,7 +332,8 @@ public final class HydraDialog {
                     sslChip.isChecked(),
                     buildExtraChecks(eNullChip, eSameChip, eReversedChip),
                     parseSeconds(waitField),
-                    restoreChip.isChecked()
+                    restoreChip.isChecked(),
+                    buildHttpFormArg(service, hfPathField, hfUserField, hfPassField, hfFailureField)
             );
 
             if (engineRef[0] == null) {
@@ -336,6 +369,39 @@ public final class HydraDialog {
         String single = " redis adam6500 cisco oracle-listener s7-300 snmp vnc rsh rpcap ";
         boolean needLogin = !single.contains(" " + service + " ");
         loginBlock.setVisibility(needLogin ? View.VISIBLE : View.GONE);
+    }
+
+    /** Show the http-form fields only for http-post-form /
+     *  http-get-form (the first word of a Custom service counts too). */
+    private static void updateSvcOptions(String service, View svcOptionsBox) {
+        String svc = service == null ? "" : service.trim();
+        int space = svc.indexOf(' ');
+        if (space > 0) svc = svc.substring(0, space);
+        svc = svc.toLowerCase(Locale.US);
+        boolean show = svc.equals("http-post-form") || svc.equals("http-get-form");
+        svcOptionsBox.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+
+    /** http-post-form / http-get-form service argument, built from the
+     *  service-option fields: "<path>:<user>=^USER^&<pass>=^PASS^:<failure>".
+     *  Empty when a field is missing, or when the service text already
+     *  holds an argument (Custom), so it is never duplicated. */
+    private static String buildHttpFormArg(String service,
+                                           TextInputEditText pathField,
+                                           TextInputEditText userField,
+                                           TextInputEditText passField,
+                                           TextInputEditText failureField) {
+        if (service == null) return "";
+        String svc = service.trim();
+        if (svc.indexOf(' ') > 0) return "";
+        svc = svc.toLowerCase(Locale.US);
+        if (!svc.equals("http-post-form") && !svc.equals("http-get-form")) return "";
+        String path = textOf(pathField);
+        String user = textOf(userField);
+        String pass = textOf(passField);
+        String failure = textOf(failureField);
+        if (path.isEmpty() || user.isEmpty() || pass.isEmpty() || failure.isEmpty()) return "";
+        return "\"" + path + ":" + user + "=^USER^&" + pass + "=^PASS^:" + failure + "\"";
     }
 
     /** Fullscreen log dialog mirroring a console TextView live.

@@ -57,6 +57,15 @@ import java.util.Map;
  * medusa 4 (small and safe against the tiny DroidSpace containers;
  * the medusa default is 16 per its tutorials, but 16 concurrent
  * logins can trip the MaxStartups limit of a small sshd — the slider goes to 64).
+ *
+ * SERVICE OPTIONS: a section that adapts to the selected service —
+ * web-form (medusa) gets the form fields, http-post-form /
+ * http-get-form (hydra) get the form fields, http-get / http-post /
+ * http-head (hydra) get a URL path, http (medusa) gets DIR / FORM /
+ * DENY-SIGNAL / NTLM / DIGEST. Services with no verified extra
+ * parameter show nothing extra. Every field is optional: an empty
+ * field means its flag is omitted, Extra flags stays the escape hatch,
+ * and the preview always shows the full command that will run.
  */
 public class HydraMedusaFragment extends Fragment {
 
@@ -126,6 +135,23 @@ public class HydraMedusaFragment extends Fragment {
         int retries;
         String outputFile = "";
         String extraFlags = "";
+        // Service options (only the fields for the selected service are used).
+        String wfForm = "";
+        String wfMethod = "post";
+        String wfUserField = "";
+        String wfPassField = "";
+        String wfDeny = "";
+        String wfAgent = "";
+        String hfPath = "";
+        String hfUserField = "";
+        String hfPassField = "";
+        String hfFailure = "";
+        String hpPath = "";
+        String mhDir = "";
+        String mhUserField = "";
+        String mhPassField = "";
+        String mhDeny = "";
+        String mhAuth = "";
     }
 
     private static final String SERVICE_CUSTOM_TAG = "__custom__";
@@ -143,6 +169,28 @@ public class HydraMedusaFragment extends Fragment {
     private MaterialAutoCompleteTextView customSvcField;
     private TextInputEditText targetField;
     private TextInputEditText portField;
+    // Service options (hm_service_options; one sub-container per service kind).
+    private View serviceOptionsBox;
+    private View svcWebForm;
+    private TextInputEditText wfFormField;
+    private ChipGroup wfMethodGroup;
+    private TextInputEditText wfUserField;
+    private TextInputEditText wfPassField;
+    private TextInputEditText wfDenyField;
+    private TextInputEditText wfAgentField;
+    private View svcHttpForm;
+    private TextInputEditText hfPathField;
+    private TextInputEditText hfUserField;
+    private TextInputEditText hfPassField;
+    private TextInputEditText hfFailureField;
+    private View svcHttpPath;
+    private TextInputEditText hpPathField;
+    private View svcMedusaHttp;
+    private TextInputEditText mhDirField;
+    private TextInputEditText mhUserField;
+    private TextInputEditText mhPassField;
+    private TextInputEditText mhDenyField;
+    private ChipGroup mhAuthGroup;
     private ChipGroup loginModeGroup;
     private ChipGroup passwordModeGroup;
     private View loginWlLayout;
@@ -226,6 +274,27 @@ public class HydraMedusaFragment extends Fragment {
         customSvcField = view.findViewById(R.id.hm_service_custom);
         targetField = view.findViewById(R.id.hm_target);
         portField = view.findViewById(R.id.hm_port);
+        serviceOptionsBox = view.findViewById(R.id.hm_service_options);
+        svcWebForm = view.findViewById(R.id.hm_svc_webform);
+        wfFormField = view.findViewById(R.id.hm_wf_form);
+        wfMethodGroup = view.findViewById(R.id.hm_wf_method_group);
+        wfUserField = view.findViewById(R.id.hm_wf_user_field);
+        wfPassField = view.findViewById(R.id.hm_wf_pass_field);
+        wfDenyField = view.findViewById(R.id.hm_wf_deny);
+        wfAgentField = view.findViewById(R.id.hm_wf_agent);
+        svcHttpForm = view.findViewById(R.id.hm_svc_httpform);
+        hfPathField = view.findViewById(R.id.hm_hf_path);
+        hfUserField = view.findViewById(R.id.hm_hf_user_field);
+        hfPassField = view.findViewById(R.id.hm_hf_pass_field);
+        hfFailureField = view.findViewById(R.id.hm_hf_failure);
+        svcHttpPath = view.findViewById(R.id.hm_svc_httppath);
+        hpPathField = view.findViewById(R.id.hm_hp_path);
+        svcMedusaHttp = view.findViewById(R.id.hm_svc_medusa_http);
+        mhDirField = view.findViewById(R.id.hm_mh_dir);
+        mhUserField = view.findViewById(R.id.hm_mh_user_field);
+        mhPassField = view.findViewById(R.id.hm_mh_pass_field);
+        mhDenyField = view.findViewById(R.id.hm_mh_deny);
+        mhAuthGroup = view.findViewById(R.id.hm_mh_auth_group);
         loginModeGroup = view.findViewById(R.id.hm_login_mode_group);
         passwordModeGroup = view.findViewById(R.id.hm_password_mode_group);
         loginWlLayout = view.findViewById(R.id.hm_login_wl_layout);
@@ -316,6 +385,7 @@ public class HydraMedusaFragment extends Fragment {
                 String defPort = defaultPortFor(selectedService);
                 if (!defPort.isEmpty()) portField.setText(defPort);
             }
+            updateServiceOptions();
             updatePreview();
         });
         customSvcField.addTextChangedListener(new TextWatcher() {
@@ -335,9 +405,75 @@ public class HydraMedusaFragment extends Fragment {
                 if (!defPort.isEmpty() && !defPort.equals(textOf(portField))) {
                     portField.setText(defPort);
                 }
+                updateServiceOptions();
                 updatePreview();
             }
         });
+    }
+
+    /** The service the section adapts to: the picked chip, or the
+     *  first word of the Custom text (so a Custom "http-post-form ..."
+     *  still shows the form fields). Lowercased for matching only;
+     *  the command keeps the original spelling. */
+    private String effectiveServiceName() {
+        String svc = serviceIsCustom ? textOf(customSvcField).trim() : selectedService;
+        if (svc.isEmpty()) return "";
+        int space = svc.indexOf(' ');
+        if (space > 0) svc = svc.substring(0, space);
+        return svc.toLowerCase(Locale.US);
+    }
+
+    /** Show only the fields for the effective service; hide the whole
+     *  section when the service has no extra parameter. Called on
+     *  every service pick, every Custom edit, and every tool switch. */
+    private void updateServiceOptions() {
+        String svc = effectiveServiceName();
+        boolean webForm = isMedusa && svc.equals("web-form");
+        boolean httpForm = !isMedusa
+                && (svc.equals("http-post-form") || svc.equals("http-get-form"));
+        boolean httpPath = !isMedusa
+                && (svc.equals("http-get") || svc.equals("http-post") || svc.equals("http-head"));
+        boolean medusaHttp = isMedusa && svc.equals("http");
+        svcWebForm.setVisibility(webForm ? View.VISIBLE : View.GONE);
+        svcHttpForm.setVisibility(httpForm ? View.VISIBLE : View.GONE);
+        svcHttpPath.setVisibility(httpPath ? View.VISIBLE : View.GONE);
+        svcMedusaHttp.setVisibility(medusaHttp ? View.VISIBLE : View.GONE);
+        serviceOptionsBox.setVisibility(
+                (webForm || httpForm || httpPath || medusaHttp) ? View.VISIBLE : View.GONE);
+    }
+
+    /** Hydra service argument, built from the service-option fields.
+     *  http-post-form / http-get-form: "<path>:<user>=^USER^&<pass>=^PASS^:<failure>"
+     *  (all four fields must be filled, otherwise the argument is
+     *  omitted and the bare service shows in the preview).
+     *  http-get / http-post / http-head: the URL path, double-quoted
+     *  (protects ? and & in a query string). Empty for every other
+     *  service. Note: for a Custom service the argument lives in the
+     *  Custom text itself — only build one when the text is a bare
+     *  service name, so a Custom argument is never duplicated. */
+    private String buildHydraServiceArg(FormValues f) {
+        String svc = effectiveServiceName();
+        if (serviceIsCustom && f.service.contains(" ")) return "";
+        if (svc.equals("http-post-form") || svc.equals("http-get-form")) {
+            if (isEmpty(f.hfPath) || isEmpty(f.hfUserField)
+                    || isEmpty(f.hfPassField) || isEmpty(f.hfFailure)) return "";
+            return "\"" + f.hfPath + ":" + f.hfUserField + "=^USER^&"
+                    + f.hfPassField + "=^PASS^:" + f.hfFailure + "\"";
+        }
+        if (svc.equals("http-get") || svc.equals("http-post") || svc.equals("http-head")) {
+            if (isEmpty(f.hpPath)) return "";
+            return "\"" + f.hpPath + "\"";
+        }
+        return "";
+    }
+
+    /** Medusa service options, built from the service-option fields.
+     *  The engine only emits the fields for the selected service,
+     *  and only the ones that are filled. */
+    private MedusaEngine.ServiceOptions buildMedusaServiceOptions(FormValues f) {
+        return new MedusaEngine.ServiceOptions(
+                f.wfForm, f.wfMethod, f.wfUserField, f.wfPassField, f.wfDeny, f.wfAgent,
+                f.mhDir, f.mhUserField, f.mhPassField, f.mhDeny, f.mhAuth);
     }
 
     /** Rebuild the service chip row for the picked tool. The guard
@@ -395,6 +531,11 @@ public class HydraMedusaFragment extends Fragment {
             case "smtp-vrfy": return "SMTP-VRFY";
             case "pcanywhere": return "pcAnywhere";
             case "vmauthd": return "VMAUTHD";
+            case "http-post-form": return "HTTP-Post-Form";
+            case "http-get-form": return "HTTP-Get-Form";
+            case "http-get": return "HTTP-Get";
+            case "http-post": return "HTTP-Post";
+            case "http-head": return "HTTP-Head";
             default: break;
         }
         if (service.length() <= 4) return service.toUpperCase(Locale.US);
@@ -484,6 +625,22 @@ public class HydraMedusaFragment extends Fragment {
         retriesField.addTextChangedListener(previewWatcher);
         outputFileField.addTextChangedListener(previewWatcher);
         extraFlagsField.addTextChangedListener(previewWatcher);
+        wfFormField.addTextChangedListener(previewWatcher);
+        wfUserField.addTextChangedListener(previewWatcher);
+        wfPassField.addTextChangedListener(previewWatcher);
+        wfDenyField.addTextChangedListener(previewWatcher);
+        wfAgentField.addTextChangedListener(previewWatcher);
+        hfPathField.addTextChangedListener(previewWatcher);
+        hfUserField.addTextChangedListener(previewWatcher);
+        hfPassField.addTextChangedListener(previewWatcher);
+        hfFailureField.addTextChangedListener(previewWatcher);
+        hpPathField.addTextChangedListener(previewWatcher);
+        mhDirField.addTextChangedListener(previewWatcher);
+        mhUserField.addTextChangedListener(previewWatcher);
+        mhPassField.addTextChangedListener(previewWatcher);
+        mhDenyField.addTextChangedListener(previewWatcher);
+        wfMethodGroup.setOnCheckedStateChangeListener((group, checkedIds) -> updatePreview());
+        mhAuthGroup.setOnCheckedStateChangeListener((group, checkedIds) -> updatePreview());
 
         threadsSlider.addOnChangeListener((slider, value, fromUser) -> {
             int v = clampThreads(Math.round(value));
@@ -537,6 +694,7 @@ public class HydraMedusaFragment extends Fragment {
         medusaOptions.setVisibility(isMedusa ? View.VISIBLE : View.GONE);
         titleText.setText(isMedusa ? R.string.hm_title_medusa : R.string.hm_title_hydra);
         subtitleText.setText(isMedusa ? R.string.hm_subtitle_medusa : R.string.hm_subtitle_hydra);
+        updateServiceOptions();
         updatePreview();
     }
 
@@ -570,6 +728,25 @@ public class HydraMedusaFragment extends Fragment {
         f.retries = parseSeconds(retriesField);
         f.outputFile = quotePath(textOf(outputFileField).trim());
         f.extraFlags = textOf(extraFlagsField).trim();
+        // Service options: read as typed (empty = omit its flag).
+        f.wfForm = textOf(wfFormField).trim();
+        f.wfMethod = wfMethodGroup.getCheckedChipId() == R.id.hm_chip_wf_get ? "get" : "post";
+        f.wfUserField = textOf(wfUserField).trim();
+        f.wfPassField = textOf(wfPassField).trim();
+        f.wfDeny = textOf(wfDenyField).trim();
+        f.wfAgent = textOf(wfAgentField).trim();
+        f.hfPath = textOf(hfPathField).trim();
+        f.hfUserField = textOf(hfUserField).trim();
+        f.hfPassField = textOf(hfPassField).trim();
+        f.hfFailure = textOf(hfFailureField).trim();
+        f.hpPath = textOf(hpPathField).trim();
+        f.mhDir = textOf(mhDirField).trim();
+        f.mhUserField = textOf(mhUserField).trim();
+        f.mhPassField = textOf(mhPassField).trim();
+        f.mhDeny = textOf(mhDenyField).trim();
+        int authId = mhAuthGroup.getCheckedChipId();
+        f.mhAuth = authId == R.id.hm_chip_mh_ntlm ? "NTLM"
+                : authId == R.id.hm_chip_mh_digest ? "DIGEST" : "";
         return f;
     }
 
@@ -613,7 +790,8 @@ public class HydraMedusaFragment extends Fragment {
                 passwordList ? "" : f.singlePassword,
                 f.threads, f.verbose, f.stopOnFirst,
                 f.outputFile, f.extraFlags, f.loopUsers,
-                f.ssl, f.extraChecks, f.waitSeconds, f.restore
+                f.ssl, f.extraChecks, f.waitSeconds, f.restore,
+                buildHydraServiceArg(f)
         );
     }
 
@@ -628,7 +806,8 @@ public class HydraMedusaFragment extends Fragment {
                 passwordList ? "" : f.singlePassword,
                 f.threads, f.verbose, f.stopOnFirst,
                 f.outputFile, f.extraFlags, f.loopUsers,
-                f.ssl, f.extraChecks, f.giveUp, f.retrySleep, f.retries
+                f.ssl, f.extraChecks, f.giveUp, f.retrySleep, f.retries,
+                buildMedusaServiceOptions(f)
         );
     }
 
@@ -807,6 +986,10 @@ public class HydraMedusaFragment extends Fragment {
 
     private static String textOf(MaterialAutoCompleteTextView field) {
         return field.getText() == null ? "" : field.getText().toString();
+    }
+
+    private static boolean isEmpty(String value) {
+        return value == null || value.isEmpty();
     }
 
     /** Quote a user-typed file path so spaces / shell metachars cannot split it. */
