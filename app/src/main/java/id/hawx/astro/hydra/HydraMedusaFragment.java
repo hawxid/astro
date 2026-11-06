@@ -65,11 +65,15 @@ public class HydraMedusaFragment extends Fragment {
     private static final int THREADS_DEFAULT_HYDRA = 16;
     private static final int THREADS_DEFAULT_MEDUSA = 4;
 
-    /** Real medusa modules (medusa -d). No rdp, no redis — medusa has neither. */
+    /** Real medusa modules from medusa -d on the chroot (v2.3):
+     *  24 login modules (the 25th, wrapper, is a generic wrapper,
+     *  not a login target). ldap and afp are NOT in medusa 2.3;
+     *  rdp and vmauthd ARE (verified against medusa -d). */
     private static final String[] MEDUSA_SERVICES = {
             "ssh", "ftp", "telnet", "http", "smbnt", "mysql", "postgres", "mssql",
-            "vnc", "pop3", "imap", "smtp", "snmp", "ldap", "cvs", "svn",
-            "web-form", "nntp", "rexec", "rlogin", "rsh", "pcanywhere", "afp", "smtp-vrfy"
+            "vnc", "pop3", "imap", "smtp", "snmp", "cvs", "svn",
+            "web-form", "nntp", "rexec", "rlogin", "rsh", "pcanywhere", "smtp-vrfy",
+            "rdp", "vmauthd"
     };
 
     private static final Map<String, String> MEDUSA_DEFAULT_PORTS = new LinkedHashMap<>();
@@ -89,7 +93,6 @@ public class HydraMedusaFragment extends Fragment {
         MEDUSA_DEFAULT_PORTS.put("smtp", "25");
         MEDUSA_DEFAULT_PORTS.put("smtp-vrfy", "25");
         MEDUSA_DEFAULT_PORTS.put("snmp", "161");
-        MEDUSA_DEFAULT_PORTS.put("ldap", "389");
         MEDUSA_DEFAULT_PORTS.put("cvs", "2401");
         MEDUSA_DEFAULT_PORTS.put("svn", "3690");
         MEDUSA_DEFAULT_PORTS.put("web-form", "80");
@@ -98,7 +101,8 @@ public class HydraMedusaFragment extends Fragment {
         MEDUSA_DEFAULT_PORTS.put("rlogin", "513");
         MEDUSA_DEFAULT_PORTS.put("rsh", "514");
         MEDUSA_DEFAULT_PORTS.put("pcanywhere", "5631");
-        MEDUSA_DEFAULT_PORTS.put("afp", "548");
+        MEDUSA_DEFAULT_PORTS.put("rdp", "3389");
+        MEDUSA_DEFAULT_PORTS.put("vmauthd", "902");
     }
 
     private static final class FormValues {
@@ -113,6 +117,13 @@ public class HydraMedusaFragment extends Fragment {
         boolean verbose;
         boolean stopOnFirst;
         boolean loopUsers;
+        boolean ssl;
+        boolean restore;
+        String extraChecks = "";
+        int waitSeconds;
+        int giveUp;
+        int retrySleep;
+        int retries;
         String outputFile = "";
         String extraFlags = "";
     }
@@ -124,6 +135,8 @@ public class HydraMedusaFragment extends Fragment {
     private Core core;
 
     private MaterialTextView statusText;
+    private MaterialTextView titleText;
+    private MaterialTextView subtitleText;
     private ChipGroup toolGroup;
     private ChipGroup serviceGroup;
     private TextInputLayout customSvcLayout;
@@ -145,6 +158,19 @@ public class HydraMedusaFragment extends Fragment {
     private Chip verboseChip;
     private Chip firstChip;
     private Chip loopChip;
+    private Chip sslChip;
+    private View hydraOptions;
+    private View medusaOptions;
+    private Chip restoreChip;
+    private Chip eNullChip;
+    private Chip eSameChip;
+    private Chip eReversedChip;
+    private TextInputEditText waitField;
+    private Chip meNullChip;
+    private Chip meSameChip;
+    private TextInputEditText giveUpField;
+    private TextInputEditText retrySleepField;
+    private TextInputEditText retriesField;
     private TextInputEditText outputFileField;
     private TextInputEditText extraFlagsField;
     private MaterialTextView previewText;
@@ -192,6 +218,8 @@ public class HydraMedusaFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         statusText = view.findViewById(R.id.hm_status);
+        titleText = view.findViewById(R.id.hm_title);
+        subtitleText = view.findViewById(R.id.hm_subtitle);
         toolGroup = view.findViewById(R.id.hm_tool_group);
         serviceGroup = view.findViewById(R.id.hm_service_group);
         customSvcLayout = view.findViewById(R.id.hm_service_custom_layout);
@@ -213,6 +241,19 @@ public class HydraMedusaFragment extends Fragment {
         verboseChip = view.findViewById(R.id.hm_chip_verbose);
         firstChip = view.findViewById(R.id.hm_chip_first);
         loopChip = view.findViewById(R.id.hm_chip_loop);
+        sslChip = view.findViewById(R.id.hm_chip_ssl);
+        hydraOptions = view.findViewById(R.id.hm_hydra_options);
+        medusaOptions = view.findViewById(R.id.hm_medusa_options);
+        restoreChip = view.findViewById(R.id.hm_chip_restore);
+        eNullChip = view.findViewById(R.id.hm_chip_e_null);
+        eSameChip = view.findViewById(R.id.hm_chip_e_same);
+        eReversedChip = view.findViewById(R.id.hm_chip_e_reversed);
+        waitField = view.findViewById(R.id.hm_wait);
+        meNullChip = view.findViewById(R.id.hm_chip_me_null);
+        meSameChip = view.findViewById(R.id.hm_chip_me_same);
+        giveUpField = view.findViewById(R.id.hm_give_up);
+        retrySleepField = view.findViewById(R.id.hm_retry_sleep);
+        retriesField = view.findViewById(R.id.hm_retries);
         outputFileField = view.findViewById(R.id.hm_output_file);
         extraFlagsField = view.findViewById(R.id.hm_extra_flags);
         previewText = view.findViewById(R.id.hm_preview);
@@ -353,6 +394,7 @@ public class HydraMedusaFragment extends Fragment {
             case "ldap3": return "LDAP3";
             case "smtp-vrfy": return "SMTP-VRFY";
             case "pcanywhere": return "pcAnywhere";
+            case "vmauthd": return "VMAUTHD";
             default: break;
         }
         if (service.length() <= 4) return service.toUpperCase(Locale.US);
@@ -436,6 +478,10 @@ public class HydraMedusaFragment extends Fragment {
         portField.addTextChangedListener(previewWatcher);
         singleLoginField.addTextChangedListener(previewWatcher);
         singlePasswordField.addTextChangedListener(previewWatcher);
+        waitField.addTextChangedListener(previewWatcher);
+        giveUpField.addTextChangedListener(previewWatcher);
+        retrySleepField.addTextChangedListener(previewWatcher);
+        retriesField.addTextChangedListener(previewWatcher);
         outputFileField.addTextChangedListener(previewWatcher);
         extraFlagsField.addTextChangedListener(previewWatcher);
 
@@ -447,6 +493,13 @@ public class HydraMedusaFragment extends Fragment {
         verboseChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
         firstChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
         loopChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        sslChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        restoreChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        eNullChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        eSameChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        eReversedChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        meNullChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        meSameChip.setOnCheckedChangeListener((button, checked) -> updatePreview());
     }
 
     private void wireButtons() {
@@ -461,7 +514,13 @@ public class HydraMedusaFragment extends Fragment {
         });
     }
 
-    /** Tool switch resets the form to the defaults for that tool. */
+    /** Tool switch resets the form to the defaults for that tool and
+     *  swaps the appearance to match it: the service chips rebuild,
+     *  the tool-specific option groups show or hide (hydra: Restore,
+     *  Extra checks n/s/r, Wait; medusa: Extra checks n/s, retry
+     *  fields), and the title follows the picked tool. Shared
+     *  controls (Verbose, Stop, Loop, SSL, Threads, Output, Extra
+     *  flags, credential modes) stay where they are. */
     private void applyToolDefaults() {
         selectedService = "ssh";
         serviceIsCustom = false;
@@ -474,6 +533,10 @@ public class HydraMedusaFragment extends Fragment {
         int defThreads = isMedusa ? THREADS_DEFAULT_MEDUSA : THREADS_DEFAULT_HYDRA;
         threadsSlider.setValue(defThreads);
         threadsValue.setText(String.valueOf(defThreads));
+        hydraOptions.setVisibility(isMedusa ? View.GONE : View.VISIBLE);
+        medusaOptions.setVisibility(isMedusa ? View.VISIBLE : View.GONE);
+        titleText.setText(isMedusa ? R.string.hm_title_medusa : R.string.hm_title_hydra);
+        subtitleText.setText(isMedusa ? R.string.hm_subtitle_medusa : R.string.hm_subtitle_hydra);
         updatePreview();
     }
 
@@ -498,9 +561,45 @@ public class HydraMedusaFragment extends Fragment {
         f.verbose = verboseChip.isChecked();
         f.stopOnFirst = firstChip.isChecked();
         f.loopUsers = loopChip.isChecked();
+        f.ssl = sslChip.isChecked();
+        f.restore = restoreChip.isChecked();
+        f.extraChecks = isMedusa ? buildExtraChecksMedusa() : buildExtraChecksHydra();
+        f.waitSeconds = parseSeconds(waitField);
+        f.giveUp = parseSeconds(giveUpField);
+        f.retrySleep = parseSeconds(retrySleepField);
+        f.retries = parseSeconds(retriesField);
         f.outputFile = quotePath(textOf(outputFileField).trim());
         f.extraFlags = textOf(extraFlagsField).trim();
         return f;
+    }
+
+    /** -e value from the checked Extra checks chips, in n/s/r order
+     *  for hydra and n/s order for medusa. Empty when none checked. */
+    private String buildExtraChecksHydra() {
+        StringBuilder e = new StringBuilder();
+        if (eNullChip.isChecked()) e.append('n');
+        if (eSameChip.isChecked()) e.append('s');
+        if (eReversedChip.isChecked()) e.append('r');
+        return e.toString();
+    }
+
+    private String buildExtraChecksMedusa() {
+        StringBuilder e = new StringBuilder();
+        if (meNullChip.isChecked()) e.append('n');
+        if (meSameChip.isChecked()) e.append('s');
+        return e.toString();
+    }
+
+    /** Seconds field: empty or non-numeric means unset (0, flag omitted). */
+    private static int parseSeconds(TextInputEditText field) {
+        String text = textOf(field).trim();
+        if (text.isEmpty()) return 0;
+        try {
+            int v = Integer.parseInt(text);
+            return v < 0 ? 0 : v;
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private HydraEngine.Spec buildHydraSpec(FormValues f) {
@@ -513,7 +612,8 @@ public class HydraMedusaFragment extends Fragment {
                 loginList ? "" : f.singleLogin,
                 passwordList ? "" : f.singlePassword,
                 f.threads, f.verbose, f.stopOnFirst,
-                f.outputFile, f.extraFlags, f.loopUsers
+                f.outputFile, f.extraFlags, f.loopUsers,
+                f.ssl, f.extraChecks, f.waitSeconds, f.restore
         );
     }
 
@@ -527,7 +627,8 @@ public class HydraMedusaFragment extends Fragment {
                 loginList ? "" : f.singleLogin,
                 passwordList ? "" : f.singlePassword,
                 f.threads, f.verbose, f.stopOnFirst,
-                f.outputFile, f.extraFlags, f.loopUsers
+                f.outputFile, f.extraFlags, f.loopUsers,
+                f.ssl, f.extraChecks, f.giveUp, f.retrySleep, f.retries
         );
     }
 

@@ -103,6 +103,12 @@ public final class HydraDialog {
         Chip verboseChip = dialog.findViewById(R.id.hydra_chip_verbose);
         Chip firstChip = dialog.findViewById(R.id.hydra_chip_first);
         Chip loopChip = dialog.findViewById(R.id.hydra_chip_loop);
+        Chip sslChip = dialog.findViewById(R.id.hydra_chip_ssl);
+        Chip restoreChip = dialog.findViewById(R.id.hydra_chip_restore);
+        Chip eNullChip = dialog.findViewById(R.id.hydra_chip_e_null);
+        Chip eSameChip = dialog.findViewById(R.id.hydra_chip_e_same);
+        Chip eReversedChip = dialog.findViewById(R.id.hydra_chip_e_reversed);
+        TextInputEditText waitField = dialog.findViewById(R.id.hydra_wait);
 
         LinearProgressIndicator progress = dialog.findViewById(R.id.hydra_dialog_progress);
         MaterialCardView foundCard = dialog.findViewById(R.id.hydra_found_card);
@@ -290,7 +296,11 @@ public final class HydraDialog {
                     firstChip.isChecked(),
                     "",
                     "",
-                    loopChip.isChecked()
+                    loopChip.isChecked(),
+                    sslChip.isChecked(),
+                    buildExtraChecks(eNullChip, eSameChip, eReversedChip),
+                    parseSeconds(waitField),
+                    restoreChip.isChecked()
             );
 
             if (engineRef[0] == null) {
@@ -359,6 +369,28 @@ public final class HydraDialog {
         MaterialButton close = fs.findViewById(R.id.hydra_full_close);
         close.setOnClickListener(v -> fs.dismiss());
         fs.show();
+    }
+
+    /** -e value from the checked Extra checks chips, in n/s/r order. */
+    private static String buildExtraChecks(Chip eNull, Chip eSame, Chip eReversed) {
+        StringBuilder e = new StringBuilder();
+        if (eNull.isChecked()) e.append('n');
+        if (eSame.isChecked()) e.append('s');
+        if (eReversed.isChecked()) e.append('r');
+        return e.toString();
+    }
+
+    /** Seconds field: empty or non-numeric means unset (0, flag omitted). */
+    private static int parseSeconds(TextInputEditText field) {
+        CharSequence cs = field.getText();
+        String text = cs == null ? "" : cs.toString().trim();
+        if (text.isEmpty()) return 0;
+        try {
+            int v = Integer.parseInt(text);
+            return v < 0 ? 0 : v;
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private static String textOf(TextView v) {

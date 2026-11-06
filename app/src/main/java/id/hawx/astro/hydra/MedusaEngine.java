@@ -44,12 +44,18 @@ public final class MedusaEngine {
         public final String outputFile;
         public final String extraFlags;
         public final boolean loopUsers;
+        public final boolean ssl;
+        public final String extraChecks;
+        public final int giveUp;
+        public final int retrySleep;
+        public final int retries;
 
         public Spec(String service, String target, String port,
                     String loginWordlist, String passwordWordlist,
                     String singleLogin, String singlePassword,
                     int threads, boolean verbose, boolean stopOnFirst,
-                    String outputFile, String extraFlags, boolean loopUsers) {
+                    String outputFile, String extraFlags, boolean loopUsers,
+                    boolean ssl, String extraChecks, int giveUp, int retrySleep, int retries) {
             this.service = service;
             this.target = target;
             this.port = port;
@@ -63,6 +69,11 @@ public final class MedusaEngine {
             this.outputFile = outputFile;
             this.extraFlags = extraFlags;
             this.loopUsers = loopUsers;
+            this.ssl = ssl;
+            this.extraChecks = extraChecks;
+            this.giveUp = giveUp;
+            this.retrySleep = retrySleep;
+            this.retries = retries;
         }
     }
 
@@ -169,11 +180,13 @@ public final class MedusaEngine {
         closeTranscript();
     }
 
-    /** The exact command that will run — also used for the UI preview. */
+    /** The exact command that will run — also used for the UI preview.
+     *  Retry fields are omitted when unset (medusa defaults: -g 3, -r 3). */
     public static String buildCommand(Spec spec) {
         StringBuilder cmd = new StringBuilder("medusa ");
         cmd.append("-h ").append(spec.target).append(' ');
         if (notEmpty(spec.port)) cmd.append("-n ").append(spec.port).append(' ');
+        if (spec.ssl) cmd.append("-s ");
         if (notEmpty(spec.singleLogin)) {
             cmd.append("-u ").append(HydraEngine.shellQuote(spec.singleLogin)).append(' ');
         } else if (notEmpty(spec.loginWordlist)) {
@@ -184,11 +197,15 @@ public final class MedusaEngine {
         } else if (notEmpty(spec.passwordWordlist)) {
             cmd.append("-P ").append(spec.passwordWordlist).append(' ');
         }
+        if (notEmpty(spec.extraChecks)) cmd.append("-e ").append(spec.extraChecks).append(' ');
         cmd.append("-M ").append(spec.service).append(' ');
         if (spec.threads > 0) cmd.append("-t ").append(spec.threads).append(' ');
         if (spec.stopOnFirst) cmd.append("-f ");
         if (spec.verbose) cmd.append("-v ");
         if (spec.loopUsers) cmd.append("-L ");
+        if (spec.giveUp > 0) cmd.append("-g ").append(spec.giveUp).append(' ');
+        if (spec.retrySleep > 0) cmd.append("-r ").append(spec.retrySleep).append(' ');
+        if (spec.retries > 0) cmd.append("-R ").append(spec.retries).append(' ');
         if (notEmpty(spec.outputFile)) cmd.append("-O ").append(spec.outputFile).append(' ');
         if (notEmpty(spec.extraFlags)) cmd.append(spec.extraFlags.trim()).append(' ');
         return cmd.toString().trim();

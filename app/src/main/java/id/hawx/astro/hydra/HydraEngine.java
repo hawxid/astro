@@ -34,12 +34,17 @@ public final class HydraEngine {
         public final String outputFile;
         public final String extraFlags;
         public final boolean loopUsers;
+        public final boolean ssl;
+        public final String extraChecks;
+        public final int waitSeconds;
+        public final boolean restore;
 
         public Spec(String service, String target, String port,
                     String loginWordlist, String passwordWordlist,
                     String singleLogin, String singlePassword,
                     int threads, boolean verbose, boolean stopOnFirst,
-                    String outputFile, String extraFlags, boolean loopUsers) {
+                    String outputFile, String extraFlags, boolean loopUsers,
+                    boolean ssl, String extraChecks, int waitSeconds, boolean restore) {
             this.service = service;
             this.target = target;
             this.port = port;
@@ -53,6 +58,10 @@ public final class HydraEngine {
             this.outputFile = outputFile;
             this.extraFlags = extraFlags;
             this.loopUsers = loopUsers;
+            this.ssl = ssl;
+            this.extraChecks = extraChecks;
+            this.waitSeconds = waitSeconds;
+            this.restore = restore;
         }
     }
 
@@ -181,6 +190,8 @@ public final class HydraEngine {
         if (spec.verbose) cmd.append("-V ");
         if (spec.stopOnFirst) cmd.append("-F ");
         if (spec.loopUsers) cmd.append("-u ");
+        if (spec.ssl) cmd.append("-S ");
+        if (spec.restore) cmd.append("-R ");
 
         boolean needLogin = !NO_LOGIN_SERVICES.contains(" " + spec.service + " ");
         if (needLogin) {
@@ -195,7 +206,12 @@ public final class HydraEngine {
         } else if (notEmpty(spec.passwordWordlist)) {
             cmd.append("-P ").append(spec.passwordWordlist).append(' ');
         }
+        if (notEmpty(spec.extraChecks)) cmd.append("-e ").append(spec.extraChecks).append(' ');
         if (notEmpty(spec.port)) cmd.append("-s ").append(spec.port).append(' ');
+        // -W is the between-connects wait (default 0); -w is the response
+        // timeout, so the Wait field wires -W, the one that slows the
+        // attempts down and keeps a fragile server alive.
+        if (spec.waitSeconds > 0) cmd.append("-W ").append(spec.waitSeconds).append(' ');
         if (notEmpty(spec.outputFile)) cmd.append("-o ").append(spec.outputFile).append(' ');
         if (notEmpty(spec.extraFlags)) cmd.append(spec.extraFlags.trim()).append(' ');
         cmd.append(spec.target).append(' ').append(spec.service);
